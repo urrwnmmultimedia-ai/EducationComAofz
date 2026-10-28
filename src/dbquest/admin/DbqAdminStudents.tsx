@@ -25,7 +25,7 @@ export function DbqAdminStudents() {
           {res.data.length === 0 ? (
             <p className="text-slate-500">ยังไม่มีนักเรียนในห้องนี้</p>
           ) : (
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm [&_td]:px-2 [&_th]:px-2">
               <thead className="text-slate-500">
                 <tr>
                   <th className="py-2">ห้อง</th>

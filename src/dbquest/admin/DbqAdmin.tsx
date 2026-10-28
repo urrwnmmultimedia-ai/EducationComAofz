@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '@/app/AuthContext'
 import { NongData } from '@/components/illustrations/NongData'
@@ -19,6 +19,14 @@ export function DbqAdminLayout() {
   const { logout } = useAuth()
   const navigate = useNavigate()
   const [leaving, setLeaving] = useState(false)
+
+  useEffect(() => {
+    const prev = document.title
+    document.title = 'DB Quest – หน้าครู'
+    return () => {
+      document.title = prev
+    }
+  }, [])
 
   const onLogout = async () => {
     setLeaving(true)

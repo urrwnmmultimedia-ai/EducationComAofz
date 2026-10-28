@@ -40,7 +40,7 @@ export function DbqAdminGrading() {
       {res.status === 'error' && <ErrorBlock message={res.error} onRetry={res.reload} />}
       {res.status === 'success' &&
         (res.data.length === 0 ? (
-          <p className={`${panel} text-slate-500`}>{status === 'pending' ? 'ไม่มีงานรอตรวจ 🎉' : 'ไม่มีงานตามเงื่อนไขนี้'}</p>
+          <p className={`${panel} text-slate-500`}>{status === 'pending' ? 'ไม่มีงานรอตรวจ' : 'ไม่มีงานตามเงื่อนไขนี้'}</p>
         ) : (
           <ul className="space-y-3">
             {res.data.map((s) => (

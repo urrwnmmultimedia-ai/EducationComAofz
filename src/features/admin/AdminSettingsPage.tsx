@@ -67,7 +67,7 @@ function GeneralForm({ initial, onSave }: { initial: AppSettingsRow; onSave: (v:
   }
 
   return (
-    <Card title="ข้อมูลทั่วไป">
+    <Card title="ข้อมูลทั่วไปและการเข้าสู่ระบบ (ใช้ทั้ง ม.3 และ DB Quest)">
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
         <Field label="ชื่อโรงเรียน" className="sm:col-span-2">
           <input className={INPUT} value={values.school_name} onChange={(e) => set('school_name', e.target.value)} />
@@ -98,7 +98,7 @@ function GeneralForm({ initial, onSave }: { initial: AppSettingsRow; onSave: (v:
             onChange={(e) => set('student_code_length', Number(e.target.value))}
           />
         </Field>
-        <Field label="ลีดเดอร์บอร์ดของนักเรียน">
+        <Field label="ลีดเดอร์บอร์ดของนักเรียน ม.3">
           <select
             className={INPUT}
             value={values.leaderboard_mode}
@@ -169,7 +169,7 @@ function ScoringForm({ initial, onSave }: { initial: AppSettingsRow; onSave: (v:
   }
 
   return (
-    <Card title="คะแนนและเกรด">
+    <Card title="คะแนนและเกรด ม.3">
       <form onSubmit={submit} className="flex flex-col gap-5">
         <div>
           <p className="mb-2 text-sm text-slate-600">
@@ -293,7 +293,7 @@ function AdminCodeForm({ onSave }: { onSave: (code: string) => Promise<void> }) 
   }
 
   return (
-    <Card title="เปลี่ยนรหัสสำหรับครู">
+    <Card title="เปลี่ยนรหัสสำหรับครู (ใช้เข้าได้ทั้งสองวิชา)">
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
         <Field label="รหัสใหม่">
           <input className={INPUT} type="password" autoComplete="new-password" value={code} onChange={(e) => setCode(e.target.value)} />

@@ -86,7 +86,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Navigate to="/db/home" replace /> },
-      { path: 'home', element: lazyPage(() => import('@/dbquest/pages/DbqPages'), 'DbqHomePage') },
+      { path: 'home', element: lazyPage(() => import('@/dbquest/pages/DbqHomePage'), 'DbqHomePage') },
       { path: 'map', element: lazyPage(() => import('@/dbquest/pages/DbqMapPage'), 'DbqMapPage') },
       { path: 'lesson/:sessionNo', element: lazyPage(() => import('@/dbquest/lesson/DbqLessonPage'), 'DbqLessonPage') },
       { path: 'games/:gameKey', element: lazyPage(() => import('@/dbquest/games/DbqGamePage'), 'DbqGamePage') },
@@ -111,6 +111,8 @@ export const router = createBrowserRouter([
       { path: 'gradebook', element: lazyPage(() => import('@/dbquest/admin/DbqAdminScores'), 'DbqAdminGradebook') },
       { path: 'answer-keys', element: lazyPage(() => import('@/dbquest/admin/DbqAdminKeys'), 'DbqAdminKeys') },
       { path: 'settings', element: lazyPage(() => import('@/dbquest/admin/DbqAdminSettings'), 'DbqAdminSettings') },
+      { path: 'roster', element: lazyPage(() => import('@/dbquest/admin/DbqAdmin'), 'DbqRosterPage') },
+      { path: 'classrooms', element: lazyPage(() => import('@/dbquest/admin/DbqAdmin'), 'DbqClassroomsPage') },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

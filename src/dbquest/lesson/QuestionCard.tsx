@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Lightbulb } from 'lucide-react'
 import type { Question } from '@/content/lesson'
 import type { Json } from '@/lib/database.types'
 import { checkAnswer, type CheckResult } from './dbqLessonApi'
@@ -177,7 +178,7 @@ export function QuestionCard({ question, solved, onChecked }: Props) {
         ) : result ? (
           <div className="rounded-2xl bg-amber-50 px-4 py-3 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100">
             <p className="font-display">ยังไม่ถูก ลองใหม่อีกครั้งนะ</p>
-            {result.hint && <p className="mt-1">💡 {result.hint}</p>}
+            {result.hint && <p className="mt-1 flex gap-1.5"><Lightbulb className="inline size-5 shrink-0 align-[-0.2em]" aria-hidden /> {result.hint}</p>}
           </div>
         ) : null}
         {error && <p className="text-rose-600 dark:text-rose-300">{error}</p>}

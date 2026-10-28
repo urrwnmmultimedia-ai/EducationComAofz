@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { AssignmentRow, ClassSessionRow, ClassroomRow, StudentRow, SubmissionRow } from '@/lib/database.types'
+import { M3, roomsOf, studentsIn } from './courseScope'
 
 export async function fetchAssignmentsAdmin(): Promise<{ assignments: AssignmentRow[]; sessions: ClassSessionRow[] }> {
   const [a, s] = await Promise.all([
@@ -49,7 +50,8 @@ export async function fetchGradingData(assignmentId: string): Promise<GradingDat
   if (st.error) throw st.error
   if (sub.error) throw sub.error
   if (!a.data) return null
-  return { assignment: a.data, classrooms: c.data, students: st.data, submissions: sub.data }
+  const rooms = roomsOf(c.data, M3)
+  return { assignment: a.data, classrooms: rooms, students: studentsIn(st.data, rooms, M3), submissions: sub.data }
 }
 
 export async function gradeSubmission(submissionId: string, score: number | null, feedback: string, status: 'graded' | 'returned') {
@@ -84,9 +86,10 @@ export async function fetchGradebookSource(): Promise<GradebookSource> {
     supabase.from('xp_events').select('student_id, xp'),
   ])
   for (const r of [c, st, a, sub, xp]) if (r.error) throw r.error
+  const rooms = roomsOf(c.data ?? [], M3)
   return {
-    classrooms: c.data ?? [],
-    students: st.data ?? [],
+    classrooms: rooms,
+    students: studentsIn(st.data ?? [], rooms, M3),
     assignments: a.data ?? [],
     submissions: sub.data ?? [],
     xp: xp.data ?? [],

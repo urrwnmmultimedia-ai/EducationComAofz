@@ -30,7 +30,7 @@ export function ScoresPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-2xl text-brand-900">📊 สมุดคะแนนของฉัน</h1>
+      <h1 className="text-2xl text-ink">สมุดคะแนนของฉัน</h1>
 
       <section className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100">

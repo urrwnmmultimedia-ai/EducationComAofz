@@ -35,17 +35,17 @@ export interface ImportResult {
 
 const norm = (v: unknown) => String(v ?? '').trim()
 
-// "3/1" หรือ "1" => "ม.3/1"
-export function normalizeClassroom(raw: string): string {
+// "3/1" หรือ "1" => "ม.3/1" (grade = ชั้นของวิชาที่นำเข้า)
+export function normalizeClassroom(raw: string, grade = 3): string {
   const v = raw.trim()
   if (!v) return ''
-  if (/^\d+$/.test(v)) return `ม.3/${v}`
+  if (/^\d+$/.test(v)) return `ม.${grade}/${v}`
   if (/^\d+\/\d+$/.test(v)) return `ม.${v}`
   return v.replace(/^ม\s*\.?\s*/, 'ม.')
 }
 
 // แปลงตาราง (แถวแรก = หัวตาราง) เป็นรายชื่อนักเรียนที่ตรวจแล้ว
-export function parseStudentTable(table: unknown[][]): ImportResult {
+export function parseStudentTable(table: unknown[][], grade = 3): ImportResult {
   const [header, ...body] = table
   const headers = (header ?? []).map((h) => norm(h).toLowerCase())
   const colIndex = {} as Record<keyof ImportRow, number>
@@ -70,7 +70,7 @@ export function parseStudentTable(table: unknown[][]): ImportResult {
       first_name: get(row, 'first_name'),
       last_name: get(row, 'last_name'),
       nickname: get(row, 'nickname'),
-      classroom: normalizeClassroom(get(row, 'classroom')),
+      classroom: normalizeClassroom(get(row, 'classroom'), grade),
       number: numberText === '' ? null : Number(numberText),
     }
     const parsed = importRowSchema.safeParse(candidate)

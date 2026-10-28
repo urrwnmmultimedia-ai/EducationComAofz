@@ -12,15 +12,15 @@ interface Props {
 export function NongData({ className = 'size-20', mood = 'happy', title = 'น้องดาต้า' }: Props) {
   return (
     <svg viewBox="0 0 120 120" className={className} role="img" aria-label={title}>
-      <line x1="60" y1="10" x2="60" y2="24" className="stroke-dq-300 dark:stroke-dq-400" strokeWidth="4" strokeLinecap="round" />
+      <line x1="60" y1="10" x2="60" y2="24" className="stroke-db-300 dark:stroke-db-400" strokeWidth="4" strokeLinecap="round" />
       <circle cx="60" cy="9" r="6" className="fill-xp-400" />
       {/* ตัวถังฐานข้อมูล */}
-      <path d="M22 34v52c0 9 17 16 38 16s38-7 38-16V34" className="fill-dq-400 dark:fill-dq-500" />
-      <path d="M22 60c0 9 17 16 38 16s38-7 38-16" fill="none" className="stroke-dq-600 dark:stroke-dq-700" strokeWidth="3" />
-      <path d="M22 84c0 9 17 16 38 16s38-7 38-16" fill="none" className="stroke-dq-600 dark:stroke-dq-700" strokeWidth="3" opacity=".5" />
-      <ellipse cx="60" cy="34" rx="38" ry="15" className="fill-dq-200 dark:fill-dq-300" />
+      <path d="M22 34v52c0 9 17 16 38 16s38-7 38-16V34" className="fill-db-400 dark:fill-db-500" />
+      <path d="M22 60c0 9 17 16 38 16s38-7 38-16" fill="none" className="stroke-db-600 dark:stroke-db-700" strokeWidth="3" />
+      <path d="M22 84c0 9 17 16 38 16s38-7 38-16" fill="none" className="stroke-db-600 dark:stroke-db-700" strokeWidth="3" opacity=".5" />
+      <ellipse cx="60" cy="34" rx="38" ry="15" className="fill-db-200 dark:fill-db-300" />
       {/* หน้าจอใบหน้า */}
-      <rect x="36" y="44" width="48" height="26" rx="12" className="fill-dq-900 dark:fill-dq-950" />
+      <rect x="36" y="44" width="48" height="26" rx="12" className="fill-db-900 dark:fill-db-900" />
       {mood === 'think' ? (
         <>
           <circle cx="50" cy="56" r="4" className="fill-sky-300" />
@@ -37,13 +37,13 @@ export function NongData({ className = 'size-20', mood = 'happy', title = 'น�
       {/* แขน */}
       {mood === 'cheer' ? (
         <>
-          <path d="M22 66 8 48" className="stroke-dq-400 dark:stroke-dq-500" strokeWidth="7" strokeLinecap="round" />
-          <path d="M98 66l14-18" className="stroke-dq-400 dark:stroke-dq-500" strokeWidth="7" strokeLinecap="round" />
+          <path d="M22 66 8 48" className="stroke-db-400 dark:stroke-db-500" strokeWidth="7" strokeLinecap="round" />
+          <path d="M98 66l14-18" className="stroke-db-400 dark:stroke-db-500" strokeWidth="7" strokeLinecap="round" />
         </>
       ) : (
         <>
-          <path d="M22 70 10 80" className="stroke-dq-400 dark:stroke-dq-500" strokeWidth="7" strokeLinecap="round" />
-          <path d="M98 70l12 10" className="stroke-dq-400 dark:stroke-dq-500" strokeWidth="7" strokeLinecap="round" />
+          <path d="M22 70 10 80" className="stroke-db-400 dark:stroke-db-500" strokeWidth="7" strokeLinecap="round" />
+          <path d="M98 70l12 10" className="stroke-db-400 dark:stroke-db-500" strokeWidth="7" strokeLinecap="round" />
         </>
       )}
     </svg>
@@ -55,7 +55,7 @@ export function NongDataSays({ children, mood = 'happy', className = '' }: { chi
   return (
     <div className={`flex items-end gap-3 ${className}`}>
       <NongData mood={mood} className="size-16 shrink-0 sm:size-20" />
-      <div className="relative rounded-3xl rounded-bl-md bg-white px-4 py-3 text-slate-700 shadow-sm ring-1 ring-dq-100 dark:bg-dq-900 dark:text-dq-50 dark:ring-dq-800">
+      <div className="relative rounded-[1.5rem] rounded-bl-md bg-white px-4 py-3 text-ink shadow-card ring-1 ring-line dark:bg-dq-900 dark:text-dq-50 dark:ring-dq-800">
         {children}
       </div>
     </div>

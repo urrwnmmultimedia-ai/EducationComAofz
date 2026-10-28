@@ -4,6 +4,7 @@ import type { AttendanceRow } from '@/lib/database.types'
 import { supabase } from '@/lib/supabase'
 import { useAsync } from '@/lib/useAsync'
 import { fullName } from '@/features/assignments/gradebookData'
+import { M3, roomsOf, studentsIn } from './courseScope'
 
 type Status = AttendanceRow['status']
 const STATUS: { value: Status; label: string; cls: string }[] = [
@@ -21,7 +22,8 @@ async function fetchData() {
     supabase.from('attendance').select('*'),
   ])
   for (const r of [c, s, cs, a]) if (r.error) throw r.error
-  return { classrooms: c.data ?? [], students: s.data ?? [], sessions: cs.data ?? [], attendance: a.data ?? [] }
+  const rooms = roomsOf(c.data ?? [], M3)
+  return { classrooms: rooms, students: studentsIn(s.data ?? [], rooms, M3), sessions: cs.data ?? [], attendance: a.data ?? [] }
 }
 
 // เช็คชื่อ: ระบบบันทึก "มา" อัตโนมัติเมื่อนักเรียนเปิดหน้าคาบ — ครูแก้/เพิ่มได้ที่นี่

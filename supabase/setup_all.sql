@@ -3704,6 +3704,325 @@ $$;
 revoke execute on function public.dbq_game_titles() from public, anon;
 grant execute on function public.dbq_game_titles() to authenticated;
 
+-- >>>>>>>>>> migrations/20261028000015_dbquest_open_session_work.sql
+-- =============================================================
+-- 015 DB Quest: ปลดล็อกคาบ = ปลดล็อกงานทุกอย่างในคาบ
+--   * เดิม: สำรับเกมแจกเมื่อทำขั้นก่อนเกม (เปิดคาบ/บทเรียน/ฝึกปฏิบัติ) ครบแล้ว
+--   * ใหม่: แจกทันทีที่คาบเปิด (ตามเกณฑ์ หรือครูปลดล็อก) — นักเรียนเลือกทำขั้นไหนก่อนก็ได้
+-- =============================================================
+
+create or replace function public.dbq_game_deck(p_game_key text)
+returns jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_sid     uuid := public.dbq_student_id();
+  v_config  jsonb;
+  v_session int;
+begin
+  perform public.dbq_require_member();
+  select config into v_config from public.dbq_game_decks where game_key = p_game_key;
+  select min(session_no) into v_session from public.dbq_lessons where game_key = p_game_key;
+  if v_config is null or v_session is null then
+    raise exception 'game_not_found' using errcode = 'P0002';
+  end if;
+  if v_sid is not null and not exists (
+    select 1 from public.dbq_lessons l
+    where l.game_key = p_game_key and public.dbq_is_session_open(v_sid, l.session_no)
+  ) then
+    raise exception 'locked' using errcode = '42501';
+  end if;
+  return v_config || jsonb_build_object('game_key', p_game_key, 'session_no', v_session);
+end;
+$$;
+
+revoke execute on function public.dbq_game_deck(text) from public, anon;
+grant execute on function public.dbq_game_deck(text) to authenticated;
+
+-- >>>>>>>>>> migrations/20261028000016_dbquest_reset_session.sql
+-- =============================================================
+-- 016 DB Quest: ครูรีเซ็ตบทเรียนของนักเรียนรายคน รายคาบ
+--   ลบ: ความคืบหน้าทุกขั้นของคาบ · ประวัติตอบคำถาม (เช็ก/ฝึก) ของคาบ · XP ที่ได้จากคาบนั้น
+--   เก็บไว้: ใบงานที่ส่ง/คะแนนที่ครูตรวจ · คะแนนเกม · เหรียญ (เป็นคะแนนจริงของนักเรียน)
+--   นักเรียนเรียนคาบนั้นใหม่ได้ตั้งแต่ขั้นแรก และได้ XP ของคาบนั้นใหม่
+-- =============================================================
+
+create or replace function public.dbq_admin_reset_session(p_student_id uuid, p_session int)
+returns jsonb
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_steps int;
+  v_items int;
+  v_xp    int;
+begin
+  perform public.dbq_require_admin();
+  if not exists (
+    select 1 from public.students st join public.classrooms c on c.id = st.classroom_id
+    where st.id = p_student_id and c.course = 'dbquest_m5'
+  ) then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.dbq_lessons where session_no = p_session) then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+
+  delete from public.dbq_progress where student_id = p_student_id and session_no = p_session;
+  get diagnostics v_steps = row_count;
+
+  delete from public.dbq_xp_events e
+  where e.student_id = p_student_id
+    and (
+      e.source like format('step:%s:%%', p_session)
+      or e.source = format('session:%s', p_session)
+      or (e.source like 'item:%' and substr(e.source, 6) in (
+        select k.item_id from public.dbq_answer_keys k where k.session_no = p_session and k.item_type in ('check', 'practice')
+      ))
+    );
+  get diagnostics v_xp = row_count;
+
+  delete from public.dbq_item_attempts a
+  using public.dbq_answer_keys k
+  where a.student_id = p_student_id and a.item_id = k.item_id
+    and k.session_no = p_session and k.item_type in ('check', 'practice');
+  get diagnostics v_items = row_count;
+
+  return jsonb_build_object('ok', true, 'steps', v_steps, 'items', v_items, 'xp_events', v_xp);
+end;
+$$;
+
+revoke execute on function public.dbq_admin_reset_session(uuid, int) from public, anon;
+grant execute on function public.dbq_admin_reset_session(uuid, int) to authenticated;
+
+-- >>>>>>>>>> migrations/20261028000017_dbquest_closing_mission.sql
+-- =============================================================
+-- 017 DB Quest: ภารกิจปิดคาบ (คำถามคิดรวบยอด ตรวจที่เซิร์ฟเวอร์)
+--   * answer_keys.item_type เพิ่ม 'wrapup'
+--   * dbq_check_answer ตรวจข้อ wrapup ได้ (ได้ถูก/ผิด/คำใบ้/XP เหมือนข้อฝึก)
+--   * dbq_complete_step('wrapup'): คาบที่มีภารกิจปิดคาบ ต้องลองตอบครบทุกข้อ · คาบที่ไม่มี ใช้ข้อความสรุปเหมือนเดิม
+--   * dbq_admin_reset_session ลบคำตอบ/XP ของข้อปิดคาบด้วย
+-- =============================================================
+
+alter table public.dbq_answer_keys drop constraint if exists dbq_answer_keys_item_type_check;
+alter table public.dbq_answer_keys add constraint dbq_answer_keys_item_type_check
+  check (item_type in ('check', 'practice', 'game', 'worksheet', 'quiz', 'project', 'wrapup'));
+
+create or replace function public.dbq_check_answer(p_item_id text, p_response jsonb)
+returns jsonb
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_sid     uuid := public.dbq_student_id();
+  v_key     public.dbq_answer_keys%rowtype;
+  v_correct boolean;
+  v_prev    public.dbq_item_attempts%rowtype;
+  v_xp      int := 0;
+begin
+  perform public.dbq_require_member();
+  if octet_length(coalesce(p_response::text, '')) > 20000 then
+    raise exception 'response_too_large' using errcode = '22023';
+  end if;
+  select * into v_key from public.dbq_answer_keys where item_id = p_item_id;
+  if not found or v_key.item_type not in ('check', 'practice', 'game', 'wrapup') then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  if v_sid is not null and v_key.session_no is not null and not public.dbq_is_session_open(v_sid, v_key.session_no) then
+    raise exception 'locked' using errcode = '42501';
+  end if;
+
+  v_correct := public.dbq_grade(v_key.grade_type, v_key.answer, p_response);
+
+  if v_sid is not null then
+    select * into v_prev from public.dbq_item_attempts where student_id = v_sid and item_id = p_item_id;
+    insert into public.dbq_item_attempts (student_id, item_id, attempts, correct, first_correct_at, last_response, last_at)
+    values (v_sid, p_item_id, 1, v_correct, case when v_correct then now() end, p_response, now())
+    on conflict (student_id, item_id) do update
+      set attempts = public.dbq_item_attempts.attempts + 1,
+          correct = public.dbq_item_attempts.correct or excluded.correct,
+          first_correct_at = coalesce(public.dbq_item_attempts.first_correct_at, excluded.first_correct_at),
+          last_response = excluded.last_response,
+          last_at = now();
+    if v_correct and not coalesce(v_prev.correct, false) then
+      -- ถูกตั้งแต่ครั้งแรกได้มากกว่า
+      v_xp := public.dbq_award_xp(v_sid, 'item:' || p_item_id, case when v_prev.attempts is null then 5 else 2 end);
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'correct', v_correct,
+    'score', case when v_correct then 1 else 0 end,
+    'hint', case when v_correct then null else nullif(v_key.hint, '') end,
+    'xp', v_xp
+  );
+end;
+$$;
+
+create or replace function public.dbq_complete_step(p_session int, p_step text, p_data jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_sid   uuid := public.dbq_student_id();
+  v_steps text[];
+  v_xp    int := 0;
+  v_pct   int;
+  v_unit  int;
+  v_game  text;
+  v_badges text[] := '{}';
+  v_text  text;
+begin
+  perform public.dbq_require_member();
+  if v_sid is null then
+    -- ครูดูตัวอย่าง: ไม่บันทึก
+    return jsonb_build_object('ok', true, 'preview', true, 'xp', 0, 'pct', null);
+  end if;
+  if not public.dbq_is_session_open(v_sid, p_session) then
+    raise exception 'locked' using errcode = '42501';
+  end if;
+  v_steps := public.dbq_applicable_steps(p_session);
+  if v_steps is null or not (p_step = any (v_steps)) then
+    raise exception 'invalid_step' using errcode = '22023';
+  end if;
+  if octet_length(coalesce(p_data::text, '')) > 8000 then
+    raise exception 'data_too_large' using errcode = '22023';
+  end if;
+
+  select unit_no, game_key into v_unit, v_game from public.dbq_lessons where session_no = p_session;
+
+  case p_step
+    when 'warmup' then
+      -- ตอบคำถามชวนคิดอย่างน้อยหนึ่งข้อ (ไม่คิดคะแนน)
+      if jsonb_typeof(p_data -> 'answers') <> 'array' or not exists (
+        select 1 from jsonb_array_elements_text(p_data -> 'answers') a where length(btrim(a)) > 0
+      ) then
+        raise exception 'incomplete' using errcode = '22023';
+      end if;
+    when 'lesson' then
+      if exists (
+        select 1 from public.dbq_answer_keys k
+        where k.session_no = p_session and k.item_type = 'check'
+          and not exists (select 1 from public.dbq_item_attempts a where a.student_id = v_sid and a.item_id = k.item_id and a.correct)
+      ) then
+        raise exception 'incomplete' using errcode = '22023';
+      end if;
+    when 'practice' then
+      if exists (
+        select 1 from public.dbq_answer_keys k
+        where k.session_no = p_session and k.item_type = 'practice'
+          and not exists (select 1 from public.dbq_item_attempts a where a.student_id = v_sid and a.item_id = k.item_id)
+      ) then
+        raise exception 'incomplete' using errcode = '22023';
+      end if;
+    when 'game' then
+      if not exists (select 1 from public.dbq_game_scores g where g.student_id = v_sid and g.game_key = v_game) then
+        raise exception 'incomplete' using errcode = '22023';
+      end if;
+    when 'worksheet' then
+      if exists (
+        select 1 from public.dbq_assignments asg
+        where asg.session_no = p_session
+          and not exists (select 1 from public.dbq_submissions s where s.assignment_id = asg.id and s.student_id = v_sid)
+      ) then
+        raise exception 'incomplete' using errcode = '22023';
+      end if;
+    when 'wrapup' then
+      if exists (select 1 from public.dbq_answer_keys k where k.session_no = p_session and k.item_type = 'wrapup') then
+        -- ภารกิจปิดคาบ: ต้องลองตอบทุกข้อ (ผิดได้ ตอบใหม่ได้)
+        if exists (
+          select 1 from public.dbq_answer_keys k
+          where k.session_no = p_session and k.item_type = 'wrapup'
+            and not exists (select 1 from public.dbq_item_attempts a where a.student_id = v_sid and a.item_id = k.item_id)
+        ) then
+          raise exception 'incomplete' using errcode = '22023';
+        end if;
+      else
+        v_text := btrim(coalesce(p_data ->> 'reflection', ''));
+        if length(v_text) = 0 then
+          raise exception 'incomplete' using errcode = '22023';
+        end if;
+      end if;
+  end case;
+
+  insert into public.dbq_progress (student_id, session_no, step, data)
+  values (v_sid, p_session, p_step, coalesce(p_data, '{}'::jsonb))
+  on conflict (student_id, session_no, step) do update set data = excluded.data;
+
+  v_xp := public.dbq_award_xp(v_sid, format('step:%s:%s', p_session, p_step),
+    case p_step when 'warmup' then 5 when 'lesson' then 20 when 'practice' then 15
+                when 'game' then 10 when 'worksheet' then 10 else 10 end);
+
+  v_pct := public.dbq_session_pct(v_sid, p_session);
+  if v_pct = 100 then
+    v_xp := v_xp + public.dbq_award_xp(v_sid, format('session:%s', p_session), 20);
+    -- จบทุกคาบเนื้อหาของหน่วย
+    if v_unit is not null and not exists (
+      select 1 from public.dbq_lessons l
+      where l.unit_no = v_unit and l.kind = 'lesson'
+        and coalesce(public.dbq_session_pct(v_sid, l.session_no), 0) < 100
+    ) then
+      if public.dbq_award_badge(v_sid, 'unit-complete') then v_badges := array_append(v_badges, 'unit-complete'); end if;
+      if not exists (
+        select 1 from public.dbq_lessons l
+        where l.kind = 'lesson' and coalesce(public.dbq_session_pct(v_sid, l.session_no), 0) < 100
+      ) and public.dbq_award_badge(v_sid, 'all-units') then
+        v_badges := array_append(v_badges, 'all-units');
+      end if;
+    end if;
+  end if;
+
+  return jsonb_build_object('ok', true, 'xp', v_xp, 'pct', v_pct, 'badges', to_jsonb(v_badges));
+end;
+$$;
+
+create or replace function public.dbq_admin_reset_session(p_student_id uuid, p_session int)
+returns jsonb
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_steps int;
+  v_items int;
+  v_xp    int;
+begin
+  perform public.dbq_require_admin();
+  if not exists (
+    select 1 from public.students st join public.classrooms c on c.id = st.classroom_id
+    where st.id = p_student_id and c.course = 'dbquest_m5'
+  ) then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.dbq_lessons where session_no = p_session) then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+
+  delete from public.dbq_progress where student_id = p_student_id and session_no = p_session;
+  get diagnostics v_steps = row_count;
+
+  delete from public.dbq_xp_events e
+  where e.student_id = p_student_id
+    and (
+      e.source like format('step:%s:%%', p_session)
+      or e.source = format('session:%s', p_session)
+      or (e.source like 'item:%' and substr(e.source, 6) in (
+        select k.item_id from public.dbq_answer_keys k where k.session_no = p_session and k.item_type in ('check', 'practice', 'wrapup')
+      ))
+    );
+  get diagnostics v_xp = row_count;
+
+  delete from public.dbq_item_attempts a
+  using public.dbq_answer_keys k
+  where a.student_id = p_student_id and a.item_id = k.item_id
+    and k.session_no = p_session and k.item_type in ('check', 'practice', 'wrapup');
+  get diagnostics v_items = row_count;
+
+  return jsonb_build_object('ok', true, 'steps', v_steps, 'items', v_items, 'xp_events', v_xp);
+end;
+$$;
+
 -- >>>>>>>>>> seed.sql
 -- =============================================================
 -- Seed ข้อมูลเริ่มต้น (รันซ้ำได้ ไม่สร้างข้อมูลซ้ำ)
@@ -5674,13 +5993,21 @@ insert into public.dbq_answer_keys (item_id, item_type, grade_type, unit_no, ses
   ('s01-p1', 'practice', 'match', 1, 1, '{"pairs":{"data":"m-f","info":"m-w","cloud":"m-q"}}'::jsonb, 'Data = ข้อเท็จจริงดิบ, Information = ข้อมูลที่ประมวลผลแล้ว, Cloud = บริการเครื่องแม่ข่ายผ่านอินเทอร์เน็ต', 'เริ่มจากคำที่มั่นใจที่สุดก่อน แล้วตัดตัวเลือกที่ใช้ไปแล้วออก', null, ''),
   ('s01-p2', 'practice', 'fill', 1, 1, '{"accept":["ฮาร์ดแวร์","hardware","ฮาร์ดแวร์ (Hardware)","ฮาร์ดแวร์(hardware)"]}'::jsonb, 'ฮาร์ดแวร์ (Hardware) คือส่วนที่จับต้องได้ของระบบคอมพิวเตอร์', 'นึกถึงจอ คีย์บอร์ด เมาส์ — สิ่งเหล่านี้เรียกรวมว่าอะไร', null, 'ระบบไม่สนใจตัวพิมพ์เล็ก-ใหญ่และช่องว่าง'),
   ('ws-s01', 'worksheet', 'rubric', 1, 1, '{"sample":"1) ร้านสะดวกซื้อ: ข้อมูล = รายการสินค้าที่ขายในแต่ละใบเสร็จ → สารสนเทศ = สินค้าขายดี 5 อันดับต่อวัน → ผู้จัดการร้านตัดสินใจสั่งสินค้าเพิ่ม\n2) โรงเรียน: ข้อมูล = เวลามาโรงเรียนของนักเรียนแต่ละคน → สารสนเทศ = ร้อยละนักเรียนมาสายของแต่ละห้อง → ครูประจำชั้นตัดสินใจนัดคุยผู้ปกครอง\n3) บ้าน: ข้อมูล = ค่าไฟแต่ละเดือน → สารสนเทศ = กราฟค่าไฟ 6 เดือน เห็นว่าเดือนเมษาสูงสุด → พ่อแม่ตัดสินใจลดการเปิดแอร์"}'::jsonb, 'คำตอบที่ดีต้องแยกข้อมูลดิบกับสารสนเทศได้ชัด และบอกได้ว่าสารสนเทศนั้นช่วยตัดสินใจเรื่องอะไร', '', '[{"criterion":"ยกตัวอย่างข้อมูล (Data) ได้ถูกต้องครบ 3 ตัวอย่าง","points":2},{"criterion":"บอกสารสนเทศที่ได้จากการประมวลผลได้สมเหตุสมผล","points":2},{"criterion":"บอกการนำสารสนเทศไปใช้ตัดสินใจ","points":1}]'::jsonb, 'จุดที่มักผิด: นักเรียนเขียนสารสนเทศเป็นข้อมูลอีกชุด (เช่น "ราคาสินค้า") ให้ถามว่า "ผ่านการคำนวณหรือสรุปอะไรมา"'),
+  ('s01-w1', 'wrapup', 'classify', 1, 1, '{"pairs":{"w1-a":"data","w1-b":"info","w1-c":"hw","w1-d":"sw","w1-e":"people"}}'::jsonb, 'รายการที่สั่งแต่ละคนคือข้อเท็จจริงดิบ (ข้อมูล) ส่วนสรุปเมนูขายดีผ่านการประมวลผลแล้ว (สารสนเทศ) แท็บเล็ตจับต้องได้ (ฮาร์ดแวร์) แอปคือชุดคำสั่ง (ซอฟต์แวร์) และแม่ครัวคือคนใช้ระบบ (บุคลากร)', 'ข้อมูลกับสารสนเทศต่างกันตรงที่ "ผ่านการสรุป/คำนวณแล้วหรือยัง" ส่วนที่เหลือถามว่า จับได้ไหม หรือเป็นคน', null, 'ข้อนี้รวมการ์ด 1 และ 2 ไว้ด้วยกัน ถ้านักเรียนสลับข้อมูลกับสารสนเทศ ให้กลับไปดูภาพกรวยในการ์ด 1'),
+  ('s01-w2', 'wrapup', 'order', 1, 1, '{"order":["o1","o2","o3","o4"]}'::jsonb, 'Client (มือถือ) ส่งคำขอก่อน → Server บนคลาวด์บันทึกลงฐานข้อมูล → แท็บเล็ตซึ่งเป็น Client อีกเครื่องขอข้อมูลล่าสุด → แสดงบนจอให้แม่ครัวเห็น', 'เริ่มจากคนที่กดปุ่มก่อน ข้อมูลต้องไปถึงเครื่องแม่ข่ายก่อนเครื่องอื่นจะดึงไปใช้ได้', null, 'ชี้ให้เห็นว่าแท็บเล็ตหน้าร้านก็เป็น Client เหมือนมือถือ'),
+  ('s01-w3', 'wrapup', 'mcq', 1, 1, '{"choice":1}'::jsonb, 'เครื่องแม่ข่ายอยู่บนคลาวด์ ต้องติดต่อผ่านอินเทอร์เน็ต เมื่อเน็ตล่ม มือถือจึงส่งคำสั่งไปไม่ถึง แต่ข้อมูลในฐานข้อมูลยังอยู่บนเครื่องแม่ข่าย ไม่ได้หายไป', 'คลาวด์คือการใช้เครื่องแม่ข่ายผ่านอินเทอร์เน็ต ถ้าทางเชื่อมขาด อะไรไปไม่ถึง', null, 'นักเรียนบางคนคิดว่าข้อมูลหาย ชวนคุยว่า "ข้อมูลอยู่ที่ไหน" กับ "เราติดต่อมันผ่านอะไร" ต่างกัน'),
+  ('s01-w4', 'wrapup', 'multi', 1, 1, '{"choices":[0,2]}'::jsonb, 'ยอดขายเทียบสัปดาห์ และเมนูขายหมดเร็ว 3 อันดับ ผ่านการสรุปแล้ว นำไปตัดสินใจได้ทันที ส่วนชื่อคนสั่ง 1 คน และเวลาที่กดสั่ง 1 ครั้ง ยังเป็นข้อมูลดิบ', 'สารสนเทศต้องรวมข้อมูลหลายชิ้นมาสรุป ข้อที่พูดถึงคนเดียว ครั้งเดียว ยังเป็นข้อมูลดิบ', null, ''),
   ('s02-c1-q', 'check', 'mcq', 1, 2, '{"choice":1}'::jsonb, 'ระบบทะเบียนเก็บข้อมูลนักเรียนที่เกี่ยวข้องกันไว้อย่างเป็นระเบียบและค้นหาได้ จึงเป็นฐานข้อมูล ส่วนกระดาษโน้ตกระจัดกระจาย รูป 1 รูป และเพลง 1 เพลง เป็นแค่ข้อมูลชิ้นเดียวหรือไม่เป็นระเบียบ', 'ฐานข้อมูลต้องมีข้อมูลหลายรายการที่เกี่ยวข้องกัน และจัดไว้เป็นระเบียบให้ค้นหาได้', null, 'ถ้านักเรียนเลือกกระดาษโน้ต ให้ถามว่า "ถ้ามี 500 แผ่น หาเบอร์หนึ่งเบอร์ใช้เวลาเท่าไร"'),
   ('s02-c2-q', 'check', 'classify', 1, 2, '{"pairs":{"i-1":"rec","i-2":"fld","i-3":"rec","i-4":"fld"}}'::jsonb, 'ข้อมูลทั้งแถวของสิ่งหนึ่งสิ่ง (นักเรียน 1 คน หนังสือ 1 เล่ม) คือระเบียน ส่วนคอลัมน์ (ห้อง ราคา) คือเขตข้อมูล', 'ถามตัวเองว่า เป็น "ของ 1 สิ่ง" (แถว) หรือ "คุณสมบัติ 1 อย่างของทุกสิ่ง" (คอลัมน์)', null, 'ชี้บนตารางจริงบนกระดาน ลากมือตามแนวนอน = ระเบียน ตามแนวตั้ง = เขตข้อมูล'),
   ('s02-c3-q', 'check', 'mcq', 1, 2, '{"choice":2}'::jsonb, 'รหัสนักเรียนไม่ซ้ำกันและทุกคนต้องมี จึงใช้เป็นคีย์หลักได้ ส่วนชื่อ ชื่อเล่น และห้อง ซ้ำกันได้', 'หาคอลัมน์ที่ "ไม่มีวันซ้ำกัน" แม้มีนักเรียนเป็นพันคน', null, 'ชวนคิดต่อ: ถ้าทั้งโรงเรียนมีคนชื่อจริงซ้ำกัน ระบบตัดเกรดจะเกิดอะไรขึ้น'),
   ('s02-p1', 'practice', 'match', 1, 2, '{"pairs":{"db":"m-c","rec":"m-a","fld":"m-d","pk":"m-b"}}'::jsonb, 'Database = ที่เก็บข้อมูลอย่างเป็นระเบียบ, Record = 1 แถว, Field = 1 คอลัมน์, Primary Key = เขตข้อมูลที่ค่าไม่ซ้ำ', 'เริ่มจากคู่ที่มั่นใจที่สุด เช่น "แถว" กับ "คอลัมน์" ก่อน', null, ''),
   ('s02-p2', 'practice', 'multi', 1, 2, '{"choices":[0,2]}'::jsonb, 'เลขประจำตัวประชาชนและหมายเลขพัสดุถูกออกแบบมาให้ไม่ซ้ำกัน ส่วนชื่อ วันเกิด และสีที่ชอบ มีคนซ้ำกันได้', 'ลองนึกว่าในประเทศมีคนเป็นล้าน ค่าไหนที่ไม่มีทางมีสองคนซ้ำกัน', null, 'ถ้านักเรียนเลือกวันเกิด ให้ถามว่าในห้องมีคนเกิดวันเดียวกันไหม'),
   ('s02-p3', 'practice', 'fill', 1, 2, '{"accept":["30","30 ระเบียน","30ระเบียน","30 record","30 records"]}'::jsonb, 'จำนวนระเบียนเท่ากับจำนวนแถว คือ 30 ส่วน 6 คอลัมน์คือจำนวนเขตข้อมูล', 'ระเบียน = แถว หรือ คอลัมน์?', null, 'ข้อนี้ดักคนที่ตอบ 6 หรือ 180'),
-  ('ws-s02', 'worksheet', 'rubric', 1, 2, '{"sample":"ระบบ: ร้านชานม\n1) ตาราง: สมาชิก\n2) เขตข้อมูล: รหัสสมาชิก, ชื่อเล่น, เบอร์โทร, แต้มสะสม\n3) ระเบียน: (M001, มิว, 0812345678, 7) (M002, โอ๊ต, 0898765432, 2) (M003, แพรว, 0861112222, 10)\n4) คีย์หลัก: รหัสสมาชิก เพราะร้านออกให้ใหม่ทุกครั้งที่สมัคร ไม่มีทางซ้ำ ส่วนชื่อเล่นซ้ำกันได้"}'::jsonb, 'คำตอบที่ดีต้องมีเขตข้อมูลที่เข้ากับระบบ ตัวอย่างระเบียนกรอกครบทุกเขตข้อมูล และเลือกคีย์หลักที่ไม่ซ้ำพร้อมเหตุผล', '', '[{"criterion":"ตั้งชื่อตารางและระบุเขตข้อมูลอย่างน้อย 4 เขตข้อมูลที่เหมาะกับระบบ","points":2},{"criterion":"ตัวอย่างระเบียน 3 ระเบียน กรอกครบทุกเขตข้อมูล","points":1},{"criterion":"เลือกคีย์หลักที่ไม่ซ้ำ และอธิบายเหตุผลได้","points":2}]'::jsonb, 'จุดที่มักผิด: เลือกชื่อหรือเบอร์โทรเป็นคีย์หลัก (เบอร์โทรเปลี่ยนได้/ใช้ร่วมกันได้) ให้คะแนนเหตุผลครึ่งเดียวถ้าอธิบายไม่ได้ว่าทำไมไม่ซ้ำ')
+  ('ws-s02', 'worksheet', 'rubric', 1, 2, '{"sample":"ระบบ: ร้านชานม\n1) ตาราง: สมาชิก\n2) เขตข้อมูล: รหัสสมาชิก, ชื่อเล่น, เบอร์โทร, แต้มสะสม\n3) ระเบียน: (M001, มิว, 0812345678, 7) (M002, โอ๊ต, 0898765432, 2) (M003, แพรว, 0861112222, 10)\n4) คีย์หลัก: รหัสสมาชิก เพราะร้านออกให้ใหม่ทุกครั้งที่สมัคร ไม่มีทางซ้ำ ส่วนชื่อเล่นซ้ำกันได้"}'::jsonb, 'คำตอบที่ดีต้องมีเขตข้อมูลที่เข้ากับระบบ ตัวอย่างระเบียนกรอกครบทุกเขตข้อมูล และเลือกคีย์หลักที่ไม่ซ้ำพร้อมเหตุผล', '', '[{"criterion":"ตั้งชื่อตารางและระบุเขตข้อมูลอย่างน้อย 4 เขตข้อมูลที่เหมาะกับระบบ","points":2},{"criterion":"ตัวอย่างระเบียน 3 ระเบียน กรอกครบทุกเขตข้อมูล","points":1},{"criterion":"เลือกคีย์หลักที่ไม่ซ้ำ และอธิบายเหตุผลได้","points":2}]'::jsonb, 'จุดที่มักผิด: เลือกชื่อหรือเบอร์โทรเป็นคีย์หลัก (เบอร์โทรเปลี่ยนได้/ใช้ร่วมกันได้) ให้คะแนนเหตุผลครึ่งเดียวถ้าอธิบายไม่ได้ว่าทำไมไม่ซ้ำ'),
+  ('s02-w1', 'wrapup', 'fill', 1, 2, '{"accept":["3","3 ระเบียน","3ระเบียน"]}'::jsonb, 'ระเบียน = แถว ตารางนี้มีการยืม 3 แถว (B001–B003) ส่วน 5 คอลัมน์คือเขตข้อมูล', 'นับแถว ไม่ใช่คอลัมน์', null, 'ดักคนที่ตอบ 5 หรือ 15'),
+  ('s02-w2', 'wrapup', 'mcq', 1, 2, '{"choice":1}'::jsonb, 'นักเรียนรหัส 50012 ยืมไปแล้ว 2 ครั้ง (B001 และ B003) รหัสนักเรียนจึงซ้ำในตารางนี้ คีย์หลักต้องไม่ซ้ำ จึงใช้ "รหัสการยืม" แทน', 'ดูในตารางว่ามีรหัสนักเรียนไหนโผล่มากกว่า 1 ครั้งไหม', null, 'จุดสำคัญ: รหัสนักเรียนเป็นคีย์หลักของตารางนักเรียนได้ แต่ไม่ใช่ของตารางการยืม คีย์ขึ้นกับว่าตารางเก็บเรื่องอะไร'),
+  ('s02-w3', 'wrapup', 'classify', 1, 2, '{"pairs":{"w3-a":"fld","w3-b":"rec","w3-c":"fld","w3-d":"rec"}}'::jsonb, 'คอลัมน์ (หมายเลขร่ม, สถานะ) คือเขตข้อมูล ส่วนข้อมูลทั้งแถวของการยืม 1 ครั้งคือระเบียน', 'คอลัมน์ = คุณสมบัติ 1 อย่าง · แถว = เรื่อง 1 เรื่อง', null, ''),
+  ('s02-w4', 'wrapup', 'mcq', 1, 2, '{"choice":2}'::jsonb, 'การถามคำถามเพื่อดึงข้อมูลที่ตรงเงื่อนไขออกมาจากฐานข้อมูล (สถานะ = ยังไม่คืน) คือการสืบค้น (Query)', 'เราไม่ได้เพิ่ม ลบ หรือเปลี่ยนโครงสร้างอะไรเลย แค่ "ถาม"', null, 'ปูไปหน่วย 6 ได้: คำถามนี้เขียนเป็น SQL ว่า SELECT ... WHERE สถานะ = ''ยังไม่คืน''')
 on conflict (item_id) do update
   set item_type = excluded.item_type, grade_type = excluded.grade_type, unit_no = excluded.unit_no,
       session_no = excluded.session_no, answer = excluded.answer, explanation = excluded.explanation,

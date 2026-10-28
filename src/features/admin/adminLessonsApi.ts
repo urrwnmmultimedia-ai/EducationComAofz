@@ -8,6 +8,7 @@ import type {
   UnitRow,
 } from '@/lib/database.types'
 import type { SessionStep } from '@/features/lessons/sessionSteps'
+import { M3, roomsOf } from './courseScope'
 
 export interface AdminSessionsData {
   sessions: ClassSessionRow[]
@@ -27,7 +28,7 @@ export async function fetchAdminSessions(): Promise<AdminSessionsData> {
   if (classrooms.error) throw classrooms.error
   if (unlocks.error) throw unlocks.error
   if (units.error) throw units.error
-  return { sessions: sessions.data, classrooms: classrooms.data, unlocks: unlocks.data, units: units.data }
+  return { sessions: sessions.data, classrooms: roomsOf(classrooms.data, M3), unlocks: unlocks.data, units: units.data }
 }
 
 export async function setSessionUnlock(sessionNo: number, unlocked: boolean, classroomId: string | null) {
@@ -100,10 +101,10 @@ export async function deleteLesson(id: string) {
   if (error) throw error
 }
 
-export async function fetchClassrooms(): Promise<ClassroomRow[]> {
+export async function fetchClassrooms(course: CourseKey = M3): Promise<ClassroomRow[]> {
   const { data, error } = await supabase.from('classrooms').select('*').order('sort_order').order('name')
   if (error) throw error
-  return data
+  return roomsOf(data, course)
 }
 
 export async function upsertClassroom(room: { id?: string; name: string; sort_order: number; course: CourseKey }) {

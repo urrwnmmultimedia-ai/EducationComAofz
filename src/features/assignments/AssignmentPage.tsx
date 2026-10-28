@@ -52,7 +52,7 @@ function AssignmentForm({ assignment, initial, studentId }: { assignment: Assign
         {assignment.session_no && (
           <>
             {' / '}
-            <Link to={`/sessions/${assignment.session_no}`} className="hover:text-brand-700">
+            <Link to={`/sessions/${assignment.session_no}?step=work`} className="hover:text-brand-700">
               คาบที่ {assignment.session_no}
             </Link>
           </>

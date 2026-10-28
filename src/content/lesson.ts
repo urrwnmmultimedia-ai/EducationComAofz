@@ -59,7 +59,15 @@ export const VISUAL_KINDS: Block['kind'][] = ['figure', 'table', 'code', 'before
 
 export const sessionContentSchema = z.object({
   session: z.number().int().min(1).max(20),
-  warmup: z.array(z.string()).length(3),
+  // เปิดคาบ: คำถามก่อนเรียน (+ เรียนไปทำไม / เป้าหมาย ถ้ามี) — ปิดคาบถามซ้ำเป็นคำถามหลังเรียนและย้อนดูเป้าหมายเดิม
+  intro: z
+    .object({
+      bigQuestion: z.string().min(1),
+      why: z.string().min(1).optional(),
+      goals: z.array(z.string().min(1)).min(2).max(4).optional(),
+    })
+    .optional(),
+  warmup: z.array(z.string()).max(3),
   cards: z.array(z.object({ id: idSchema, title: z.string(), blocks: z.array(blockSchema).min(1), check: questionSchema })).min(1),
   practice: z.array(questionSchema),
   game: z.object({ slug: idSchema, title: z.string(), description: z.string() }).optional(),
@@ -70,6 +78,14 @@ export const sessionContentSchema = z.object({
       instructions: z.string(),
       type: z.enum(['text', 'file', 'er', 'sql']),
       max_score: z.number().positive(),
+    })
+    .optional(),
+  // ปิดคาบ: ภารกิจคิดรวบยอด (สถานการณ์ + คำถามหลายแบบ ตรวจที่เซิร์ฟเวอร์ — เฉลยอยู่ใน answer_keys item_type 'wrapup')
+  closing: z
+    .object({
+      title: z.string().min(1),
+      blocks: z.array(blockSchema),
+      questions: z.array(questionSchema).min(1),
     })
     .optional(),
   summary: z.array(z.string()).length(3),

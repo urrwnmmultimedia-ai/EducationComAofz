@@ -27,11 +27,12 @@ interface Props {
   Game: ComponentType<GameProps<GameConfig>>
   onSubmit: (score: number, durationSec: number) => Promise<SubmitResult>
   backTo: string
+  backLabel?: string
   maxXp: number
 }
 
 // โครงเกมกลาง: คำอธิบาย → นับถอยหลัง 3-2-1 → เล่น → สรุปผล (คะแนน XP เฉลยข้อผิด) → เล่นอีกครั้ง
-export function GameShell({ title, description, config, Game, onSubmit, backTo, maxXp }: Props) {
+export function GameShell({ title, description, config, Game, onSubmit, backTo, backLabel = 'กลับบทเรียน', maxXp }: Props) {
   const sfx = useSfx()
   const [phase, setPhase] = useState<Phase>('intro')
   const [round, setRound] = useState(0)
@@ -107,7 +108,7 @@ export function GameShell({ title, description, config, Game, onSubmit, backTo, 
       )}
 
       {phase === 'result' && outcome && (
-        <ResultScreen outcome={outcome} submit={submit} onAgain={again} backTo={backTo} />
+        <ResultScreen outcome={outcome} submit={submit} onAgain={again} backTo={backTo} backLabel={backLabel} />
       )}
     </div>
   )
@@ -148,11 +149,13 @@ function ResultScreen({
   submit,
   onAgain,
   backTo,
+  backLabel,
 }: {
   outcome: GameOutcome
   submit: { status: 'saving' | 'saved' | 'error'; result?: SubmitResult; message?: string } | null
   onAgain: () => void
   backTo: string
+  backLabel: string
 }) {
   const score = toScore(outcome)
   const r = submit?.result
@@ -197,7 +200,7 @@ function ResultScreen({
             ↻ เล่นอีกครั้ง
           </Button>
           <Link to={backTo} className="rounded-2xl px-5 py-2.5 font-display text-brand-700 ring-2 ring-brand-200 hover:bg-brand-100">
-            กลับบทเรียน
+            {backLabel}
           </Link>
         </div>
       </motion.section>

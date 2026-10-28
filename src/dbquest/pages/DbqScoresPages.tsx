@@ -1,10 +1,13 @@
 import { Link } from 'react-router'
+import { Lock, MessageSquare } from 'lucide-react'
 import { NongDataSays } from '@/components/illustrations/NongData'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import { computeGrade, formatGrade } from '@/lib/grade'
 import { useAsync } from '@/lib/useAsync'
 import { CATEGORIES, CATEGORY_LABEL } from '../admin/dbqAdminApi'
 import { fetchGameTitles, gameTitle } from '../gameTitles'
+import { EvolutionCard } from '../EvolutionCard'
+import { fetchMap } from '../lesson/dbqLessonApi'
 import { fetchLeaderboard, fetchMe, fetchMyScores, type MyScores } from './dbqStudentApi'
 
 const card = 'rounded-3xl bg-white p-5 ring-1 ring-dq-100 dark:bg-dq-900 dark:ring-dq-800'
@@ -45,7 +48,7 @@ export function DbqAssignmentsPage() {
                 {a.status === 'graded' ? `${a.score} / ${a.max_score}` : STATUS[a.status].label}
               </span>
             </div>
-            {a.feedback && <p className="rounded-2xl bg-dq-50 px-4 py-2 dark:bg-dq-950">💬 ครู: {a.feedback}</p>}
+            {a.feedback && <p className="rounded-2xl bg-dq-50 px-4 py-2 dark:bg-dq-950"><MessageSquare className="mr-1.5 inline size-5 align-[-0.2em]" aria-hidden />ครู: {a.feedback}</p>}
             {a.open ? (
               a.status !== 'graded' && (
                 <Link to={`/db/lesson/${a.session_no}`} className="inline-block text-dq-700 underline-offset-2 hover:underline dark:text-dq-300">
@@ -53,7 +56,7 @@ export function DbqAssignmentsPage() {
                 </Link>
               )
             ) : (
-              <p className="text-base text-slate-500">🔒 คาบนี้ยังไม่เปิด</p>
+              <p className="flex items-center gap-1.5 text-base text-slate-500"><Lock className="inline size-4 shrink-0 align-[-0.2em]" aria-hidden /> คาบนี้ยังไม่เปิด</p>
             )}
           </li>
         ))}
@@ -100,15 +103,17 @@ function ScoreSummary({ data }: { data: Extract<MyScores, { preview: false }> })
 
 // ฉัน: XP เหรียญ คะแนนสะสม เกม อันดับในห้อง
 export function DbqMePage() {
-  const res = useAsync(() => Promise.all([fetchMe(), fetchMyScores(), fetchLeaderboard(), fetchGameTitles()]), [])
+  const res = useAsync(() => Promise.all([fetchMe(), fetchMyScores(), fetchLeaderboard(), fetchGameTitles(), fetchMap()]), [])
   if (res.status === 'loading') return <LoadingBlock />
   if (res.status === 'error') return <ErrorBlock message={res.error} onRetry={res.reload} />
-  const [me, scores, board, titles] = res.data
+  const [me, scores, board, titles, map] = res.data
+  const sessionsDone = map.filter((m) => m.kind === 'lesson' && m.pct === 100).length
   if (scores.preview) return <Preview />
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl text-dq-900 dark:text-white">ฉัน</h1>
+      <EvolutionCard xp={me.xp} sessionsDone={sessionsDone} />
       <section className={`${card} flex flex-wrap items-center gap-4`}>
         <p className="font-display text-4xl text-xp-600 dark:text-xp-400">{me.xp} XP</p>
         <div className="flex flex-wrap gap-2">
@@ -135,7 +140,7 @@ export function DbqMePage() {
                 <Link to={`/db/games/${g.game_key}`} className="text-dq-700 underline-offset-2 hover:underline dark:text-dq-300">
                   คาบ {g.session_no} · {gameTitle(titles, g.game_key)}
                 </Link>
-                <span>{g.plays === 0 ? 'ยังไม่เคยเล่น' : `ดีสุด ${g.best_score} · ${'⭐'.repeat(g.best_stars ?? 0)}`}</span>
+                <span>{g.plays === 0 ? 'ยังไม่เคยเล่น' : `ดีสุด ${g.best_score} · ${g.best_stars ?? 0} ดาว`}</span>
               </li>
             ))}
           </ul>

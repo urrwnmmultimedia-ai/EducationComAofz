@@ -352,6 +352,7 @@ export type Database = {
       dbq_my_scores: { Args: Record<string, never>; Returns: Json }
       dbq_leaderboard: { Args: Record<string, never>; Returns: Json }
       dbq_game_titles: { Args: Record<string, never>; Returns: Json }
+      dbq_admin_reset_session: { Args: { p_student_id: string; p_session: number }; Returns: Json }
       dbq_submit_game_result: { Args: { p_game_key: string; p_score: number; p_duration_sec: number }; Returns: Json }
     }
     Enums: Record<never, never>

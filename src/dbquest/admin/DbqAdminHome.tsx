@@ -35,7 +35,7 @@ export function DbqAdminHome() {
       <section className={panel}>
         <h2 className="mb-3 text-lg text-dq-900">รายห้อง</h2>
         {o.classrooms.length === 0 ? (
-          <p className="text-slate-500">ยังไม่มีห้อง DB Quest — ตั้งวิชาของห้องเป็น "ม.5 DB Quest" ที่หน้าครู ม.3 → ห้องเรียน</p>
+          <p className="text-slate-500">ยังไม่มีห้อง DB Quest — เพิ่มห้องที่เมนู "ห้องเรียน"</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-left text-sm">

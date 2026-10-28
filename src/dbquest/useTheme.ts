@@ -13,19 +13,16 @@ function readStored(): ThemeChoice | null {
   }
 }
 
-function systemPrefersDark(): boolean {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches
-}
 
-// โหมดมืดของ DB Quest: ค่าเริ่มต้นตามระบบเครื่อง กดสลับแล้วจำไว้ในเบราว์เซอร์นี้
+// โหมดมืดของ DB Quest: ค่าเริ่มต้นสว่าง (ใช้ในห้องเรียนตอนกลางวัน) กดสลับแล้วจำไว้ในเบราว์เซอร์นี้
 export function useTheme() {
-  const [theme, setTheme] = useState<ThemeChoice>(() => readStored() ?? (systemPrefersDark() ? 'dark' : 'light'))
+  const [theme, setTheme] = useState<ThemeChoice>(() => readStored() ?? 'light')
 
   useEffect(() => {
     // สีแถบเบราว์เซอร์บนมือถือให้ตรงกับหน้า
     const meta = document.querySelector('meta[name="theme-color"]')
     const prev = meta?.getAttribute('content')
-    meta?.setAttribute('content', theme === 'dark' ? '#0b1229' : '#1d4ed8')
+    meta?.setAttribute('content', theme === 'dark' ? '#0a1530' : '#ffffff')
     return () => {
       if (prev) meta?.setAttribute('content', prev)
     }

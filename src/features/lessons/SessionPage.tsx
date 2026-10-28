@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
+import { BookOpen, Flame, Gamepad2, PencilLine, Star, Ticket, type LucideIcon } from 'lucide-react'
+import { StepJourney } from '@/components/StepJourney'
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/Button'
 import { NamWan, Non } from '@/components/characters/Characters'
@@ -7,16 +9,16 @@ import { EmptyBlock, ErrorBlock, LoadingBlock, ProgressBar } from '@/components/
 import type { AssignmentRow, ExamRow } from '@/lib/database.types'
 import { dueCountdown } from '@/features/student/studentApi'
 import { LessonCards } from './LessonCards'
-import { totalMinutes, type SessionStep, type StepKey } from './sessionSteps'
+import { type SessionStep, type StepKey } from './sessionSteps'
 import { useSessionPage } from './useSessionPage'
 
-const STEP_ICON: Record<StepKey, string> = {
-  warmup: '🔥',
-  content: '📖',
-  game: '🎮',
-  work: '✍️',
-  exit: '🎟️',
-  summary: '⭐',
+const STEP_ICON: Record<StepKey, LucideIcon> = {
+  warmup: Flame,
+  content: BookOpen,
+  game: Gamepad2,
+  work: PencilLine,
+  exit: Ticket,
+  summary: Star,
 }
 
 export function SessionPage() {
@@ -25,7 +27,9 @@ export function SessionPage() {
   const { identity } = useAuth()
   const isStudent = identity.role === 'student'
   const { detail, steps, completed, checkedIn, savingStep, saveError, completeStep } = useSessionPage(sessionNo, isStudent)
-  const [active, setActive] = useState<StepKey>('warmup')
+  const [search] = useSearchParams()
+  // ?step=work เปิดขั้นนั้น · ?after=game เปิดขั้นถัดจากเกม (กลับมาจากเกม/งาน/ข้อสอบ)
+  const [picked, setActive] = useState<StepKey | null>(null)
 
   if (!Number.isInteger(sessionNo) || sessionNo < 1) return <ErrorBlock message="ไม่พบคาบเรียนนี้" />
   if (detail.status === 'loading') return <LoadingBlock label="กำลังเปิดคาบเรียน…" />
@@ -46,7 +50,11 @@ export function SessionPage() {
   }
 
   const { session, lessons, assignments, exams, unit } = detail.data
-  const current = steps.find((s) => s.key === active) ?? steps[0]
+  const after = search.get('after')
+  const afterIdx = after ? steps.findIndex((s) => s.key === after) : -1
+  const wanted = picked ?? (search.get('step') as StepKey | null) ?? (afterIdx >= 0 ? steps[Math.min(afterIdx + 1, steps.length - 1)]?.key : undefined)
+  const firstOpen = steps.find((s) => !completed.includes(s.key))?.key
+  const current = steps.find((s) => s.key === (wanted ?? firstOpen)) ?? steps[0]
   const doneCount = steps.filter((s) => completed.includes(s.key)).length
   const percent = steps.length ? Math.round((doneCount / steps.length) * 100) : 0
 
@@ -69,7 +77,7 @@ export function SessionPage() {
 
       <header className="rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white shadow-lg sm:p-6">
         <p className="text-sm text-brand-100">
-          คาบที่ {session.session_no} · {totalMinutes(steps)} นาที
+          คาบที่ {session.session_no}
         </p>
         <h1 className="mt-1 text-2xl sm:text-3xl">{session.title}</h1>
         {session.summary && <p className="mt-2 text-brand-100">{session.summary}</p>}
@@ -84,36 +92,13 @@ export function SessionPage() {
         )}
       </header>
 
-      <ol className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-6 sm:px-0" aria-label="ขั้นตอนในคาบ">
-        {steps.map((s, i) => {
-          const done = completed.includes(s.key)
-          const isActive = s.key === current?.key
-          return (
-            <li key={s.key} className="shrink-0">
-              <button
-                type="button"
-                onClick={() => setActive(s.key)}
-                aria-current={isActive ? 'step' : undefined}
-                className={`flex w-28 flex-col items-center gap-0.5 rounded-2xl px-2 py-2.5 text-center transition sm:w-full ${
-                  isActive
-                    ? 'bg-brand-600 text-white shadow-md'
-                    : done
-                      ? 'bg-mint-400/20 text-emerald-800 ring-1 ring-mint-400'
-                      : 'bg-white text-slate-700 ring-1 ring-brand-100 hover:bg-brand-50'
-                }`}
-              >
-                <span className="text-xl" aria-hidden>
-                  {done && !isActive ? '✅' : STEP_ICON[s.key]}
-                </span>
-                <span className="font-display text-sm leading-tight">
-                  {i + 1}. {s.label}
-                </span>
-                <span className={`text-xs ${isActive ? 'text-brand-100' : 'text-slate-500'}`}>{s.minutes} นาที</span>
-              </button>
-            </li>
-          )
-        })}
-      </ol>
+      <StepJourney
+        label="ขั้นตอนในคาบ"
+        steps={steps.map((s) => ({ key: s.key, label: s.label, icon: STEP_ICON[s.key] }))}
+        current={current?.key ?? ''}
+        done={new Set(completed)}
+        onSelect={(k) => setActive(k as StepKey)}
+      />
 
       {current && (
         <section aria-live="polite">
@@ -125,6 +110,7 @@ export function SessionPage() {
             examsInWork={!steps.some((x) => x.key === 'exit')}
             workLabel={session.work_label}
             gameSlug={session.game_slug}
+            sessionNo={session.session_no}
           />
           {isStudent && (
             <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
@@ -156,9 +142,10 @@ interface StepBodyProps {
   examsInWork: boolean // คาบที่ไม่มีขั้น Exit ticket (เช่น คาบสอบ) แสดงชุดสอบในขั้นงาน
   workLabel: string
   gameSlug: string | null
+  sessionNo: number
 }
 
-function StepBody({ step, lessons, assignments, exams, examsInWork, workLabel, gameSlug }: StepBodyProps) {
+function StepBody({ step, lessons, assignments, exams, examsInWork, workLabel, gameSlug, sessionNo }: StepBodyProps) {
   switch (step.key) {
     case 'warmup':
       return (
@@ -192,8 +179,8 @@ function StepBody({ step, lessons, assignments, exams, examsInWork, workLabel, g
             <>
               <p>เกมประจำคาบนี้พร้อมให้ลองแล้ว เล่นครั้งแรกได้ XP เต็ม</p>
               <Link
-                to={`/games/${gameSlug}`}
-                className="mt-4 inline-flex rounded-2xl bg-brand-600 px-5 py-2.5 font-display text-white shadow-[0_4px_0_0_var(--color-brand-900)]"
+                to={`/games/${gameSlug}?session=${sessionNo}`}
+                className="mt-4 inline-flex rounded-2xl tq-press bg-action px-5 py-2.5 font-semibold text-white shadow-action hover:bg-brand-600"
               >
                 🎮 ไปเล่นเกม
               </Link>

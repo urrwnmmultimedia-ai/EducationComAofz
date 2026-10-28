@@ -14,10 +14,12 @@ export function xpLabel(source: string, games?: GameTitles): string {
     case 'session':
       return `คาบ ${a} · เรียนครบทุกขั้น`
     case 'item': {
-      const m = /^s(\d+)-(?:c(\d+)-q|p(\d+))$/.exec(a)
+      const m = /^s(\d+)-(?:c(\d+)-q|p(\d+)|w(\d+))$/.exec(a)
       if (!m) return `ตอบถูก ${a}`
       const no = Number(m[1])
-      return m[2] ? `คาบ ${no} · ตอบถูก เช็กความเข้าใจการ์ด ${m[2]}` : `คาบ ${no} · ตอบถูก ฝึกปฏิบัติข้อ ${m[3]}`
+      if (m[2]) return `คาบ ${no} · ตอบถูก เช็กความเข้าใจการ์ด ${m[2]}`
+      if (m[3]) return `คาบ ${no} · ตอบถูก ฝึกปฏิบัติข้อ ${m[3]}`
+      return `คาบ ${no} · ตอบถูก ภารกิจปิดคาบข้อ ${m[4]}`
     }
     case 'game': {
       const star = /^star(\d)$/.exec(b)

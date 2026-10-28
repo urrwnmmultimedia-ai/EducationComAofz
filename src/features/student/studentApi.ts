@@ -33,6 +33,13 @@ export async function fetchStudentStats(studentId: string): Promise<StudentStats
   }
 }
 
+// XP รวมอย่างเดียว (ใช้ในแถบบน)
+export async function fetchTotalXp(studentId: string): Promise<number> {
+  const { data, error } = await supabase.from('xp_events').select('xp').eq('student_id', studentId)
+  if (error) throw error
+  return data.reduce((sum, e) => sum + e.xp, 0)
+}
+
 // "อีก 2 วัน" / "อีก 5 ชั่วโมง" / "เลยกำหนด 1 วัน"
 export function dueCountdown(dueAt: string | null, now: Date = new Date()): string {
   if (!dueAt) return 'ไม่มีกำหนดส่ง'

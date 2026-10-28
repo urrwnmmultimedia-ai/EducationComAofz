@@ -1,74 +1,33 @@
-import { useState } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router'
-import { useAuth } from '@/app/AuthContext'
-import { Button } from '@/components/Button'
-import { Doctor } from '@/components/characters/Characters'
+import {
+  BookOpen,
+  ClipboardCheck,
+  FileQuestion,
+  Gamepad2,
+  LayoutDashboard,
+  NotebookTabs,
+  School,
+  Settings,
+  SquarePen,
+  UserCheck,
+  Users,
+} from 'lucide-react'
+import { AdminShell } from '@/components/shell/AdminShell'
+import type { NavItem } from '@/components/shell/Shell'
 
-const NAV = [
-  { to: '/admin', label: 'แดชบอร์ด', end: true },
-  { to: '/admin/sessions', label: 'บทเรียน / คาบเรียน', end: false },
-  { to: '/admin/attendance', label: 'เช็คชื่อ', end: false },
-  { to: '/admin/assignments', label: 'งาน / ตรวจงาน', end: false },
-  { to: '/admin/exams', label: 'ชุดสอบ / ผลสอบ', end: false },
-  { to: '/admin/questions', label: 'คลังข้อสอบ', end: false },
-  { to: '/admin/games', label: 'เกม', end: false },
-  { to: '/admin/gradebook', label: 'สมุดคะแนน', end: false },
-  { to: '/admin/students', label: 'นักเรียน', end: false },
-  { to: '/admin/classrooms', label: 'ห้องเรียน', end: false },
-  { to: '/admin/settings', label: 'ตั้งค่า', end: false },
+const NAV: NavItem[] = [
+  { to: '/admin', label: 'แดชบอร์ด', icon: LayoutDashboard, end: true },
+  { to: '/admin/sessions', label: 'บทเรียน / คาบเรียน', icon: BookOpen },
+  { to: '/admin/attendance', label: 'เช็คชื่อ', icon: UserCheck },
+  { to: '/admin/assignments', label: 'งาน / ตรวจงาน', icon: ClipboardCheck },
+  { to: '/admin/exams', label: 'ชุดสอบ / ผลสอบ', icon: SquarePen },
+  { to: '/admin/questions', label: 'คลังข้อสอบ', icon: FileQuestion },
+  { to: '/admin/games', label: 'เกม', icon: Gamepad2 },
+  { to: '/admin/gradebook', label: 'สมุดคะแนน', icon: NotebookTabs },
+  { to: '/admin/students', label: 'นักเรียน', icon: Users },
+  { to: '/admin/classrooms', label: 'ห้องเรียน', icon: School },
+  { to: '/admin/settings', label: 'ตั้งค่า', icon: Settings },
 ]
 
 export function AdminLayout() {
-  const { logout } = useAuth()
-  const navigate = useNavigate()
-  const [leaving, setLeaving] = useState(false)
-
-  const onLogout = async () => {
-    setLeaving(true)
-    await logout()
-    navigate('/', { replace: true })
-  }
-
-  const logoutButton = (variant: 'secondary' | 'ghost', className = '') => (
-    <Button variant={variant} className={className} onClick={() => void onLogout()} loading={leaving} loadingText="กำลังออก…">
-      ออกจากระบบ
-    </Button>
-  )
-
-  return (
-    <div className="min-h-dvh md:grid md:grid-cols-[220px_1fr]">
-      <aside className="border-b border-brand-100 bg-white md:min-h-dvh md:border-b-0 md:border-r">
-        <div className="flex items-center gap-2 px-4 py-3">
-          <Doctor className="size-9" />
-          <p className="flex-1 font-display text-brand-900">หน้าครู</p>
-          <div className="md:hidden">{logoutButton('ghost')}</div>
-        </div>
-        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-0">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                `whitespace-nowrap rounded-xl px-3 py-2 font-display text-sm ${
-                  isActive ? 'bg-brand-600 text-white' : 'text-slate-700 hover:bg-brand-100'
-                }`
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="px-2 pb-2 md:pt-4">
-          <Link to="/db/admin" className="block rounded-xl px-3 py-2 font-display text-sm text-dq-700 ring-2 ring-dq-100 hover:bg-dq-50">
-            ไปหน้าครู DB Quest ม.5
-          </Link>
-        </div>
-        <div className="hidden px-2 py-4 md:block">{logoutButton('secondary', 'w-full')}</div>
-      </aside>
-      <main className="mx-auto w-full max-w-6xl px-4 py-6">
-        <Outlet />
-      </main>
-    </div>
-  )
+  return <AdminShell course="m3" nav={NAV} previewTo="/home" title="หน้าครู ม.3 · TechQuest" />
 }

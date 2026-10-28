@@ -1,4 +1,5 @@
 import type { Block, TableData } from '@/content/lesson'
+import { Globe2, Lightbulb, TriangleAlert } from 'lucide-react'
 import { DbqMarkdown } from './DbqMarkdown'
 import { FIGURES } from './figures'
 
@@ -20,7 +21,7 @@ function DataTable({ t }: { t: TableData }) {
               <th key={c.name} className="px-3 py-2 font-display font-medium whitespace-nowrap">
                 {c.name}
                 {c.role && (
-                  <span className="ml-1 rounded bg-xp-300 px-1 text-xs text-orange-950 uppercase">{c.role}</span>
+                  <span className="ml-1 rounded bg-xp-300 px-1 text-xs text-ink uppercase">{c.role}</span>
                 )}
               </th>
             ))}
@@ -86,7 +87,7 @@ export function BlockView({ block }: { block: Block }) {
       return (
         <aside className={`${CALLOUT} bg-amber-50 ring-amber-200 dark:bg-amber-950/40 dark:ring-amber-900`}>
           <p className="font-display text-amber-900 dark:text-amber-200">
-            <span aria-hidden>{block.icon ?? '🌏'} </span>
+            <Globe2 className="inline size-5 shrink-0 align-[-0.2em]" aria-hidden /> 
             {block.title}
           </p>
           <DbqMarkdown text={block.md} />
@@ -95,14 +96,14 @@ export function BlockView({ block }: { block: Block }) {
     case 'tip':
       return (
         <aside className={`${CALLOUT} bg-sky-50 ring-sky-200 dark:bg-sky-950/40 dark:ring-sky-900`}>
-          <p className="font-display text-sky-900 dark:text-sky-200">💡 ทิป</p>
+          <p className="flex items-center gap-1.5 font-display text-sky-900 dark:text-sky-200"><Lightbulb className="inline size-5 shrink-0 align-[-0.2em]" aria-hidden /> ทิป</p>
           <DbqMarkdown text={block.md} />
         </aside>
       )
     case 'warning':
       return (
         <aside className={`${CALLOUT} bg-rose-50 ring-rose-200 dark:bg-rose-950/40 dark:ring-rose-900`}>
-          <p className="font-display text-rose-900 dark:text-rose-200">⚠️ ระวัง</p>
+          <p className="flex items-center gap-1.5 font-display text-rose-900 dark:text-rose-200"><TriangleAlert className="inline size-5 shrink-0 align-[-0.2em]" aria-hidden /> ระวัง</p>
           <DbqMarkdown text={block.md} />
         </aside>
       )

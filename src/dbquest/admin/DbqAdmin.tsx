@@ -1,83 +1,33 @@
-import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router'
-import { useAuth } from '@/app/AuthContext'
-import { NongData } from '@/components/illustrations/NongData'
+import { ClipboardCheck, KeyRound, LayoutDashboard, LockOpen, NotebookTabs, School, Settings, SquarePen, UserCog, Users } from 'lucide-react'
+import { AdminClassroomsPage } from '@/features/admin/AdminClassroomsPage'
+import { AdminStudentsPage } from '@/features/admin/AdminStudentsPage'
+import { DBQ } from '@/features/admin/courseScope'
+import { AdminShell } from '@/components/shell/AdminShell'
+import type { NavItem } from '@/components/shell/Shell'
 
-const NAV = [
-  { to: '/db/admin', label: 'ภาพรวม', end: true },
-  { to: '/db/admin/students', label: 'นักเรียน', end: false },
-  { to: '/db/admin/unlock', label: 'ปลดล็อกคาบ', end: false },
-  { to: '/db/admin/grading', label: 'ตรวจงาน', end: false },
-  { to: '/db/admin/exams', label: 'กรอกคะแนนสอบ/อื่น ๆ', end: false },
-  { to: '/db/admin/gradebook', label: 'สมุดคะแนน', end: false },
-  { to: '/db/admin/answer-keys', label: 'เฉลยทั้งหมด', end: false },
-  { to: '/db/admin/settings', label: 'ตั้งค่า', end: false },
+const NAV: NavItem[] = [
+  { to: '/db/admin', label: 'ภาพรวม', icon: LayoutDashboard, end: true },
+  { to: '/db/admin/students', label: 'ความคืบหน้านักเรียน', icon: Users },
+  { to: '/db/admin/unlock', label: 'ปลดล็อกคาบ', icon: LockOpen },
+  { to: '/db/admin/grading', label: 'ตรวจงาน', icon: ClipboardCheck },
+  { to: '/db/admin/exams', label: 'กรอกคะแนนสอบ/อื่น ๆ', icon: SquarePen },
+  { to: '/db/admin/gradebook', label: 'สมุดคะแนน', icon: NotebookTabs },
+  { to: '/db/admin/answer-keys', label: 'เฉลยทั้งหมด', icon: KeyRound },
+  { to: '/db/admin/roster', label: 'รายชื่อนักเรียน', icon: UserCog },
+  { to: '/db/admin/classrooms', label: 'ห้องเรียน', icon: School },
+  { to: '/db/admin/settings', label: 'ตั้งค่า', icon: Settings },
 ]
 
-// หน้าครูของ DB Quest — ใช้รหัสครูเดียวกับเว็บ ม.3 สลับไปมาได้จากเมนู
+// หน้าครูของ DB Quest — ใช้รหัสครูเดียวกับเว็บ ม.3 สลับวิชาได้จากแถบด้านซ้าย
 export function DbqAdminLayout() {
-  const { logout } = useAuth()
-  const navigate = useNavigate()
-  const [leaving, setLeaving] = useState(false)
-
-  useEffect(() => {
-    const prev = document.title
-    document.title = 'DB Quest – หน้าครู'
-    return () => {
-      document.title = prev
-    }
-  }, [])
-
-  const onLogout = async () => {
-    setLeaving(true)
-    await logout()
-    navigate('/', { replace: true })
-  }
-
-  return (
-    <div className="min-h-dvh bg-dq-50 text-slate-800 md:grid md:grid-cols-[230px_1fr]">
-      <aside className="border-b border-dq-100 bg-white md:min-h-dvh md:border-b-0 md:border-r">
-        <div className="flex items-center gap-2 px-4 py-3">
-          <NongData className="size-9" />
-          <p className="flex-1 font-display text-dq-900">ครู · DB Quest ม.5</p>
-        </div>
-        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-0">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                `whitespace-nowrap rounded-xl px-3 py-2 font-display text-sm ${
-                  isActive ? 'bg-dq-600 text-white' : 'text-slate-700 hover:bg-dq-100'
-                }`
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="flex gap-2 px-2 py-3 md:flex-col">
-          <Link to="/db/map" className="rounded-xl px-3 py-2 font-display text-sm text-dq-700 ring-2 ring-dq-100 hover:bg-dq-100">
-            ดูหน้านักเรียน
-          </Link>
-          <Link to="/admin" className="rounded-xl px-3 py-2 font-display text-sm text-brand-700 ring-2 ring-brand-100 hover:bg-brand-100">
-            ไปหน้าครู ม.3
-          </Link>
-          <button
-            type="button"
-            onClick={() => void onLogout()}
-            disabled={leaving}
-            className="rounded-xl px-3 py-2 text-left font-display text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-60"
-          >
-            {leaving ? 'กำลังออก…' : 'ออกจากระบบ'}
-          </button>
-        </div>
-      </aside>
-      <main className="mx-auto w-full max-w-6xl px-4 py-6">
-        <Outlet />
-      </main>
-    </div>
-  )
+  return <AdminShell course="db" nav={NAV} previewTo="/db/map" title="DB Quest – หน้าครู" />
 }
 
+// จัดการรายชื่อ/ห้องของ DB Quest (ใช้หน้าเดียวกับ ม.3 แต่เห็นเฉพาะห้อง ม.5)
+export function DbqRosterPage() {
+  return <AdminStudentsPage course={DBQ} />
+}
+
+export function DbqClassroomsPage() {
+  return <AdminClassroomsPage course={DBQ} />
+}

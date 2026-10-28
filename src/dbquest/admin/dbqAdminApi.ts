@@ -177,6 +177,11 @@ export async function saveSetting(key: keyof DbqSettings, value: unknown): Promi
   await rpc('dbq_admin_set_setting', { p_key: key, p_value: value })
 }
 
+// รีเซ็ตคาบของนักเรียน 1 คน: ลบความคืบหน้า คำตอบ และ XP ของคาบนั้น (ใบงาน/คะแนนเกม/เหรียญยังอยู่)
+export async function resetSession(studentId: string, sessionNo: number): Promise<void> {
+  await rpc('dbq_admin_reset_session', { p_student_id: studentId, p_session: sessionNo })
+}
+
 export async function fetchAnswerKeys(sessionNo: number): Promise<AnswerKeyItem[]> {
   const data = z.object({ items: z.array(keyItemSchema) }).parse(await rpc('dbq_get_answer_key', { p_scope: { session_no: sessionNo } }))
   return data.items

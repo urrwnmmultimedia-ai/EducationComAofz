@@ -1,21 +1,48 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router'
-import { NongDataSays } from '@/components/illustrations/NongData'
+import { Link, useParams, useSearchParams } from 'react-router'
+import {
+  ArrowLeft,
+  Bell,
+  BookOpen,
+  CircleCheck,
+  ClipboardList,
+  Flag,
+  Gamepad2,
+  Lock,
+  type LucideIcon,
+  MessageSquare,
+  PartyPopper,
+  PencilLine,
+  Sparkles,
+  Target,
+} from 'lucide-react'
+import { NongData, NongDataSays } from '@/components/illustrations/NongData'
+import { StepJourney } from '@/components/StepJourney'
 import { LoadingBlock, ErrorBlock } from '@/components/StatusViews'
 import { course, findSession, findUnit, type StepKey } from '@/content/course'
 import { loadSessionContent, type SessionContent } from '@/content/lesson'
 import type { Json } from '@/lib/database.types'
 import { useAsync } from '@/lib/useAsync'
 import { BlockView } from './Blocks'
+import { DbqMarkdown } from './DbqMarkdown'
 import { completeStep, DbqError, fetchSessionState, submitWorksheet, type CheckResult, type SessionState } from './dbqLessonApi'
 import { QuestionCard } from './QuestionCard'
 
 const STEP_TITLE = Object.fromEntries(course.steps.map((s) => [s.id, s.title])) as Record<StepKey, string>
-const STEP_ICON: Record<StepKey, string> = { warmup: '🔔', lesson: '📘', practice: '✍️', game: '🎮', worksheet: '📝', wrapup: '🏁' }
+const STEP_ICON: Record<StepKey, LucideIcon> = {
+  warmup: Bell,
+  lesson: BookOpen,
+  practice: PencilLine,
+  game: Gamepad2,
+  worksheet: ClipboardList,
+  wrapup: Flag,
+}
 
-const primaryBtn = 'min-h-12 rounded-2xl bg-dq-600 px-6 font-display text-white shadow-[0_4px_0_0_var(--color-dq-900)] hover:bg-dq-700 disabled:opacity-50 disabled:shadow-none'
+const primaryBtn =
+  'min-h-12 rounded-2xl tq-press bg-action px-6 font-semibold text-white shadow-action hover:-translate-y-px hover:bg-brand-600 disabled:opacity-50 disabled:shadow-none'
 const panel = 'space-y-4 rounded-3xl bg-white p-5 ring-1 ring-dq-100 dark:bg-dq-900 dark:ring-dq-800'
-const textArea = 'min-h-28 w-full rounded-2xl border-2 border-dq-200 bg-white px-4 py-3 outline-none focus:border-dq-500 dark:border-dq-700 dark:bg-dq-950'
+const textArea =
+  'min-h-28 w-full rounded-2xl border-2 border-dq-200 bg-white px-4 py-3 outline-none focus:border-dq-500 dark:border-dq-700 dark:bg-dq-950'
 
 type Loaded = { kind: 'ok'; content: SessionContent; state: SessionState } | { kind: 'locked' } | { kind: 'no-content' }
 
@@ -32,6 +59,8 @@ async function loadLesson(no: number): Promise<Loaded> {
 
 export function DbqLessonPage() {
   const no = Number(useParams().sessionNo)
+  // ?after=game: กลับมาจากเกม => เปิดขั้นถัดจากเกม
+  const after = useSearchParams()[0].get('after') as StepKey | null
   const session = findSession(no)
   const res = useAsync(() => loadLesson(no), [no])
 
@@ -40,25 +69,30 @@ export function DbqLessonPage() {
   return (
     <div className="space-y-6">
       <header>
-        <Link to="/db/map" className="text-base text-dq-700 underline-offset-2 hover:underline dark:text-dq-300">
-          ← แผนที่การเรียน
+        <Link to="/db/map" className="inline-flex min-h-11 items-center gap-1.5 text-base font-semibold text-ink-2 hover:text-ink dark:text-dq-300">
+          <ArrowLeft className="size-4" aria-hidden /> บทเรียนทั้งหมด
         </Link>
-        {unit && (
-          <p className="mt-2 text-base text-slate-600 dark:text-dq-300">
-            {unit.icon} หน่วย {unit.no} {unit.title}
-          </p>
-        )}
-        <h1 className="text-2xl text-dq-900 dark:text-white">
+        <h1 className="mt-1 text-[1.45rem] leading-tight text-ink sm:text-[2.1rem] dark:text-white">
           คาบ {session.no}: {session.title}
         </h1>
+        {unit && (
+          <p className="mt-1 text-base text-ink-2 dark:text-dq-300">
+            หน่วย {unit.no} · {unit.title}
+          </p>
+        )}
       </header>
       {res.status === 'loading' && <LoadingBlock label="กำลังเปิดบทเรียน…" />}
       {res.status === 'error' && <ErrorBlock message={res.error} onRetry={res.reload} />}
       {res.data?.kind === 'locked' && (
-        <NongDataSays mood="think">🔒 คาบนี้ยังล็อกอยู่ ทำคาบก่อนหน้าให้ได้อย่างน้อยตามเกณฑ์ หรือรอครูปลดล็อกให้นะ</NongDataSays>
+        <NongDataSays mood="think">
+          <Lock className="inline size-4 shrink-0 align-[-0.2em]" aria-hidden /> คาบนี้ยังล็อกอยู่ ทำคาบก่อนหน้าให้ได้อย่างน้อยตามเกณฑ์
+          หรือรอครูปลดล็อกให้นะ
+        </NongDataSays>
       )}
       {res.data?.kind === 'no-content' && <NongDataSays mood="think">เนื้อหาคาบนี้กำลังเตรียมอยู่ อีกไม่นานเปิดให้เรียนแน่นอน</NongDataSays>}
-      {res.data?.kind === 'ok' && <LessonFlow no={no} content={res.data.content} initial={res.data.state} />}
+      {res.data?.kind === 'ok' && (
+        <LessonFlow key={`${no}:${after ?? ''}`} no={no} content={res.data.content} initial={res.data.state} after={after} />
+      )}
     </div>
   )
 }
@@ -69,19 +103,25 @@ function XpToast({ xp, onDone }: { xp: number; onDone: () => void }) {
     return () => clearTimeout(t)
   }, [xp, onDone])
   return (
-    <div role="status" className="fixed inset-x-0 bottom-24 z-20 mx-auto w-fit rounded-full bg-xp-500 px-5 py-2 font-display text-white shadow-lg md:bottom-8">
+    <div
+      role="status"
+      className="fixed inset-x-0 bottom-24 z-20 mx-auto w-fit rounded-full bg-xp-500 px-5 py-2 font-display text-white shadow-lg md:bottom-8"
+    >
       +{xp} XP
     </div>
   )
 }
 
-function LessonFlow({ no, content, initial }: { no: number; content: SessionContent; initial: SessionState }) {
+function LessonFlow({ no, content, initial, after }: { no: number; content: SessionContent; initial: SessionState; after: StepKey | null }) {
   const steps = initial.steps
   const [done, setDone] = useState(() => new Set(Object.keys(initial.done) as StepKey[]))
   const [solved, setSolved] = useState(() => new Set(initial.solved))
   const [attempted, setAttempted] = useState(() => new Set(initial.attempted))
-  const [pct, setPct] = useState(initial.pct)
-  const [current, setCurrent] = useState<StepKey>(() => steps.find((s) => !(s in initial.done)) ?? steps[0] ?? 'wrapup')
+  const [current, setCurrent] = useState<StepKey>(() => {
+    const i = after ? steps.indexOf(after) : -1
+    if (i >= 0) return steps[Math.min(i + 1, steps.length - 1)] ?? 'wrapup'
+    return steps.find((s) => !(s in initial.done)) ?? steps[0] ?? 'wrapup'
+  })
   const [toast, setToast] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -103,7 +143,6 @@ function LessonFlow({ no, content, initial }: { no: number; content: SessionCont
     try {
       const r = await completeStep(no, step, data)
       setDone((s) => new Set(s).add(step))
-      if (r.pct !== null) setPct(r.pct)
       gainXp(r.xp)
       const next = steps[steps.indexOf(step) + 1]
       if (next) setCurrent(next)
@@ -115,51 +154,34 @@ function LessonFlow({ no, content, initial }: { no: number; content: SessionCont
     }
   }
 
-  // เปิดได้: ขั้นที่ทำแล้ว + ขั้นแรกที่ยังไม่ทำ
-  const firstOpen = steps.find((s) => !done.has(s))
-  const canOpen = (s: StepKey) => done.has(s) || s === firstOpen
   const allDone = steps.every((s) => done.has(s))
 
-  const stepProps = { content, busy, finish, onChecked, solved, attempted, done: done.has(current), preview: initial.preview }
+  // คำตอบที่นักเรียนเดาไว้ตอนเปิดคาบ (ใช้ย้อนดูตอนปิดคาบ)
+  const [guess, setGuess] = useState(() => {
+    const w = initial.done.warmup as { guess?: unknown } | undefined
+    return typeof w?.guess === 'string' ? w.guess : ''
+  })
+  const stepProps = {
+    content,
+    busy,
+    finish,
+    onChecked,
+    solved,
+    attempted,
+    done: done.has(current),
+    preview: initial.preview,
+  }
   return (
     <>
-      {initial.preview && (
-        <p className="rounded-2xl bg-xp-300/40 px-4 py-2 text-base">โหมดครู: ทำได้ทุกขั้นแต่ไม่บันทึกผล</p>
-      )}
-      <nav aria-label="ขั้นในคาบ" className="-mx-4 overflow-x-auto px-4">
-        <ol className="flex min-w-max gap-2">
-          {steps.map((s, i) => (
-            <li key={s}>
-              <button
-                type="button"
-                disabled={!canOpen(s)}
-                onClick={() => setCurrent(s)}
-                aria-current={current === s ? 'step' : undefined}
-                className={`flex min-h-12 items-center gap-2 rounded-2xl px-3 font-display text-base ring-2 transition disabled:opacity-40 ${
-                  current === s
-                    ? 'bg-dq-600 text-white ring-dq-600'
-                    : 'bg-white ring-dq-100 hover:ring-dq-300 dark:bg-dq-900 dark:ring-dq-800'
-                }`}
-              >
-                <span aria-hidden>{done.has(s) ? '✅' : STEP_ICON[s]}</span>
-                <span>
-                  {i + 1}. {STEP_TITLE[s]}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      </nav>
-      {pct !== null && (
-        <div className="flex items-center gap-3 text-base">
-          <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-dq-100 dark:bg-dq-800" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="ความคืบหน้าคาบนี้">
-            <div className="h-full rounded-full bg-xp-500 transition-[width] duration-500" style={{ width: `${pct}%` }} />
-          </div>
-          <span className="font-display">{pct}%</span>
-        </div>
-      )}
+      {initial.preview && <p className="rounded-2xl bg-xp-300/40 px-4 py-2 text-base">โหมดครู: ทำได้ทุกขั้นแต่ไม่บันทึกผล</p>}
+      <StepJourney
+        steps={steps.map((s) => ({ key: s, label: STEP_TITLE[s], icon: STEP_ICON[s] }))}
+        current={current}
+        done={done}
+        onSelect={(k) => setCurrent(k as StepKey)}
+      />
 
-      {current === 'warmup' && <WarmupStep {...stepProps} />}
+      {current === 'warmup' && <WarmupStep {...stepProps} guess={guess} onGuess={setGuess} />}
       {current === 'lesson' && <LessonStep {...stepProps} />}
       {current === 'practice' && <PracticeStep {...stepProps} />}
       {current === 'game' && <GameStep {...stepProps} />}
@@ -189,12 +211,10 @@ interface StepProps {
 }
 
 function StepHeader({ step, children }: { step: StepKey; children?: ReactNode }) {
-  const minutes = course.steps.find((s) => s.id === step)?.minutes
   return (
     <div>
       <h2 className="text-xl text-dq-900 dark:text-white">
-        {STEP_ICON[step]} {STEP_TITLE[step]}
-        {minutes && <span className="ml-2 text-base font-normal text-slate-500 dark:text-dq-300">ประมาณ {minutes} นาที</span>}
+        <StepIcon step={step} /> {STEP_TITLE[step]}
       </h2>
       {children && <p className="text-slate-600 dark:text-dq-300">{children}</p>}
     </div>
@@ -202,14 +222,82 @@ function StepHeader({ step, children }: { step: StepKey; children?: ReactNode })
 }
 
 function DoneNote({ children = 'ทำขั้นนี้เสร็จแล้ว' }: { children?: ReactNode }) {
-  return <p className="font-display text-emerald-700 dark:text-emerald-300">✓ {children}</p>
+  return (
+    <p className="flex items-center gap-1.5 font-semibold text-mint-500 dark:text-emerald-300">
+      <CircleCheck className="size-5" aria-hidden /> {children}
+    </p>
+  )
 }
 
-function WarmupStep({ content, busy, done, finish }: StepProps) {
+function Intro({ intro }: { intro: NonNullable<SessionContent['intro']> }) {
+  return (
+    <>
+      <div className="relative overflow-hidden rounded-[1.5rem] bg-db-600 p-5 pr-24 text-white sm:p-6 sm:pr-32">
+        <NongData mood="think" className="pointer-events-none absolute -bottom-3 -right-3 size-28 drop-shadow-lg sm:size-32" />
+        <p className="text-sm font-semibold text-db-100">คำถามก่อนเรียน</p>
+        <p className="mt-1 text-xl font-semibold leading-snug sm:text-2xl">{intro.bigQuestion}</p>
+      </div>
+      {(intro.why || intro.goals) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {intro.why && (
+            <div className="rounded-[1.25rem] bg-surface/70 p-4 dark:bg-dq-950">
+              <p className="mb-1 flex items-center gap-1.5 font-semibold text-ink dark:text-white">
+                <Sparkles className="size-5 text-xp-500" aria-hidden /> เรียนไปทำไม
+              </p>
+              <DbqMarkdown text={intro.why} />
+            </div>
+          )}
+          {intro.goals && (
+            <div className="rounded-[1.25rem] bg-surface/70 p-4 dark:bg-dq-950">
+              <p className="mb-2 flex items-center gap-1.5 font-semibold text-ink dark:text-white">
+                <Target className="size-5 text-action" aria-hidden /> จบคาบนี้ เราจะ…
+              </p>
+              <ol className="space-y-2">
+                {intro.goals.map((g, i) => (
+                  <li key={i} className="flex gap-2.5">
+                    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-db-50 text-sm font-bold text-db-700 dark:bg-db-700/30 dark:text-db-100">
+                      {i + 1}
+                    </span>
+                    <span className="leading-relaxed">{g}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
+function WarmupStep({ content, busy, done, finish, guess, onGuess }: StepProps & { guess: string; onGuess: (g: string) => void }) {
   const [answers, setAnswers] = useState(() => content.warmup.map(() => ''))
+  const [g, setG] = useState(guess)
+  const intro = content.intro
+  const filled = !!g.trim() || answers.some((a) => a.trim())
+  const onSave = () => {
+    onGuess(g)
+    void finish('warmup', { guess: g, answers: [g, ...answers] })
+  }
   return (
     <section className={panel}>
-      <StepHeader step="warmup">ชวนคิดก่อนเรียน ไม่มีถูกผิด ตอบอย่างน้อย 1 ข้อ</StepHeader>
+      <StepHeader step="warmup">{intro ? 'ตอบตามที่คิด ไม่มีถูกผิด' : 'ชวนคิดก่อนเรียน ไม่มีถูกผิด ตอบอย่างน้อย 1 ข้อ'}</StepHeader>
+      {intro && (
+        <>
+          <Intro intro={intro} />
+          <label className="block space-y-2">
+            <span className="block font-semibold">คำตอบของฉัน (ก่อนเรียน)</span>
+            <textarea
+              className={textArea}
+              maxLength={500}
+              placeholder="ตอบสั้น ๆ ตามที่คิด ท้ายคาบจะกลับมาดูกันอีกที"
+              value={g}
+              onChange={(e) => setG(e.target.value)}
+            />
+          </label>
+          {content.warmup.length > 0 && <p className="pt-2 font-semibold text-ink dark:text-white">ชวนคิดเพิ่ม (ตอบข้อไหนก็ได้)</p>}
+        </>
+      )}
       {content.warmup.map((q, i) => (
         <label key={i} className="block space-y-2">
           <span className="block">
@@ -224,7 +312,7 @@ function WarmupStep({ content, busy, done, finish }: StepProps) {
         </label>
       ))}
       {done && <DoneNote />}
-      <button type="button" className={primaryBtn} disabled={busy || answers.every((a) => !a.trim())} onClick={() => void finish('warmup', { answers })}>
+      <button type="button" className={primaryBtn} disabled={busy || !filled} onClick={onSave}>
         {done ? 'บันทึกคำตอบอีกครั้ง' : 'ไปเรียนกันเลย'}
       </button>
     </section>
@@ -239,7 +327,7 @@ function LessonStep({ content, busy, done, finish, onChecked, solved }: StepProp
   return (
     <section className="space-y-6">
       <StepHeader step="lesson">
-        อ่านทีละการ์ด แล้วตอบคำถามท้ายการ์ดให้ถูกเพื่อเปิดการ์ดถัดไป ({Math.min(visible.length, content.cards.length)}/{content.cards.length})
+        ตอบคำถามท้ายการ์ดถูก การ์ดถัดไปจะเปิด ({Math.min(visible.length, content.cards.length)}/{content.cards.length})
       </StepHeader>
       {visible.map((card, i) => (
         <article key={card.id} className={panel}>
@@ -271,7 +359,7 @@ function PracticeStep({ content, busy, done, finish, onChecked, solved, attempte
   const allTried = content.practice.every((q) => attempted.has(q.id))
   return (
     <section className="space-y-4">
-      <StepHeader step="practice">ลองทำทุกข้อ ตอบผิดได้ ตอบใหม่ได้เรื่อย ๆ</StepHeader>
+      <StepHeader step="practice">ทำให้ครบทุกข้อ ตอบผิดแก้ใหม่ได้</StepHeader>
       {content.practice.map((q) => (
         <QuestionCard key={q.id} question={q} solved={solved.has(q.id)} onChecked={onChecked} />
       ))}
@@ -316,7 +404,14 @@ function GameStep({ content, busy, done, finish }: StepProps) {
   )
 }
 
-function WorksheetStep({ content, busy, done, finish, preview, initialSubmission }: StepProps & { initialSubmission?: SessionState['submissions'][string] }) {
+function WorksheetStep({
+  content,
+  busy,
+  done,
+  finish,
+  preview,
+  initialSubmission,
+}: StepProps & { initialSubmission?: SessionState['submissions'][string] }) {
   const ws = content.worksheet
   const [text, setText] = useState(initialSubmission?.content.text ?? '')
   const [sending, setSending] = useState(false)
@@ -350,7 +445,11 @@ function WorksheetStep({ content, busy, done, finish, preview, initialSubmission
           <p className="font-display">
             ครูตรวจแล้ว: {initialSubmission.score ?? '-'} / {initialSubmission.max_score}
           </p>
-          {initialSubmission.feedback && <p className="mt-1">💬 {initialSubmission.feedback}</p>}
+          {initialSubmission.feedback && (
+            <p className="mt-1 flex gap-1.5">
+              <MessageSquare className="inline size-5 shrink-0 align-[-0.2em]" aria-hidden /> {initialSubmission.feedback}
+            </p>
+          )}
         </div>
       ) : null}
       <textarea
@@ -372,25 +471,76 @@ function WorksheetStep({ content, busy, done, finish, preview, initialSubmission
   )
 }
 
-function WrapupStep({ content, busy, done, finish }: StepProps) {
+function WrapupStep({ content, busy, done, finish, onChecked, solved, attempted }: StepProps) {
+  const closing = content.closing
   const [reflection, setReflection] = useState('')
+
+  if (!closing) {
+    // คาบที่ยังไม่มีภารกิจปิดคาบ: สรุป + เขียนสิ่งที่ได้เรียนรู้
+    return (
+      <section className={panel}>
+        <StepHeader step="wrapup" />
+        <p className="font-semibold">สรุป 3 ข้อของคาบนี้</p>
+        <ol className="list-decimal space-y-1 pl-6">
+          {content.summary.map((s, i) => (
+            <li key={i}>{s}</li>
+          ))}
+        </ol>
+        <label className="block space-y-2">
+          <span className="block font-semibold">วันนี้เราได้เรียนรู้อะไร หรือยังสงสัยอะไรอยู่</span>
+          <textarea className={textArea} maxLength={1000} value={reflection} onChange={(e) => setReflection(e.target.value)} />
+        </label>
+        {done && <DoneNote />}
+        <button type="button" className={primaryBtn} disabled={busy || !reflection.trim()} onClick={() => void finish('wrapup', { reflection })}>
+          {done ? 'บันทึกอีกครั้ง' : 'จบคาบ'}
+        </button>
+      </section>
+    )
+  }
+
+  const total = closing.questions.length
+  const tried = closing.questions.filter((q) => attempted.has(q.id)).length
+  const right = closing.questions.filter((q) => solved.has(q.id)).length
+  const allTried = tried === total
+
   return (
-    <section className={panel}>
-      <StepHeader step="wrapup" />
-      <p className="font-display">สรุป 3 ข้อของคาบนี้</p>
-      <ol className="list-decimal space-y-1 pl-6">
-        {content.summary.map((s, i) => (
-          <li key={i}>{s}</li>
+    <section className="space-y-4">
+      <StepHeader step="wrapup">ใช้ทุกเรื่องที่เรียนวันนี้ ตอบผิดแก้ใหม่ได้</StepHeader>
+      <div className={panel}>
+        <h3 className="flex items-center gap-2 text-lg text-ink dark:text-white">
+          <Flag className="size-5 text-action" aria-hidden /> {closing.title}
+        </h3>
+        {closing.blocks.map((b, i) => (
+          <BlockView key={i} block={b} />
         ))}
-      </ol>
-      <label className="block space-y-2">
-        <span className="block font-display">วันนี้เราได้เรียนรู้อะไร หรือยังสงสัยอะไรอยู่</span>
-        <textarea className={textArea} maxLength={1000} value={reflection} onChange={(e) => setReflection(e.target.value)} />
-      </label>
-      {done && <DoneNote />}
-      <button type="button" className={primaryBtn} disabled={busy || !reflection.trim()} onClick={() => void finish('wrapup', { reflection })}>
-        {done ? 'บันทึกอีกครั้ง' : 'จบคาบ'}
-      </button>
+      </div>
+      {closing.questions.map((q, i) => (
+        <div key={q.id}>
+          <p className="mb-1.5 text-sm font-semibold text-ink-2 dark:text-dq-300">
+            ข้อ {i + 1} จาก {total}
+          </p>
+          <QuestionCard question={q} solved={solved.has(q.id)} onChecked={onChecked} />
+        </div>
+      ))}
+      <div className={`${panel} flex flex-wrap items-center gap-3`}>
+        <p className="min-w-0 flex-1">
+          ตอบแล้ว{' '}
+          <span className="font-semibold tabular-nums">
+            {tried}/{total}
+          </span>{' '}
+          ข้อ · ถูก <span className="font-semibold tabular-nums text-mint-500">{right}</span> ข้อ
+          {allTried && right < total && (
+            <span className="block text-base text-ink-2 dark:text-dq-300">ข้อที่ยังไม่ถูก ลองอ่านคำใบ้แล้วตอบใหม่ได้</span>
+          )}
+        </p>
+        {done ? (
+          <DoneNote />
+        ) : (
+          <button type="button" className={primaryBtn} disabled={busy || !allTried} onClick={() => void finish('wrapup', {})}>
+            {allTried ? 'จบคาบ' : 'ตอบให้ครบทุกข้อก่อน'}
+          </button>
+        )}
+      </div>
     </section>
   )
 }
@@ -399,17 +549,27 @@ function SessionDone({ no }: { no: number }) {
   const next = findSession(no + 1)
   return (
     <NongDataSays mood="cheer">
-      <p className="font-display text-xl">เยี่ยมมาก! เรียนครบทุกขั้นของคาบ {no} แล้ว 🎉</p>
+      <p className="font-display text-xl">
+        เยี่ยมมาก! เรียนครบทุกขั้นของคาบ {no} แล้ว <PartyPopper className="inline size-6 shrink-0 align-[-0.2em]" aria-hidden />
+      </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {next && (
           <Link to={`/db/lesson/${next.no}`} className={`${primaryBtn} inline-flex items-center`}>
             ไปคาบ {next.no}
           </Link>
         )}
-        <Link to="/db/map" className="inline-flex min-h-12 items-center rounded-2xl px-4 font-display text-dq-700 ring-2 ring-dq-200 dark:text-dq-200 dark:ring-dq-700">
-          กลับแผนที่
+        <Link
+          to="/db/map"
+          className="inline-flex min-h-12 items-center rounded-2xl px-4 font-display text-dq-700 ring-2 ring-dq-200 dark:text-dq-200 dark:ring-dq-700"
+        >
+          กลับไปหน้าบทเรียน
         </Link>
       </div>
     </NongDataSays>
   )
+}
+
+function StepIcon({ step, done = false }: { step: StepKey; done?: boolean }) {
+  const Icon = done ? CircleCheck : STEP_ICON[step]
+  return <Icon className="inline size-5 shrink-0 align-[-0.2em]" aria-hidden />
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Lock, LockOpen } from 'lucide-react'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import { course } from '@/content/course'
 import { btn, PageHeader, panel, useRooms } from './adminUi'
@@ -51,11 +52,11 @@ export function DbqAdminUnlock() {
                     aria-pressed={on}
                     title={s.title}
                     onClick={() => void toggle(key, s.no, !on, r.classroom_id)}
-                    className={`min-h-10 min-w-12 rounded-xl px-3 font-display text-sm ring-2 transition disabled:cursor-default ${
+                    className={`inline-flex min-h-10 min-w-12 items-center gap-1 rounded-xl px-3 font-display text-sm ring-2 transition disabled:cursor-default ${
                       on ? 'bg-dq-600 text-white ring-dq-600' : 'bg-white text-slate-500 ring-dq-100 hover:ring-dq-300'
                     } ${busy === key ? 'opacity-50' : ''}`}
                   >
-                    {on ? '🔓' : '🔒'} {s.no}
+                    {on ? <LockOpen className="size-4" aria-hidden /> : <Lock className="size-4" aria-hidden />} {s.no}
                   </button>
                 </li>
               )

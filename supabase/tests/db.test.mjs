@@ -465,7 +465,7 @@ check('dbq: M.3 unlock-all skips ม.5 rooms', r.rows[0].n === 0)
 const err = (e) => e.message
 const keyCount = (await db.query(`select count(*)::int n from public.dbq_answer_keys`)).rows[0].n
 r = await db.query(`select count(*)::int n from public.dbq_answer_keys where session_no = 1`)
-check('dbq010: answer keys seeded (s01 = 6 items)', r.rows[0].n === 6)
+check('dbq010: answer keys seeded (s01 = 10 items: 6 + ภารกิจปิดคาบ 4)', r.rows[0].n === 10)
 r = await db.query(`select game_key from public.dbq_lessons where session_no = 1`)
 check('dbq010: lesson game_key from sNN.json', r.rows[0].game_key === 'memory-match')
 r = await db.query(`select item_id, max_score from public.dbq_assignments where item_id = 'ws-s01'`)
@@ -557,8 +557,10 @@ totalXp += r[0].r.xp
 r = await as(D5, `select public.dbq_check_answer('s01-p1', '{"pairs":{}}') as r`)
 r = await as(D5, `select public.dbq_complete_step(1, 'practice', '{}') as r`).catch(err)
 check('dbq010: practice needs every item attempted', r === 'incomplete')
-r = await as(D5, `select public.dbq_game_deck('memory-match') as r`).catch(err)
-check('dbq012: game deck locked until steps before game are done', r === 'locked')
+r = await as(D5, `select public.dbq_game_deck('memory-match') as r`)
+check('dbq015: game deck available as soon as the session is open', r[0].r.pairs.length === 8)
+r = await as(D5, `select public.dbq_game_deck('db-terms-match') as r`).catch(err)
+check('dbq015: game deck of a locked session is still locked', r === 'locked')
 r = await as(D5, `select public.dbq_check_answer('s01-p2', '{"text":" HARDWARE "}') as r`)
 check('dbq010: fill accepts normalized text', r[0].r.correct && r[0].r.xp === 5)
 totalXp += r[0].r.xp
@@ -635,11 +637,20 @@ totalXp += r[0].r.xp
 r = await as(D5, `select public.dbq_my_map() as r`)
 check('dbq010: s2 open after reaching 80%', r[0].r[1].open === true && r[0].r[0].pct === 83)
 
-r = await as(D5, `select public.dbq_complete_step(1, 'wrapup', '{"reflection":""}') as r`).catch(err)
-check('dbq010: wrapup needs reflection', r === 'incomplete')
+r = await as(D5, `select public.dbq_complete_step(1, 'wrapup', '{"reflection":"เขียนอย่างเดียว"}') as r`).catch(err)
+check('dbq017: closing mission needs every question attempted', r === 'incomplete')
+r = await as(D5, `select public.dbq_check_answer('s01-w1', '{"pairs":{"w1-a":"data","w1-b":"info","w1-c":"hw","w1-d":"sw","w1-e":"people"}}') as r`)
+check('dbq017: closing question graded on server', r[0].r.correct === true && r[0].r.xp === 5 && Object.keys(r[0].r).sort().join() === 'correct,hint,score,xp')
+totalXp += r[0].r.xp
+r = await as(D5, `select public.dbq_check_answer('s01-w2', '{"order":["o3","o1","o4","o2"]}') as r`)
+check('dbq017: wrong closing answer gets hint', r[0].r.correct === false && r[0].r.hint.length > 0)
+r = await as(D5, `select public.dbq_check_answer('s01-w3', '{"choice":1}') as r`)
+totalXp += r[0].r.xp
+r = await as(D5, `select public.dbq_check_answer('s01-w4', '{"choices":[0]}') as r`)
+check('dbq017: multi needs all correct choices', r[0].r.correct === false)
 // ให้หน่วย 1 มีแค่คาบ 1 ชั่วคราว เพื่อทดสอบเหรียญจบหน่วย
 const unit1Others = (await db.query(`update public.dbq_lessons set unit_no = 2 where unit_no = 1 and session_no <> 1 returning session_no`)).rows.map((x) => x.session_no)
-r = await as(D5, `select public.dbq_complete_step(1, 'wrapup', '{"reflection":"ข้อมูลต่างจากสารสนเทศ"}') as r`)
+r = await as(D5, `select public.dbq_complete_step(1, 'wrapup', '{}') as r`)
 check('dbq010: wrapup -> 100% + session bonus + unit badge', r[0].r.pct === 100 && r[0].r.xp === 30 && r[0].r.badges.join() === 'unit-complete')
 totalXp += r[0].r.xp
 await db.exec(`update public.dbq_lessons set unit_no = 1 where session_no = any('{${unit1Others.join(',')}}'::int[])`)
@@ -795,5 +806,41 @@ check('dbq014: ม.3 student denied', r === 'forbidden')
 r = await as(T, `select public.dbq_game_titles() as r`)
 check('dbq014: admin gets titles', Object.keys(r[0].r).length === 2)
 
+// ---------- ลบนักเรียน (หน้าจัดการนักเรียน) ----------
+r = await as(D5, `delete from public.students where student_code = '55600' returning id`)
+check('students: student cannot delete others', r.length === 0)
+const sid600 = (await db.query(`select id from public.students where student_code = '55600'`)).rows[0].id
+r = await db.query(`select count(*)::int n from public.dbq_submissions where student_id = '${sid600}'`)
+check('students: delete target has data', r.rows[0].n === 1)
+r = await as(T, `delete from public.students where student_code = '55600' returning id`)
+check('students: admin deletes student', r.length === 1)
+r = await db.query(`select (select count(*) from public.dbq_submissions where student_id = '${sid600}')::int s, (select count(*) from public.sessions where student_id = '${sid600}')::int l`)
+check('students: delete cascades to submissions and logins', r.rows[0].s === 0 && r.rows[0].l === 0)
+// ---------- ลบห้องเรียน (หน้าจัดการห้องเรียน) ----------
+r = await as(D5, `delete from public.classrooms where name = 'ม.5/2' returning id`)
+check('classrooms: student cannot delete rooms', r.length === 0)
+await as(T, `select public.dbq_admin_set_unlock(4, true, '${room52}')`)
+r = await as(T, `delete from public.classrooms where name = 'ม.5/2' and not exists (select 1 from public.students st where st.classroom_id = classrooms.id) returning id`)
+check('classrooms: admin deletes empty room', r.length === 1)
+r = await db.query(`select count(*)::int n from public.dbq_classroom_unlocks where classroom_id = '${room52}'`)
+check('classrooms: room delete removes its unlocks', r.rows[0].n === 0)
+// ---------- DB Quest: ครูรีเซ็ตคาบรายคน (migration 016) ----------
+r = await as(D5, `select public.dbq_admin_reset_session(public.current_student_id(), 1) as r`).catch(err)
+check('dbq016: student cannot reset', r === 'forbidden')
+const xpBefore = (await as(D5, `select public.dbq_me() as r`))[0].r.xp
+const wsBefore = (await db.query(`select count(*)::int n from public.dbq_submissions where student_id = '${sidD5}'`)).rows[0].n
+r = await as(T, `select public.dbq_admin_reset_session('${sidD5}', 1) as r`)
+check('dbq016: reset removes steps, attempts, xp', r[0].r.ok && r[0].r.steps === 6 && r[0].r.items >= 5 && r[0].r.xp_events > 0)
+r = await as(D5, `select public.dbq_session_state(1) as r`)
+check('dbq016: session back to 0%', r[0].r.pct === 0 && r[0].r.solved.length === 0 && Object.keys(r[0].r.done).length === 0)
+const xpAfter = (await as(D5, `select public.dbq_me() as r`))[0].r.xp
+r = await db.query(`select count(*)::int n from public.dbq_xp_events where student_id = '${sidD5}' and (source like 'step:1:%' or source = 'session:1' or source like 'item:s01-%')`)
+check('dbq016: only session-1 xp removed', r.rows[0].n === 0 && xpAfter < xpBefore && xpAfter > 0)
+r = await db.query(`select count(*)::int n from public.dbq_submissions where student_id = '${sidD5}'`)
+check('dbq016: worksheet submissions kept', r.rows[0].n === wsBefore)
+r = await as(D5, `select public.dbq_complete_step(1, 'warmup', '{"answers":["ใหม่"]}') as r`)
+check('dbq016: redo earns xp again', r[0].r.xp === 5)
+r = await as(T, `select public.dbq_admin_reset_session('${sidD3}', 1) as r`).catch(err)
+check('dbq016: non DB Quest student not found', r === 'not_found')
 console.log(failed ? `${failed} FAILED` : 'ALL PASSED')
 process.exit(failed ? 1 : 0)

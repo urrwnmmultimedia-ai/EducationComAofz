@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router'
+import { BookOpen, BookText, ClipboardList, House, LogOut, Moon, SquareTerminal, Sun, UserRound } from 'lucide-react'
 import { useAuth } from '@/app/AuthContext'
-import { NongData } from '@/components/illustrations/NongData'
+import { Backdrop, BottomNav, BrandMark, PreviewBanner, TopBar, TopNav, XpPill, type NavItem } from '@/components/shell/Shell'
+import { useAsync } from '@/lib/useAsync'
+import { fetchMe } from './pages/dbqStudentApi'
 import { useTheme } from './useTheme'
 
-const NAV = [
-  { to: '/db/home', label: 'หน้าหลัก', icon: '🏠' },
-  { to: '/db/map', label: 'แผนที่', icon: '🗺️' },
-  { to: '/db/sql', label: 'ฝึก SQL', icon: '⌨️' },
-  { to: '/db/glossary', label: 'ศัพท์', icon: '📖' },
-  { to: '/db/assignments', label: 'งาน', icon: '📝' },
-  { to: '/db/me', label: 'ฉัน', icon: '🙂' },
+const NAV: NavItem[] = [
+  { to: '/db/home', label: 'หน้าหลัก', icon: House },
+  { to: '/db/map', label: 'บทเรียน', icon: BookOpen },
+  { to: '/db/sql', label: 'ฝึก SQL', icon: SquareTerminal, locked: true },
+  { to: '/db/glossary', label: 'ศัพท์', icon: BookText, locked: true },
+  { to: '/db/assignments', label: 'งาน', icon: ClipboardList },
+  { to: '/db/me', label: 'ฉัน', icon: UserRound },
 ]
 
-// กรอบหน้าของ DB Quest (ม.5): ธีมน้ำเงิน-ฟ้า โหมดมืดได้ ตัวอักษรเนื้อหา 18px
+// กรอบหน้าของ DB Quest (ม.5) ใต้แบรนด์ TechQuest — โหมดมืดได้ ตัวอักษรเนื้อหา 18px
 export function DbqLayout() {
   const { identity, logout } = useAuth()
   const navigate = useNavigate()
@@ -21,10 +24,12 @@ export function DbqLayout() {
   const [leaving, setLeaving] = useState(false)
   const student = identity.student
   const isAdminPreview = identity.role === 'admin'
+  const { pathname } = useLocation()
+  const me = useAsync(() => (student ? fetchMe() : Promise.resolve(null)), [student?.id])
 
   useEffect(() => {
     const prev = document.title
-    document.title = 'DB Quest – เรียนฐานข้อมูลด้วยตัวเอง'
+    document.title = 'DB Quest · TechQuest'
     return () => {
       document.title = prev
     }
@@ -37,86 +42,45 @@ export function DbqLayout() {
   }
 
   return (
-    <div className={`${theme === 'dark' ? 'dark' : ''} min-h-dvh bg-dq-50 pb-20 text-lg text-slate-800 dark:bg-dq-950 dark:text-dq-50 md:pb-0`}>
+    <div className={`${theme === 'dark' ? 'dark' : ''} min-h-dvh pb-28 lg:pb-0 text-lg text-ink dark:text-dq-50`}>
+      <Backdrop variant={pathname === '/db/home' ? 'band' : 'soft'} />
       {isAdminPreview && (
-        <div className="bg-xp-300 px-4 py-2 text-center text-base text-orange-950">
+        <PreviewBanner>
           โหมดดูตัวอย่างของครู{' '}
-          <Link to="/db/admin" className="font-display underline">
+          <Link to="/db/admin" className="font-semibold underline">
             กลับหน้าครู DB Quest
           </Link>
-        </div>
+        </PreviewBanner>
       )}
-      <header className="sticky top-0 z-10 border-b border-dq-100 bg-white/90 backdrop-blur dark:border-dq-800 dark:bg-dq-950/90">
-        <div className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-2">
-          <Link to={isAdminPreview ? '/db/admin' : '/db/home'} className="flex min-w-0 flex-1 items-center gap-2">
-            <NongData className="size-10 shrink-0" />
-            <span className="min-w-0 leading-tight">
-              <span className="block truncate font-display text-dq-800 dark:text-dq-100">DB Quest</span>
-              <span className="block truncate text-sm text-slate-500 dark:text-dq-300">
-                {isAdminPreview ? 'ครู' : (student?.nickname || student?.first_name) ?? ''}
-                {student?.classroom_name && ` · ${student.classroom_name}`}
-              </span>
-            </span>
-          </Link>
-          <nav className="hidden gap-1 md:flex" aria-label="เมนูหลัก">
-            {NAV.map((n) => (
-              <NavLink
-                key={n.to}
-                to={n.to}
-                className={({ isActive }) =>
-                  `rounded-xl px-3 py-1.5 font-display text-base ${
-                    isActive ? 'bg-dq-600 text-white' : 'text-slate-600 hover:bg-dq-100 dark:text-dq-200 dark:hover:bg-dq-900'
-                  }`
-                }
-              >
-                {n.label}
-              </NavLink>
-            ))}
-          </nav>
+      <TopBar left={<BrandMark course="db" to={isAdminPreview ? '/db/admin' : '/db/home'} />}>
+        <TopNav items={NAV} />
+        {me.data && <XpPill xp={me.data.xp} />}
+        <button
+          type="button"
+          onClick={toggle}
+          className="tq-press grid size-11 shrink-0 place-items-center rounded-full text-ink-2 hover:bg-white/70 dark:text-dq-200 dark:hover:bg-dq-900"
+          aria-label={theme === 'dark' ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'}
+        >
+          {theme === 'dark' ? <Sun className="size-5" aria-hidden /> : <Moon className="size-5" aria-hidden />}
+        </button>
+        {!isAdminPreview && (
           <button
             type="button"
-            onClick={toggle}
-            className="grid size-11 shrink-0 place-items-center rounded-2xl text-xl hover:bg-dq-100 dark:hover:bg-dq-900"
-            aria-label={theme === 'dark' ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'}
+            onClick={() => void onLogout()}
+            disabled={leaving}
+            className="tq-press grid size-11 shrink-0 place-items-center rounded-full text-ink-2 hover:bg-white/70 disabled:opacity-50 dark:text-dq-200 dark:hover:bg-dq-900"
+            aria-label="ออกจากระบบ"
           >
-            <span aria-hidden>{theme === 'dark' ? '☀️' : '🌙'}</span>
+            <LogOut className="size-5" aria-hidden />
           </button>
-          {!isAdminPreview && (
-            <button
-              type="button"
-              onClick={() => void onLogout()}
-              disabled={leaving}
-              className="min-h-11 shrink-0 rounded-2xl px-3 font-display text-base text-dq-700 hover:bg-dq-100 disabled:opacity-60 dark:text-dq-200 dark:hover:bg-dq-900"
-            >
-              {leaving ? 'กำลังออก…' : 'ออก'}
-            </button>
-          )}
-        </div>
-      </header>
+        )}
+      </TopBar>
 
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto max-w-5xl px-3 py-5 sm:px-4 sm:py-6">
         <Outlet />
       </main>
 
-      <nav
-        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-6 border-t border-dq-100 bg-white dark:border-dq-800 dark:bg-dq-950 md:hidden"
-        aria-label="เมนูหลัก"
-      >
-        {NAV.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 py-2 text-xs ${isActive ? 'text-dq-700 dark:text-dq-200' : 'text-slate-500 dark:text-dq-400'}`
-            }
-          >
-            <span className="text-xl" aria-hidden>
-              {n.icon}
-            </span>
-            {n.label}
-          </NavLink>
-        ))}
-      </nav>
+      <BottomNav items={NAV} />
     </div>
   )
 }

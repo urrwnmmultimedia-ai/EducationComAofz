@@ -98,10 +98,10 @@ export function ProfilePage() {
       <section className="rounded-3xl bg-white p-5 text-sm shadow-sm ring-1 ring-brand-100">
         <h2 className="mb-2 text-lg text-brand-900">วิธีได้ XP</h2>
         <ul className="grid gap-1 text-slate-600 sm:grid-cols-2">
-          <li>🎮 เล่นเกม +10–50 (รอบแรกเต็ม รอบต่อไป 20%)</li>
-          <li>📝 ส่งงานตรงเวลา +30</li>
-          <li>🎟️ Exit ticket เต็ม +20</li>
-          <li>🗓️ เข้าเรียน +10</li>
+          <li>เล่นเกม +10–50 (รอบแรกเต็ม รอบต่อไป 20%)</li>
+          <li>ส่งงานตรงเวลา +30</li>
+          <li>Exit ticket เต็ม +20</li>
+          <li>เข้าเรียน +10</li>
         </ul>
         <p className="mt-2 text-xs text-slate-500">
           ทุก {XP_PER_LEVEL} XP ขึ้น 1 เลเวล: {LEVEL_NAMES.join(' → ')}

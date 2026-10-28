@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { BookOpen, Lightbulb, NotebookPen, TriangleAlert } from 'lucide-react'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import { course } from '@/content/course'
 import { hasSessionContent, loadSessionContent, type Question, type SessionContent } from '@/content/lesson'
@@ -7,7 +8,7 @@ import { input, PageHeader, panel } from './adminUi'
 import { fetchAnswerKeys, type AnswerKeyItem } from './dbqAdminApi'
 
 const LETTERS = ['ก', 'ข', 'ค', 'ง', 'จ', 'ฉ']
-const TYPE_LABEL: Record<string, string> = { check: 'เช็กความเข้าใจ', practice: 'ฝึกปฏิบัติ', worksheet: 'ใบงาน', game: 'เกม', quiz: 'ข้อสอบ', project: 'โครงงาน' }
+const TYPE_LABEL: Record<string, string> = { check: 'เช็กความเข้าใจ', practice: 'ฝึกปฏิบัติ', wrapup: 'ภารกิจปิดคาบ', worksheet: 'ใบงาน', game: 'เกม', quiz: 'ข้อสอบ', project: 'โครงงาน' }
 
 // เฉลยทั้งหมดของคาบ (ดึงจากเซิร์ฟเวอร์ เฉพาะครู) จับคู่กับโจทย์ในไฟล์เนื้อหาเพื่ออ่านง่าย
 export function DbqAdminKeys() {
@@ -29,7 +30,7 @@ export function DbqAdminKeys() {
           ))}
         </select>
       </PageHeader>
-      <p className="text-sm text-slate-600">⚠️ หน้านี้เปิดได้เฉพาะครู ระวังเปิดจอขณะฉายโปรเจกเตอร์</p>
+      <p className="flex items-center gap-1.5 text-sm text-slate-600"><TriangleAlert className="inline size-4 shrink-0 align-[-0.2em]" aria-hidden /> หน้านี้เปิดได้เฉพาะครู ระวังเปิดจอขณะฉายโปรเจกเตอร์</p>
       {res.status === 'loading' && <LoadingBlock />}
       {res.status === 'error' && <ErrorBlock message={res.error} onRetry={res.reload} />}
       {res.status === 'success' &&
@@ -50,7 +51,7 @@ export function DbqAdminKeys() {
 
 function findQuestion(c: SessionContent | null, id: string): Question | undefined {
   if (!c) return undefined
-  return [...c.cards.map((x) => x.check), ...c.practice].find((q) => q.id === id)
+  return [...c.cards.map((x) => x.check), ...c.practice, ...(c.closing?.questions ?? [])].find((q) => q.id === id)
 }
 
 // แปลงเฉลย (รูปแบบเดียวกับที่เซิร์ฟเวอร์ตรวจ) เป็นข้อความที่ครูอ่านได้
@@ -101,9 +102,9 @@ function KeyCard({ item, question }: { item: AnswerKeyItem; question?: Question 
           ))}
         </ul>
       )}
-      {item.explanation && <p className="text-sm">📖 {item.explanation}</p>}
-      {item.hint && <p className="text-sm text-slate-600">💡 คำใบ้ที่นักเรียนเห็น: {item.hint}</p>}
-      {item.teacher_notes && <p className="text-sm text-amber-800">📝 {item.teacher_notes}</p>}
+      {item.explanation && <p className="flex gap-1.5 text-sm"><BookOpen className="inline size-4 shrink-0 align-[-0.2em]" aria-hidden /> {item.explanation}</p>}
+      {item.hint && <p className="flex gap-1.5 text-sm text-slate-600"><Lightbulb className="inline size-4 shrink-0 align-[-0.2em]" aria-hidden /> คำใบ้ที่นักเรียนเห็น: {item.hint}</p>}
+      {item.teacher_notes && <p className="flex gap-1.5 text-sm text-amber-800"><NotebookPen className="inline size-4 shrink-0 align-[-0.2em]" aria-hidden /> {item.teacher_notes}</p>}
     </article>
   )
 }

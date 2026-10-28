@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { useAsync } from '@/lib/useAsync'
 import { describeAnswer } from '@/features/exams/ExamResultView'
 import { fullName } from '@/features/assignments/gradebookData'
+import { M3, roomsOf, studentsIn } from './courseScope'
 
 async function fetchData(id: string) {
   const exam = await supabase.from('exams').select('*').eq('id', id).maybeSingle()
@@ -28,12 +29,13 @@ async function fetchData(id: string) {
     if (pa.error) throw pa.error
     pairAttempts = pa.data
   }
+  const rooms = roomsOf(c.data ?? [], M3)
   return {
     exam: exam.data,
     attempts: att.data ?? [],
     questions: q.data ?? [],
-    students: st.data ?? [],
-    classrooms: c.data ?? [],
+    students: studentsIn(st.data ?? [], rooms, M3),
+    classrooms: rooms,
     pair: pair.data ? { title: pair.data.title, kind: pairKind, attempts: pairAttempts } : null,
   }
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import { useAsync } from '@/lib/useAsync'
 import { btn, input, PageHeader, panel } from './adminUi'
@@ -45,6 +46,12 @@ function SettingsForm({ initial }: { initial: DbqSettings }) {
   return (
     <div className="max-w-2xl space-y-4">
       <PageHeader title="ตั้งค่า DB Quest" />
+      <p className="text-sm text-slate-600">
+        ชื่อโรงเรียน ความยาวรหัสนักเรียน การล็อกอุปกรณ์ และรหัสครู ใช้ร่วมกันทั้งเว็บ ตั้งได้ที่{' '}
+        <Link to="/admin/settings" className="font-semibold text-action-strong hover:underline">
+          ตั้งค่าระบบ
+        </Link>
+      </p>
       <section className={`${panel} space-y-3`}>
         <h2 className="text-lg text-dq-900">น้ำหนักคะแนน (รวม 100)</h2>
         <div className="grid gap-2 sm:grid-cols-2">

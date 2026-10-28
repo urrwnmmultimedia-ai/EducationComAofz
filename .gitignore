@@ -9,3 +9,6 @@ supabase/.temp
 supabase/.branches
 *.tsbuildinfo
 .impeccable
+
+# ข้อมูลนักเรียนจริง ห้ามขึ้น git
+private/

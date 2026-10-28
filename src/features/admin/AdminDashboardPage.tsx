@@ -16,14 +16,17 @@ async function fetchDashboard() {
   const [source, settings, online, attempts, questions] = await Promise.all([
     fetchGradebookSource(),
     fetchSettings(),
-    supabase.from('sessions').select('auth_uid', { count: 'exact', head: true }).eq('role', 'student').gte('last_seen_at', since),
+    supabase.from('sessions').select('student_id').eq('role', 'student').gte('last_seen_at', since),
     supabase.from('exam_attempts').select('*').not('submitted_at', 'is', null),
     supabase.from('questions').select('*'),
   ])
   if (online.error) throw online.error
   if (attempts.error) throw attempts.error
   if (questions.error) throw questions.error
-  return { source, settings, online: online.count ?? 0, attempts: attempts.data, questions: questions.data }
+  // นับเฉพาะนักเรียนวิชา ม.3 (source ถูกกรองตามวิชาแล้ว)
+  const m3 = new Set(source.students.map((s) => s.id))
+  const onlineCount = new Set(online.data.filter((s) => s.student_id && m3.has(s.student_id)).map((s) => s.student_id)).size
+  return { source, settings, online: onlineCount, attempts: attempts.data, questions: questions.data }
 }
 
 export function AdminDashboardPage() {

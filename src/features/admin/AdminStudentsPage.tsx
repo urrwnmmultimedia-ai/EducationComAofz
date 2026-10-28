@@ -1,13 +1,15 @@
 import { useRef, useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import { z } from 'zod'
 import { Button } from '@/components/Button'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
-import type { ClassroomRow, StudentRow } from '@/lib/database.types'
+import type { ClassroomRow, CourseKey, StudentRow } from '@/lib/database.types'
 import { supabase } from '@/lib/supabase'
 import { useAsync } from '@/lib/useAsync'
 import { fullName } from '@/features/assignments/gradebookData'
 import { downloadWorkbook, readTableFile } from './exportExcel'
 import { IMPORT_TEMPLATE_HEADER, parseStudentTable, type ImportResult } from './studentImport'
+import { COURSE_GRADE, M3, roomsOf, studentsIn } from './courseScope'
 
 const INPUT = 'w-full rounded-lg border-2 border-brand-100 bg-white px-2 py-1 outline-none focus:border-brand-500'
 
@@ -22,18 +24,20 @@ const studentSchema = z.object({
 })
 type StudentForm = z.infer<typeof studentSchema>
 
-async function fetchData() {
+async function fetchData(course: CourseKey) {
   const [s, c] = await Promise.all([
     supabase.from('students').select('*').order('student_code'),
     supabase.from('classrooms').select('*').order('sort_order').order('name'),
   ])
   if (s.error) throw s.error
   if (c.error) throw c.error
-  return { students: s.data, classrooms: c.data }
+  const rooms = roomsOf(c.data, course)
+  return { students: studentsIn(s.data, rooms, course), classrooms: rooms }
 }
 
-export function AdminStudentsPage() {
-  const state = useAsync(fetchData, [])
+// รายชื่อนักเรียนของวิชาเดียว: /admin/students = ม.3 · /db/admin/roster = DB Quest ม.5
+export function AdminStudentsPage({ course = M3 }: { course?: CourseKey }) {
+  const state = useAsync(() => fetchData(course), [course])
   const [roomId, setRoomId] = useState<string>('all')
   const [editing, setEditing] = useState<string | 'new' | null>(null)
 
@@ -49,7 +53,7 @@ export function AdminStudentsPage() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl text-brand-900">นักเรียน</h1>
+          <h1 className="text-2xl text-ink">{course === M3 ? 'นักเรียน ม.3' : 'รายชื่อนักเรียน DB Quest'}</h1>
           <p className="text-sm text-slate-500">ทั้งหมด {students.length} คน · ใช้งานอยู่ {students.filter((s) => s.is_active).length} คน</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -65,7 +69,7 @@ export function AdminStudentsPage() {
         </div>
       </div>
 
-      <ImportPanel onImported={state.reload} />
+      <ImportPanel course={course} onImported={state.reload} />
 
       <div className="overflow-x-auto rounded-3xl bg-white shadow-sm ring-1 ring-brand-100">
         <table className="w-full min-w-[860px] text-left text-sm">
@@ -100,20 +104,56 @@ export function AdminStudentsPage() {
 }
 
 function ViewRow({ student: s, roomName, onEdit, onChanged }: { student: StudentRow; roomName: string; onEdit: () => void; onChanged: () => void }) {
-  const [busy, setBusy] = useState<'active' | 'device' | null>(null)
+  const [busy, setBusy] = useState<'active' | 'device' | 'delete' | null>(null)
   const [error, setError] = useState(false)
+  const [confirming, setConfirming] = useState(false)
 
-  const run = async (kind: 'active' | 'device') => {
+  const run = async (kind: 'active' | 'device' | 'delete') => {
     if (busy) return
     setBusy(kind)
     setError(false)
+    // ลบถาวร: ข้อมูลที่ผูกกับนักเรียน (การเข้าใช้ XP เหรียญ งานที่ส่ง คะแนนสอบ ความคืบหน้า) ถูกลบตาม (on delete cascade)
     const { error: err } =
       kind === 'active'
         ? await supabase.from('students').update({ is_active: !s.is_active }).eq('id', s.id)
-        : await supabase.rpc('admin_reset_device', { p_student_id: s.id })
+        : kind === 'device'
+          ? await supabase.rpc('admin_reset_device', { p_student_id: s.id })
+          : await supabase.from('students').delete().eq('id', s.id)
     setBusy(null)
     if (err) setError(true)
-    else onChanged()
+    else {
+      setConfirming(false)
+      onChanged()
+    }
+  }
+
+  if (confirming) {
+    return (
+      <tr className="border-t border-rose-100 bg-rose-50">
+        <td colSpan={8} className="px-3 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="min-w-0 flex-1 text-sm text-rose-900">
+              ลบ <span className="font-semibold">{fullName(s)}</span> (รหัส {s.student_code}) ถาวร? ความคืบหน้า XP เหรียญ งานที่ส่ง และคะแนนของคนนี้จะหายทั้งหมด กู้คืนไม่ได้
+              {' '}ถ้าแค่ไม่ให้เข้าระบบ ใช้ "ปิดใช้งาน" แทน
+            </p>
+            <div className="flex gap-2">
+              <Button variant="secondary" className="min-h-10" disabled={busy !== null} onClick={() => setConfirming(false)}>
+                ยกเลิก
+              </Button>
+              <Button
+                className="min-h-10 bg-rose-600 shadow-none hover:bg-rose-700"
+                loading={busy === 'delete'}
+                loadingText="กำลังลบ…"
+                onClick={() => void run('delete')}
+              >
+                ลบถาวร
+              </Button>
+            </div>
+            {error && <span className="w-full text-sm text-rose-700">ลบไม่สำเร็จ ลองใหม่อีกครั้ง</span>}
+          </div>
+        </td>
+      </tr>
+    )
   }
 
   return (
@@ -138,6 +178,18 @@ function ViewRow({ student: s, roomName, onEdit, onChanged }: { student: Student
               {busy === 'device' ? 'กำลังรีเซ็ต…' : 'รีเซ็ตอุปกรณ์'}
             </button>
           )}
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => {
+              setError(false)
+              setConfirming(true)
+            }}
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+            aria-label={`ลบ ${fullName(s)}`}
+          >
+            <Trash2 className="size-4" aria-hidden /> ลบ
+          </button>
           {error && <span className="text-rose-600">ไม่สำเร็จ</span>}
         </div>
       </td>
@@ -245,7 +297,7 @@ function EditRow({
   )
 }
 
-function ImportPanel({ onImported }: { onImported: () => void }) {
+function ImportPanel({ course, onImported }: { course: CourseKey; onImported: () => void }) {
   const input = useRef<HTMLInputElement>(null)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [fileName, setFileName] = useState('')
@@ -257,7 +309,7 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
     setMessage(null)
     setFileName(file.name)
     try {
-      setResult(parseStudentTable(await readTableFile(file)))
+      setResult(parseStudentTable(await readTableFile(file), COURSE_GRADE[course]))
       setStatus('idle')
     } catch {
       setResult(null)
@@ -290,7 +342,7 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
           variant="ghost"
           onClick={() =>
             void downloadWorkbook('แม่แบบรายชื่อนักเรียน.xlsx', [
-              { name: 'รายชื่อ', rows: [IMPORT_TEMPLATE_HEADER, ['10001', 'เด็กชาย', 'ธนกร', 'ใจดี', 'กล้า', 'ม.3/1', 1]], colWidths: [10, 10, 16, 16, 10, 8, 6] },
+              { name: 'รายชื่อ', rows: [IMPORT_TEMPLATE_HEADER, course === M3 ? ['10001', 'เด็กชาย', 'ธนกร', 'ใจดี', 'กล้า', 'ม.3/1', 1] : ['50001', 'นาย', 'ธนกร', 'ใจดี', 'กล้า', 'ม.5/1', 1]], colWidths: [10, 10, 16, 16, 10, 8, 6] },
             ])
           }
         >

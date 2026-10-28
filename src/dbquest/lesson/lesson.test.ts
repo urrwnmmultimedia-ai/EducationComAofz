@@ -22,6 +22,7 @@ describe('เนื้อหาคาบ sNN.json', () => {
     const questions: [Question, string][] = [
       ...s.cards.map((c) => [c.check, 'check'] as [Question, string]),
       ...s.practice.map((q) => [q, 'practice'] as [Question, string]),
+      ...(s.closing?.questions ?? []).map((q) => [q, 'wrapup'] as [Question, string]),
     ]
 
     it(`คาบ ${s.session}: ทุกข้อมีเฉลยชนิดตรงกัน`, () => {
@@ -34,6 +35,11 @@ describe('เนื้อหาคาบ sNN.json', () => {
     it(`คาบ ${s.session}: ไม่มีเฉลยลอย (ไม่มีข้อในเนื้อหา)`, () => {
       const ids = new Set([...questions.map(([q]) => q.id), s.worksheet?.item_id])
       expect(keys.filter((k) => !ids.has(k.item_id)).map((k) => k.item_id)).toEqual([])
+    })
+
+    it(`คาบ ${s.session}: เปิดคาบมีคำถามก่อนเรียน (คาบ 1–2) และเป้าหมายถ้ามีต้องมี 2–4 ข้อ`, () => {
+      if (s.session <= 2) expect(s.intro?.bigQuestion.length).toBeGreaterThan(10)
+      if (s.intro?.goals) expect(s.intro.goals.length).toBeGreaterThanOrEqual(2)
     })
 
     it(`คาบ ${s.session}: ทุกการ์ดมีภาพ และภาพมีอยู่จริง`, () => {

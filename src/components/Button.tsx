@@ -9,11 +9,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode
 }
 
+// primary = สีน้ำเงินของทั้งเว็บ (สิ่งที่กดแล้วไปต่อ) · secondary = ขาวมีขอบ · ghost = ข้อความ
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700 shadow-[0_4px_0_0_var(--color-brand-900)] active:translate-y-0.5 active:shadow-[0_2px_0_0_var(--color-brand-900)]',
-  secondary: 'bg-white text-brand-700 ring-2 ring-brand-200 hover:bg-brand-100',
-  ghost: 'text-brand-700 hover:bg-brand-100',
-  danger: 'bg-coral-400 text-white hover:brightness-95',
+  primary: 'bg-action text-white shadow-action hover:bg-brand-600 hover:-translate-y-px',
+  secondary:
+    'bg-white text-ink ring-1 ring-line shadow-[inset_0_1px_0_rgb(255_255_255),0_1px_2px_rgb(20_45_100/0.1),0_6px_14px_-8px_rgb(20_45_100/0.35)] hover:-translate-y-px hover:ring-brand-300',
+  ghost: 'text-ink-2 hover:bg-white/70 hover:text-ink',
+  danger: 'bg-white text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50',
 }
 
 // ปุ่มกลางของระบบ: ระหว่าง loading จะ disabled เสมอ (กันกดซ้ำ)
@@ -31,7 +33,7 @@ export function Button({
       {...rest}
       disabled={disabled || loading}
       aria-busy={loading}
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-5 py-2.5 font-display text-base font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTS[variant]} ${className}`}
+      className={`tq-press inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none ${VARIANTS[variant]} ${className}`}
     >
       {loading && <Spinner />}
       {loading ? loadingText : children}

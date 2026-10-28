@@ -410,6 +410,7 @@ await db.exec(readFileSync(join(root, 'supabase', 'seed_dbquest.sql'), 'utf8'))
 await db.exec(readFileSync(join(root, 'supabase', 'seed_dbquest.sql'), 'utf8')) // รันซ้ำได้
 await db.exec(readFileSync(join(root, 'supabase', 'seed', 'answer_keys.sql'), 'utf8'))
 await db.exec(readFileSync(join(root, 'supabase', 'seed', 'answer_keys.sql'), 'utf8')) // รันซ้ำได้
+await db.exec(readFileSync(join(root, 'supabase', 'updates', 'dbquest_content.sql'), 'utf8')) // ไฟล์อัปเดตเนื้อหารันซ้ำได้
 const D5 = '00000000-0000-0000-0000-0000000000d5'
 const D3 = '00000000-0000-0000-0000-0000000000d3'
 await db.exec(`insert into auth.users values ('${D5}'), ('${D3}');`)
@@ -463,7 +464,8 @@ check('dbq: M.3 unlock-all skips ม.5 rooms', r.rows[0].n === 0)
 // ---------- DB Quest: คาบเรียน + เฉลย (migration 010) ----------
 const err = (e) => e.message
 const keyCount = (await db.query(`select count(*)::int n from public.dbq_answer_keys`)).rows[0].n
-check('dbq010: answer keys seeded (s01 = 6 items)', keyCount === 6)
+r = await db.query(`select count(*)::int n from public.dbq_answer_keys where session_no = 1`)
+check('dbq010: answer keys seeded (s01 = 6 items)', r.rows[0].n === 6)
 r = await db.query(`select game_key from public.dbq_lessons where session_no = 1`)
 check('dbq010: lesson game_key from sNN.json', r.rows[0].game_key === 'memory-match')
 r = await db.query(`select item_id, max_score from public.dbq_assignments where item_id = 'ws-s01'`)
@@ -477,7 +479,7 @@ check('dbq010: ม.3 student get_answer_key -> forbidden', r[0].r.error === 'for
 r = await db.query(`select action, detail from public.dbq_security_log order by id`)
 check('dbq010: denied key access logged', r.rows.length === 2 && r.rows.every((x) => x.action === 'get_answer_key_denied') && r.rows[1].detail.session_no === 1)
 r = await as(T, `select public.dbq_get_answer_key('{}'::jsonb) as r`)
-check('dbq010: admin gets all keys', r[0].r.items.length === 6 && r[0].r.items[0].answer !== undefined)
+check('dbq010: admin gets all keys', r[0].r.items.length === keyCount && r[0].r.items[0].answer !== undefined)
 r = await as(T, `select public.dbq_get_answer_key('{"session_no":1,"item_type":"practice"}'::jsonb) as r`)
 check('dbq010: admin key scope filter', r[0].r.items.map((x) => x.item_id).join() === 's01-p1,s01-p2')
 r = await as(D5, `select public.dbq_grade('mcq', '{"choice":2}', '{"choice":2}') as r`).catch(() => 'denied')

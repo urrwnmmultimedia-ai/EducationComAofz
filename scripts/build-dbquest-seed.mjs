@@ -136,6 +136,23 @@ ${deckRows.join(',\n')}
 on conflict (game_key) do update set config = excluded.config, updated_at = now();
 ` : ''}`
 writeFileSync(join(root, 'supabase/seed/answer_keys.sql'), keysSql)
+
+// ฐานข้อมูลที่ติดตั้งแล้ว (เฟส 3 ขึ้นไป): รันไฟล์นี้ทุกครั้งที่เพิ่ม/แก้คาบ เฉลย หรือสำรับเกม — รันซ้ำได้
+writeFileSync(
+  join(root, 'supabase/updates/dbquest_content.sql'),
+  `-- =============================================================
+-- อัปเดตเนื้อหา DB Quest (คาบ ใบงาน เกม เฉลย) สำหรับฐานข้อมูลที่ติดตั้งเฟส 3 แล้ว
+-- สร้างอัตโนมัติจาก scripts/build-dbquest-seed.mjs — SQL Editor → วางทั้งไฟล์ → Run (รันซ้ำได้)
+-- ⚠️ มีเฉลยทั้งหมด ห้ามนำไปไว้ใน src/ หรือ public/
+-- =============================================================
+
+begin;
+
+${sql}
+${keysSql}
+commit;
+`,
+)
 console.log(
   `seed_dbquest.sql: ${course.sessions.length} lessons, ${sessions.length} session files · ` +
     `answer_keys.sql: ${keyRows.length} items, ${deckRows.length} game decks`,

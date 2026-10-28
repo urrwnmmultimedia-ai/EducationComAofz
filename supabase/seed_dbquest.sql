@@ -50,12 +50,14 @@ on conflict (session_no) do update
 
 update public.dbq_lessons l set game_key = v.game_key
 from (values
-  (1, 'memory-match')
+  (1, 'memory-match'),
+  (2, 'db-terms-match')
 ) as v(session_no, game_key)
 where l.session_no = v.session_no;
 
 insert into public.dbq_assignments (item_id, session_no, title, max_score, type, sort_order) values
-  ('ws-s01', 1, 'ใบงานที่ 1: ข้อมูลหรือสารสนเทศรอบตัวฉัน', 5, 'text', 1)
+  ('ws-s01', 1, 'ใบงานที่ 1: ข้อมูลหรือสารสนเทศรอบตัวฉัน', 5, 'text', 1),
+  ('ws-s02', 2, 'ใบงานที่ 2: ออกแบบตารางจากชีวิตจริง', 5, 'text', 2)
 on conflict (item_id) do update
   set session_no = excluded.session_no, title = excluded.title, max_score = excluded.max_score,
       type = excluded.type, sort_order = excluded.sort_order;

@@ -4,6 +4,7 @@ import { useAsync } from '@/lib/useAsync'
 import { btn, displayName, formatDateTime, PageHeader, panel, RoomSelect } from './adminUi'
 import { CATEGORIES, CATEGORY_LABEL, fetchStudentDetail, fetchStudents, type Scores } from './dbqAdminApi'
 import { gradeOf } from './gradebookModel'
+import { xpLabel } from './xpLabel'
 
 export function DbqAdminStudents() {
   const [params, setParams] = useSearchParams()
@@ -172,9 +173,11 @@ export function DbqAdminStudentDetail() {
           <h2 className="mb-3 text-lg text-dq-900">XP ล่าสุด</h2>
           <ul className="space-y-1 text-sm">
             {d.recent_xp.map((x, i) => (
-              <li key={i} className="flex justify-between gap-2">
-                <span className="font-mono text-slate-600">{x.source}</span>
-                <span className="font-display text-xp-600">+{x.amount}</span>
+              <li key={i} className="grid grid-cols-[1fr_3rem_auto] items-baseline gap-2">
+                <span className="text-slate-700" title={x.source}>
+                  {xpLabel(x.source)}
+                </span>
+                <span className="text-right font-display text-xp-600">+{x.amount}</span>
                 <span className="text-slate-400">{formatDateTime(x.created_at)}</span>
               </li>
             ))}

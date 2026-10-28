@@ -1,6 +1,8 @@
-// สร้าง supabase/seed_dbquest.sql จาก src/content/units/course.json (ชื่อคาบมีที่เดียว ไม่เขียนซ้ำ)
+// สร้าง seed ของ DB Quest จากไฟล์ต้นฉบับ (ข้อมูลมีที่เดียว ไม่เขียนซ้ำ)
+//   supabase/seed_dbquest.sql      <- src/content/units/course.json + sNN.json (คาบ ใบงาน เกม — ไม่มีเฉลย)
+//   supabase/seed/answer_keys.sql  <- supabase/answer_keys/sNN.json (เฉลย อยู่นอก src จึงไม่ถูก build ไปกับเว็บ)
 // ใช้: node scripts/build-dbquest-seed.mjs (หรือ npm run seed:build)
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -8,6 +10,36 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const course = JSON.parse(readFileSync(join(root, 'src/content/units/course.json'), 'utf8'))
 
 const q = (s) => `'${String(s).replaceAll("'", "''")}'`
+const qj = (v) => (v == null ? 'null' : `${q(JSON.stringify(v))}::jsonb`)
+
+const unitsDir = join(root, 'src/content/units')
+const sessions = readdirSync(unitsDir)
+  .filter((f) => /^s\d{2}\.json$/.test(f))
+  .sort()
+  .map((f) => JSON.parse(readFileSync(join(unitsDir, f), 'utf8')))
+
+const gameKeys = sessions
+  .filter((s) => s.game)
+  .map((s) => `  (${s.session}, ${q(s.game.slug)})`)
+  .join(',\n')
+
+const assignments = sessions
+  .filter((s) => s.worksheet)
+  .map((s, i) => `  (${q(s.worksheet.item_id)}, ${s.session}, ${q(s.worksheet.title)}, ${s.worksheet.max_score}, ${q(s.worksheet.type)}, ${i + 1})`)
+  .join(',\n')
+
+const keysDir = join(root, 'supabase/answer_keys')
+const keyRows = readdirSync(keysDir)
+  .filter((f) => f.endsWith('.json'))
+  .sort()
+  .flatMap((f) => {
+    const file = JSON.parse(readFileSync(join(keysDir, f), 'utf8'))
+    return file.items.map(
+      (k) =>
+        `  (${q(k.item_id)}, ${q(k.item_type)}, ${q(k.grade_type)}, ${file.unit ?? 'null'}, ${file.session ?? 'null'}, ` +
+        `${qj(k.answer ?? {})}, ${q(k.explanation ?? '')}, ${q(k.hint ?? '')}, ${qj(k.rubric ?? null)}, ${q(k.teacher_notes ?? '')})`,
+    )
+  })
 
 const lessons = course.sessions
   .map((s) => `  (${s.no}, ${s.unit ?? 'null'}, ${q(s.kind)}, ${q(s.title)}, ${s.no === 1})`)
@@ -55,6 +87,18 @@ ${lessons}
 on conflict (session_no) do update
   set unit_no = excluded.unit_no, kind = excluded.kind, title = excluded.title;
 
+${gameKeys ? `update public.dbq_lessons l set game_key = v.game_key
+from (values
+${gameKeys}
+) as v(session_no, game_key)
+where l.session_no = v.session_no;
+` : ''}
+${assignments ? `insert into public.dbq_assignments (item_id, session_no, title, max_score, type, sort_order) values
+${assignments}
+on conflict (item_id) do update
+  set session_no = excluded.session_no, title = excluded.title, max_score = excluded.max_score,
+      type = excluded.type, sort_order = excluded.sort_order;
+` : ''}
 insert into public.dbq_badges (key, name, description, icon, sort_order) values
 ${badges}
 on conflict (key) do update
@@ -62,4 +106,19 @@ on conflict (key) do update
 `
 
 writeFileSync(join(root, 'supabase/seed_dbquest.sql'), sql)
-console.log(`seed_dbquest.sql: ${course.sessions.length} lessons`)
+
+const keysSql = `-- =============================================================
+-- เฉลย DB Quest (สร้างอัตโนมัติจาก supabase/answer_keys/*.json — ห้ามแก้ตรง)
+-- ต้องรันหลัง seed_dbquest.sql · รันซ้ำได้ (อัปเดตเฉลยตามไฟล์ต้นฉบับ)
+-- ⚠️ ไฟล์นี้มีเฉลยทั้งหมด ห้ามนำไปไว้ใน src/ หรือ public/
+-- =============================================================
+
+insert into public.dbq_answer_keys (item_id, item_type, grade_type, unit_no, session_no, answer, explanation, hint, rubric, teacher_notes) values
+${keyRows.join(',\n')}
+on conflict (item_id) do update
+  set item_type = excluded.item_type, grade_type = excluded.grade_type, unit_no = excluded.unit_no,
+      session_no = excluded.session_no, answer = excluded.answer, explanation = excluded.explanation,
+      hint = excluded.hint, rubric = excluded.rubric, teacher_notes = excluded.teacher_notes, updated_at = now();
+`
+writeFileSync(join(root, 'supabase/seed/answer_keys.sql'), keysSql)
+console.log(`seed_dbquest.sql: ${course.sessions.length} lessons, ${sessions.length} session files · answer_keys.sql: ${keyRows.length} items`)

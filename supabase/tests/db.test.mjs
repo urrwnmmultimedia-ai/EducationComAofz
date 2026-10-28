@@ -408,6 +408,8 @@ check('student cannot delete own attempts', r.length === 0)
 // ---------- DB Quest (ม.5) ----------
 await db.exec(readFileSync(join(root, 'supabase', 'seed_dbquest.sql'), 'utf8'))
 await db.exec(readFileSync(join(root, 'supabase', 'seed_dbquest.sql'), 'utf8')) // รันซ้ำได้
+await db.exec(readFileSync(join(root, 'supabase', 'seed', 'answer_keys.sql'), 'utf8'))
+await db.exec(readFileSync(join(root, 'supabase', 'seed', 'answer_keys.sql'), 'utf8')) // รันซ้ำได้
 const D5 = '00000000-0000-0000-0000-0000000000d5'
 const D3 = '00000000-0000-0000-0000-0000000000d3'
 await db.exec(`insert into auth.users values ('${D5}'), ('${D3}');`)
@@ -420,7 +422,7 @@ r = await as(D5, `select public.whoami() as r`)
 check('dbq: whoami carries course', r[0].r.student.course === 'dbquest_m5')
 
 const dbqTables = (await db.query(`select tablename from pg_tables where schemaname = 'public' and tablename like 'dbq\\_%'`)).rows.map((x) => x.tablename)
-check('dbq: 13 tables exist', dbqTables.length === 13)
+check('dbq: 16 tables exist', dbqTables.length === 16)
 check('dbq: RLS on every table', (await db.query(`select count(*)::int n from pg_tables where tablename like 'dbq\\_%' and not rowsecurity`)).rows[0].n === 0)
 let directOk = 0
 for (const t of dbqTables) {
@@ -457,6 +459,215 @@ check('dbq: CSV-created ม.5 room becomes DB Quest', r.rows[0]?.course === 'dbq
 await as(T, `select public.admin_set_session_unlock(7, true)`)
 r = await db.query(`select count(*)::int n from public.classroom_session_unlocks u join public.classrooms c on c.id = u.classroom_id where c.course = 'dbquest_m5'`)
 check('dbq: M.3 unlock-all skips ม.5 rooms', r.rows[0].n === 0)
+
+// ---------- DB Quest: คาบเรียน + เฉลย (migration 010) ----------
+const err = (e) => e.message
+const keyCount = (await db.query(`select count(*)::int n from public.dbq_answer_keys`)).rows[0].n
+check('dbq010: answer keys seeded (s01 = 6 items)', keyCount === 6)
+r = await db.query(`select game_key from public.dbq_lessons where session_no = 1`)
+check('dbq010: lesson game_key from sNN.json', r.rows[0].game_key === 'memory-match')
+r = await db.query(`select item_id, max_score from public.dbq_assignments where item_id = 'ws-s01'`)
+check('dbq010: worksheet seeded', r.rows[0]?.max_score == 5)
+
+// เฉลย: นักเรียนดึงไม่ได้ + บันทึก log / ครูดึงได้
+r = await as(D5, `select public.dbq_get_answer_key('{}'::jsonb) as r`)
+check('dbq010: student get_answer_key -> forbidden', r[0].r.error === 'forbidden' && !('items' in r[0].r))
+r = await as(D3, `select public.dbq_get_answer_key('{"session_no":1}'::jsonb) as r`)
+check('dbq010: ม.3 student get_answer_key -> forbidden', r[0].r.error === 'forbidden')
+r = await db.query(`select action, detail from public.dbq_security_log order by id`)
+check('dbq010: denied key access logged', r.rows.length === 2 && r.rows.every((x) => x.action === 'get_answer_key_denied') && r.rows[1].detail.session_no === 1)
+r = await as(T, `select public.dbq_get_answer_key('{}'::jsonb) as r`)
+check('dbq010: admin gets all keys', r[0].r.items.length === 6 && r[0].r.items[0].answer !== undefined)
+r = await as(T, `select public.dbq_get_answer_key('{"session_no":1,"item_type":"practice"}'::jsonb) as r`)
+check('dbq010: admin key scope filter', r[0].r.items.map((x) => x.item_id).join() === 's01-p1,s01-p2')
+r = await as(D5, `select public.dbq_grade('mcq', '{"choice":2}', '{"choice":2}') as r`).catch(() => 'denied')
+check('dbq010: dbq_grade not callable by client', r === 'denied')
+r = await as(D5, `select public.dbq_award_xp(public.current_student_id(), 'hack', 9999) as r`).catch(() => 'denied')
+check('dbq010: dbq_award_xp not callable by client', r === 'denied')
+
+// ตัวตรวจคำตอบ
+const gr = async (type, answer, resp) =>
+  (await db.query(`select public.dbq_grade($1, $2::jsonb, $3::jsonb) g`, [type, JSON.stringify(answer), JSON.stringify(resp)])).rows[0].g
+check('dbq010: grade mcq', (await gr('mcq', { choice: 2 }, { choice: 2 })) && !(await gr('mcq', { choice: 2 }, { choice: 1 })))
+check('dbq010: grade multi ignores order', (await gr('multi', { choices: [0, 2] }, { choices: [2, 0] })) && !(await gr('multi', { choices: [0, 2] }, { choices: [0] })))
+check('dbq010: grade fill normalizes', (await gr('fill', { accept: ['Hardware'] }, { text: '  hardware ' })) && !(await gr('fill', { accept: ['x'] }, { text: '' })))
+check('dbq010: grade order exact', (await gr('order', { order: ['a', 'b'] }, { order: ['a', 'b'] })) && !(await gr('order', { order: ['a', 'b'] }, { order: ['b', 'a'] })))
+check('dbq010: grade classify', (await gr('classify', { pairs: { a: 'x', b: 'y' } }, { pairs: { b: 'y', a: 'x' } })) && !(await gr('classify', { pairs: { a: 'x' } }, { pairs: { a: 'y' } })))
+check('dbq010: grade malformed -> false', !(await gr('mcq', { choice: 2 }, { choice: 'abc' })) && !(await gr('order', { order: ['a'] }, { order: 'a' })) && !(await gr('rubric', {}, {})))
+
+// ตรวจคำตอบ: คืนแค่ถูก/ผิด + คำใบ้ ไม่มีเฉลย
+let totalXp = 0
+r = await as(D5, `select public.dbq_check_answer('s01-c1-q', '{"choice":0}') as r`)
+check('dbq010: wrong answer -> hint, no xp', r[0].r.correct === false && r[0].r.score === 0 && r[0].r.hint?.length > 0 && r[0].r.xp === 0)
+check('dbq010: check_answer returns only correct/score/hint/xp', Object.keys(r[0].r).sort().join() === 'correct,hint,score,xp')
+r = await as(D5, `select public.dbq_check_answer('s01-c1-q', '{"choice":2}') as r`)
+check('dbq010: correct after retry -> 2 xp, no hint', r[0].r.correct === true && r[0].r.hint === null && r[0].r.xp === 2)
+totalXp += r[0].r.xp
+r = await as(D5, `select public.dbq_check_answer('s01-c1-q', '{"choice":2}') as r`)
+check('dbq010: re-answer solved item -> 0 xp', r[0].r.correct === true && r[0].r.xp === 0)
+r = await as(D5, `select public.dbq_check_answer('s01-c1-q', '{"choice":0}') as r`)
+r = await db.query(`select attempts, correct from public.dbq_item_attempts where item_id = 's01-c1-q'`)
+check('dbq010: later wrong answer keeps solved', r.rows[0].correct === true && r.rows[0].attempts === 4)
+r = await as(D5, `select public.dbq_check_answer('ws-s01', '{}') as r`).catch(err)
+check('dbq010: worksheet key not gradable via check_answer', r === 'not_found')
+r = await as(D5, `select public.dbq_check_answer('nope', '{}') as r`).catch(err)
+check('dbq010: unknown item -> not_found', r === 'not_found')
+r = await as(D5, `select public.dbq_check_answer('s01-c2-q', jsonb_build_object('x', repeat('a', 30000))) as r`).catch(err)
+check('dbq010: oversized response rejected', r === 'response_too_large')
+r = await as(D3, `select public.dbq_check_answer('s01-c1-q', '{"choice":2}') as r`).catch(err)
+check('dbq010: ม.3 student cannot check answers', r === 'forbidden')
+
+// ขั้นในคาบ
+r = await as(D5, `select public.dbq_session_state(1) as r`)
+check('dbq010: s01 steps', r[0].r.steps.join() === 'warmup,lesson,practice,game,worksheet,wrapup' && r[0].r.solved.join() === 's01-c1-q' && r[0].r.pct === 0)
+check('dbq010: session_state has no answer data', !/explanation|teacher_notes|"answer"|o-x/.test(JSON.stringify(r[0].r)))
+r = await as(D5, `select public.dbq_my_map() as r`)
+check('dbq010: map s1 open, s2 locked', r[0].r[0].open === true && r[0].r[1].open === false && r[0].r.length === 20)
+r = await as(D5, `select public.dbq_session_state(2) as r`).catch(err)
+check('dbq010: locked session state denied', r === 'locked')
+r = await as(D5, `select public.dbq_complete_step(2, 'warmup', '{"answers":["x"]}') as r`).catch(err)
+check('dbq010: complete step in locked session denied', r === 'locked')
+r = await as(D5, `select public.dbq_complete_step(1, 'hack', '{}') as r`).catch(err)
+check('dbq010: invalid step rejected', r === 'invalid_step')
+
+r = await as(D5, `select public.dbq_complete_step(1, 'warmup', '{"answers":["", "  "]}') as r`).catch(err)
+check('dbq010: warmup needs a non-empty answer', r === 'incomplete')
+r = await as(D5, `select public.dbq_complete_step(1, 'warmup', '{"answers":["แอปธนาคาร"]}') as r`)
+check('dbq010: warmup done -> 5 xp', r[0].r.ok && r[0].r.xp === 5 && r[0].r.pct === 16)
+totalXp += r[0].r.xp
+r = await as(D5, `select public.dbq_complete_step(1, 'warmup', '{"answers":["อีกครั้ง"]}') as r`)
+check('dbq010: repeat step -> 0 xp', r[0].r.xp === 0)
+
+r = await as(D5, `select public.dbq_complete_step(1, 'lesson', '{}') as r`).catch(err)
+check('dbq010: lesson needs all card checks correct', r === 'incomplete')
+for (const [id, resp] of [
+  ['s01-c2-q', { pairs: { 'i-1': 'hw', 'i-2': 'sw', 'i-3': 'data' } }],
+  ['s01-c3-q', { order: ['o-x', 'o-m', 'o-k'] }],
+]) {
+  r = await as(D5, `select public.dbq_check_answer('${id}', '${JSON.stringify(resp)}') as r`)
+  check(`dbq010: ${id} first-try correct -> 5 xp`, r[0].r.correct && r[0].r.xp === 5)
+  totalXp += r[0].r.xp
+}
+r = await as(D5, `select public.dbq_complete_step(1, 'lesson', '{}') as r`)
+check('dbq010: lesson done -> 20 xp', r[0].r.xp === 20)
+totalXp += r[0].r.xp
+
+r = await as(D5, `select public.dbq_check_answer('s01-p1', '{"pairs":{}}') as r`)
+r = await as(D5, `select public.dbq_complete_step(1, 'practice', '{}') as r`).catch(err)
+check('dbq010: practice needs every item attempted', r === 'incomplete')
+r = await as(D5, `select public.dbq_check_answer('s01-p2', '{"text":" HARDWARE "}') as r`)
+check('dbq010: fill accepts normalized text', r[0].r.correct && r[0].r.xp === 5)
+totalXp += r[0].r.xp
+r = await as(D5, `select public.dbq_complete_step(1, 'practice', '{}') as r`)
+check('dbq010: practice done (wrong answers still count as attempted)', r[0].r.xp === 15)
+totalXp += r[0].r.xp
+
+r = await as(D5, `select public.dbq_complete_step(1, 'game', '{}') as r`).catch(err)
+check('dbq010: game step needs a game score', r === 'incomplete')
+// ส่งผลเกม (migration 011)
+const backdate = () => db.exec(`update public.dbq_game_scores set played_at = played_at - interval '1 minute'`)
+r = await as(D5, `select public.dbq_submit_game_result('nope', 50, 30) as r`).catch(err)
+check('dbq011: unknown game rejected', r === 'game_not_found')
+r = await as(D5, `select public.dbq_submit_game_result('memory-match', 101, 30) as r`).catch(err)
+check('dbq011: score over 100 rejected', r === 'invalid_score')
+r = await as(D5, `select public.dbq_submit_game_result('memory-match', 80, 3) as r`).catch(err)
+check('dbq011: too-short duration rejected', r === 'invalid_duration')
+r = await as(D3, `select public.dbq_submit_game_result('memory-match', 80, 30) as r`).catch(err)
+check('dbq011: ม.3 student cannot submit DB Quest game', r === 'forbidden')
+r = await as(D5, `select public.dbq_game_stars(100) as r`).catch(() => 'denied')
+check('dbq011: dbq_game_stars not callable by client', r === 'denied')
+r = await as(D5, `select public.dbq_submit_game_result('memory-match', 75, 30) as r`)
+check('dbq011: 75 -> 2 stars, 10 xp', r[0].r.ok && r[0].r.stars === 2 && r[0].r.xp === 10 && r[0].r.best_score === 75 && r[0].r.badges.length === 0)
+totalXp += r[0].r.xp
+r = await as(D5, `select public.dbq_submit_game_result('memory-match', 95, 30) as r`).catch(err)
+check('dbq011: replay within 5s -> too_fast', r === 'too_fast')
+await backdate()
+r = await as(D5, `select public.dbq_submit_game_result('memory-match', 70, 30) as r`)
+check('dbq011: same stars again -> 0 xp, best kept', r[0].r.stars === 2 && r[0].r.xp === 0 && r[0].r.best_score === 75)
+await backdate()
+r = await as(D5, `select public.dbq_submit_game_result('memory-match', 95, 30) as r`)
+check('dbq011: new 3rd star -> 5 xp + three-stars badge', r[0].r.stars === 3 && r[0].r.xp === 5 && r[0].r.best_stars === 3 && r[0].r.badges.join() === 'three-stars')
+totalXp += r[0].r.xp
+await backdate()
+r = await as(D5, `select public.dbq_submit_game_result('memory-match', 100, 30) as r`)
+check('dbq011: badge awarded once', r[0].r.xp === 0 && r[0].r.badges.length === 0)
+r = await db.query(`select count(*)::int n, max(unit_no) u from public.dbq_game_scores`)
+check('dbq011: every play stored with unit', r.rows[0].n === 4 && r.rows[0].u === 1)
+r = await as(T, `select public.dbq_submit_game_result('memory-match', 100, 30) as r`)
+check('dbq011: admin preview not recorded', r[0].r.preview === true && (await db.query(`select count(*)::int n from public.dbq_game_scores`)).rows[0].n === 4)
+await db.exec(`update public.dbq_lessons set game_key = 'locked-game' where session_no = 5`)
+r = await as(D5, `select public.dbq_submit_game_result('locked-game', 80, 30) as r`).catch(err)
+check('dbq011: game of locked session rejected', r === 'locked')
+await db.exec(`update public.dbq_lessons set game_key = null where session_no = 5`)
+
+r = await as(D5, `select public.dbq_complete_step(1, 'game', '{}') as r`)
+check('dbq010: game done -> 10 xp', r[0].r.xp === 10)
+totalXp += r[0].r.xp
+
+r = await as(D5, `select public.dbq_complete_step(1, 'worksheet', '{}') as r`).catch(err)
+check('dbq010: worksheet step needs submission', r === 'incomplete')
+r = await as(D5, `select public.dbq_submit_worksheet('ws-s01', '{"text":"   "}') as r`).catch(err)
+check('dbq010: empty worksheet rejected', r === 'invalid_content')
+r = await as(D3, `select public.dbq_submit_worksheet('ws-s01', '{"text":"x"}') as r`).catch(err)
+check('dbq010: ม.3 student cannot submit DB Quest worksheet', r === 'forbidden')
+r = await as(D5, `select public.dbq_submit_worksheet('ws-s01', '{"text":"ร้านสะดวกซื้อ ...", "score": 5}') as r`)
+check('dbq010: worksheet submitted -> 15 xp', r[0].r.ok && r[0].r.xp === 15)
+totalXp += r[0].r.xp
+r = await db.query(`select content, score from public.dbq_submissions s join public.dbq_assignments a on a.id = s.assignment_id where a.item_id = 'ws-s01'`)
+check('dbq010: worksheet stores only text (client score ignored)', Object.keys(r.rows[0].content).join() === 'text' && r.rows[0].score === null)
+r = await as(D5, `select public.dbq_complete_step(1, 'worksheet', '{}') as r`)
+check('dbq010: worksheet step done, 83% unlocks next session', r[0].r.xp === 10 && r[0].r.pct === 83)
+totalXp += r[0].r.xp
+r = await as(D5, `select public.dbq_my_map() as r`)
+check('dbq010: s2 open after reaching 80%', r[0].r[1].open === true && r[0].r[0].pct === 83)
+
+r = await as(D5, `select public.dbq_complete_step(1, 'wrapup', '{"reflection":""}') as r`).catch(err)
+check('dbq010: wrapup needs reflection', r === 'incomplete')
+// ให้หน่วย 1 มีแค่คาบ 1 ชั่วคราว เพื่อทดสอบเหรียญจบหน่วย
+const unit1Others = (await db.query(`update public.dbq_lessons set unit_no = 2 where unit_no = 1 and session_no <> 1 returning session_no`)).rows.map((x) => x.session_no)
+r = await as(D5, `select public.dbq_complete_step(1, 'wrapup', '{"reflection":"ข้อมูลต่างจากสารสนเทศ"}') as r`)
+check('dbq010: wrapup -> 100% + session bonus + unit badge', r[0].r.pct === 100 && r[0].r.xp === 30 && r[0].r.badges.join() === 'unit-complete')
+totalXp += r[0].r.xp
+await db.exec(`update public.dbq_lessons set unit_no = 1 where session_no = any('{${unit1Others.join(',')}}'::int[])`)
+r = await db.query(`select badge_key from public.dbq_student_badges order by badge_key`)
+check('dbq010: badges stored', r.rows.map((x) => x.badge_key).join() === 'three-stars,unit-complete')
+r = await as(D5, `select public.dbq_me() as r`)
+check('dbq010: dbq_me xp equals awarded xp', r[0].r.xp === totalXp)
+
+await db.exec(`update public.dbq_submissions set score = 4, graded_at = now()`)
+r = await as(D5, `select public.dbq_submit_worksheet('ws-s01', '{"text":"แก้"}') as r`).catch(err)
+check('dbq010: graded worksheet cannot be resubmitted', r === 'already_graded')
+
+// ห้องอื่น: ความก้าวหน้าแยกกัน + ครูปลดล็อกรายห้อง
+const D6 = '00000000-0000-0000-0000-0000000000d6'
+await db.exec(`insert into auth.users values ('${D6}');`)
+r = await as(D6, `select public.login_with_code('55600', 'devD6') as r`)
+check('dbq010: imported ม.5/2 student logs in', r[0].r.ok)
+r = await as(D6, `select public.dbq_session_state(1) as r`)
+check('dbq010: progress is per student', r[0].r.solved.length === 0 && r[0].r.pct === 0 && Object.keys(r[0].r.submissions).length === 0)
+const room52 = (await db.query(`select id from public.classrooms where name = 'ม.5/2'`)).rows[0].id
+r = await as(D6, `select public.dbq_admin_set_unlock(3, true, '${room52}')`).catch(err)
+check('dbq010: student cannot unlock sessions', r === 'forbidden')
+await as(T, `select public.dbq_admin_set_unlock(3, true, '${room52}')`)
+r = await as(D6, `select public.dbq_my_map() as r`)
+check('dbq010: teacher unlock opens session for that room', r[0].r[2].open === true && r[0].r[1].open === false)
+r = await as(D5, `select public.dbq_my_map() as r`)
+check('dbq010: room unlock does not leak to other rooms', r[0].r[2].open === false)
+r = await as(T, `select public.dbq_admin_unlock_overview() as r`)
+check('dbq010: unlock overview', r[0].r.find((x) => x.name === 'ม.5/2').unlocked.join() === '3')
+await as(T, `select public.dbq_admin_set_unlock(3, false)`)
+r = await as(D6, `select public.dbq_my_map() as r`)
+check('dbq010: re-lock all rooms', r[0].r[2].open === false)
+
+// ครูดูตัวอย่าง: ใช้ได้ทุกคาบ แต่ไม่บันทึก
+r = await as(T, `select public.dbq_my_map() as r`)
+check('dbq010: admin sees every session open', r[0].r.every((x) => x.open) && r[0].r[0].pct === null)
+r = await as(T, `select public.dbq_check_answer('s01-c1-q', '{"choice":2}') as r`)
+check('dbq010: admin preview check works without xp', r[0].r.correct && r[0].r.xp === 0)
+r = await as(T, `select public.dbq_complete_step(1, 'lesson', '{}') as r`)
+check('dbq010: admin preview complete_step not recorded', r[0].r.preview === true)
+r = await db.query(`select count(*)::int n from public.dbq_item_attempts a join public.students s on s.id = a.student_id where s.student_code not in ('55555', '55600')`)
+check('dbq010: no attempts recorded for non-students', r.rows[0].n === 0)
 
 console.log(failed ? `${failed} FAILED` : 'ALL PASSED')
 process.exit(failed ? 1 : 0)

@@ -48,6 +48,18 @@ insert into public.dbq_lessons (session_no, unit_no, kind, title, is_unlocked_de
 on conflict (session_no) do update
   set unit_no = excluded.unit_no, kind = excluded.kind, title = excluded.title;
 
+update public.dbq_lessons l set game_key = v.game_key
+from (values
+  (1, 'memory-match')
+) as v(session_no, game_key)
+where l.session_no = v.session_no;
+
+insert into public.dbq_assignments (item_id, session_no, title, max_score, type, sort_order) values
+  ('ws-s01', 1, 'ใบงานที่ 1: ข้อมูลหรือสารสนเทศรอบตัวฉัน', 5, 'text', 1)
+on conflict (item_id) do update
+  set session_no = excluded.session_no, title = excluded.title, max_score = excluded.max_score,
+      type = excluded.type, sort_order = excluded.sort_order;
+
 insert into public.dbq_badges (key, name, description, icon, sort_order) values
   ('unit-complete', 'จบหน่วยแรก', 'เรียนครบทุกขั้นของหน่วยใดหน่วยหนึ่ง', '🎓', 1),
   ('all-units', 'นักผจญภัยครบ 7 หน่วย', 'เรียนครบทุกหน่วย', '🗺️', 2),

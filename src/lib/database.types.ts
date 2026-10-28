@@ -335,6 +335,7 @@ export type Database = {
       dbq_check_answer: { Args: { p_item_id: string; p_response: Json }; Returns: Json }
       dbq_complete_step: { Args: { p_session: number; p_step: string; p_data?: Json }; Returns: Json }
       dbq_submit_worksheet: { Args: { p_item_id: string; p_content: Json }; Returns: Json }
+      dbq_game_deck: { Args: { p_game_key: string }; Returns: Json }
       dbq_submit_game_result: { Args: { p_game_key: string; p_score: number; p_duration_sec: number }; Returns: Json }
     }
     Enums: Record<never, never>

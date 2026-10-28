@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link } from 'react-router'
 import { NongDataSays } from '@/components/illustrations/NongData'
 import { course } from '@/content/course'
 
@@ -40,10 +40,6 @@ export function DbqHomePage() {
       </section>
     </div>
   )
-}
-
-export function DbqGamePage() {
-  return <ComingSoon title={`เกม ${useParams().gameKey ?? ''}`} phase={4} />
 }
 
 export function DbqSqlPage() {

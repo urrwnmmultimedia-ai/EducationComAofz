@@ -422,7 +422,7 @@ r = await as(D5, `select public.whoami() as r`)
 check('dbq: whoami carries course', r[0].r.student.course === 'dbquest_m5')
 
 const dbqTables = (await db.query(`select tablename from pg_tables where schemaname = 'public' and tablename like 'dbq\\_%'`)).rows.map((x) => x.tablename)
-check('dbq: 16 tables exist', dbqTables.length === 16)
+check('dbq: 17 tables exist', dbqTables.length === 17)
 check('dbq: RLS on every table', (await db.query(`select count(*)::int n from pg_tables where tablename like 'dbq\\_%' and not rowsecurity`)).rows[0].n === 0)
 let directOk = 0
 for (const t of dbqTables) {
@@ -555,6 +555,8 @@ totalXp += r[0].r.xp
 r = await as(D5, `select public.dbq_check_answer('s01-p1', '{"pairs":{}}') as r`)
 r = await as(D5, `select public.dbq_complete_step(1, 'practice', '{}') as r`).catch(err)
 check('dbq010: practice needs every item attempted', r === 'incomplete')
+r = await as(D5, `select public.dbq_game_deck('memory-match') as r`).catch(err)
+check('dbq012: game deck locked until steps before game are done', r === 'locked')
 r = await as(D5, `select public.dbq_check_answer('s01-p2', '{"text":" HARDWARE "}') as r`)
 check('dbq010: fill accepts normalized text', r[0].r.correct && r[0].r.xp === 5)
 totalXp += r[0].r.xp
@@ -564,6 +566,16 @@ totalXp += r[0].r.xp
 
 r = await as(D5, `select public.dbq_complete_step(1, 'game', '{}') as r`).catch(err)
 check('dbq010: game step needs a game score', r === 'incomplete')
+// สำรับเกม (migration 012)
+r = await as(D5, `select public.dbq_game_deck('memory-match') as r`)
+check('dbq012: deck available after practice', r[0].r.pairs.length === 8 && r[0].r.session_no === 1 && r[0].r.game_key === 'memory-match' && r[0].r.time_limit_sec > 0)
+r = await as(T, `select public.dbq_game_deck('memory-match') as r`)
+check('dbq012: admin gets deck', r[0].r.pairs.length === 8)
+r = await as(D3, `select public.dbq_game_deck('memory-match') as r`).catch(err)
+check('dbq012: ม.3 student cannot get deck', r === 'forbidden')
+r = await as(D5, `select public.dbq_game_deck('nope') as r`).catch(err)
+check('dbq012: unknown deck -> game_not_found', r === 'game_not_found')
+
 // ส่งผลเกม (migration 011)
 const backdate = () => db.exec(`update public.dbq_game_scores set played_at = played_at - interval '1 minute'`)
 r = await as(D5, `select public.dbq_submit_game_result('nope', 50, 30) as r`).catch(err)

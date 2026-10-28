@@ -15,3 +15,8 @@ on conflict (item_id) do update
   set item_type = excluded.item_type, grade_type = excluded.grade_type, unit_no = excluded.unit_no,
       session_no = excluded.session_no, answer = excluded.answer, explanation = excluded.explanation,
       hint = excluded.hint, rubric = excluded.rubric, teacher_notes = excluded.teacher_notes, updated_at = now();
+
+-- สำรับเกม <- supabase/dbq_games/*.json
+insert into public.dbq_game_decks (game_key, config) values
+  ('memory-match', '{"title":"🃏 Memory Match","instructions":"เปิดไพ่ทีละ 2 ใบ หาคู่คำศัพท์กับความหมายให้ครบ 8 คู่ภายในเวลา ยิ่งเปิดผิดน้อยยิ่งได้คะแนนสูง","time_limit_sec":180,"pairs":[{"id":"data","term":"ข้อมูล (Data)","meaning":"ข้อเท็จจริงดิบที่ยังไม่ผ่านการประมวลผล"},{"id":"info","term":"สารสนเทศ (Information)","meaning":"ข้อมูลที่ประมวลผลแล้ว นำไปใช้ตัดสินใจได้"},{"id":"hw","term":"ฮาร์ดแวร์ (Hardware)","meaning":"ส่วนของคอมพิวเตอร์ที่จับต้องได้"},{"id":"sw","term":"ซอฟต์แวร์ (Software)","meaning":"ชุดคำสั่งที่สั่งให้ฮาร์ดแวร์ทำงาน"},{"id":"people","term":"บุคลากร (Peopleware)","meaning":"คนที่ใช้งานและดูแลระบบ"},{"id":"server","term":"เครื่องแม่ข่าย (Server)","meaning":"รับคำขอแล้วค้นข้อมูลส่งกลับไปให้"},{"id":"client","term":"เครื่องลูกข่าย (Client)","meaning":"เครื่องของผู้ใช้ที่ส่งคำขอไปขอข้อมูล"},{"id":"cloud","term":"คลาวด์ (Cloud)","meaning":"ใช้เครื่องแม่ข่ายของผู้ให้บริการผ่านอินเทอร์เน็ต"}]}'::jsonb)
+on conflict (game_key) do update set config = excluded.config, updated_at = now();

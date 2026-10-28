@@ -63,6 +63,9 @@ const ERRORS: Record<string, string> = {
   already_graded: 'ครูตรวจใบงานนี้แล้ว แก้ไม่ได้',
   not_found: 'ไม่พบข้อมูลนี้',
   forbidden: 'ไม่มีสิทธิ์ใช้งานส่วนนี้',
+  game_not_found: 'ไม่พบเกมนี้',
+  invalid_duration: 'เล่นเร็วเกินไป ระบบไม่บันทึกรอบนี้ ลองเล่นอย่างตั้งใจอีกครั้งนะ',
+  too_fast: 'ส่งผลถี่เกินไป รอสักครู่แล้วเล่นใหม่',
 }
 
 export class DbqError extends Error {
@@ -92,6 +95,38 @@ export async function checkAnswer(itemId: string, response: Json): Promise<Check
 
 export async function completeStep(no: number, step: StepKey, data: Json = {}): Promise<CompleteResult> {
   return completeSchema.parse(await rpc('dbq_complete_step', { p_session: no, p_step: step, p_data: data }))
+}
+
+const deckSchema = z.object({
+  game_key: z.string(),
+  session_no: z.number(),
+  title: z.string(),
+  instructions: z.string(),
+  time_limit_sec: z.number().int().positive(),
+  pairs: z.array(z.object({ id: z.string(), term: z.string(), meaning: z.string() })).min(2),
+})
+export type GameDeck = z.infer<typeof deckSchema>
+
+const gameResultSchema = z.object({
+  ok: z.boolean(),
+  preview: z.boolean().optional(),
+  score: z.number(),
+  stars: z.number(),
+  xp: z.number(),
+  best_score: z.number(),
+  best_stars: z.number(),
+  badges: z.array(z.string()),
+})
+export type GameResult = z.infer<typeof gameResultSchema>
+
+export async function fetchGameDeck(gameKey: string): Promise<GameDeck> {
+  return deckSchema.parse(await rpc('dbq_game_deck', { p_game_key: gameKey }))
+}
+
+export async function submitGameResult(gameKey: string, score: number, durationSec: number): Promise<GameResult> {
+  return gameResultSchema.parse(
+    await rpc('dbq_submit_game_result', { p_game_key: gameKey, p_score: score, p_duration_sec: durationSec }),
+  )
 }
 
 export async function submitWorksheet(itemId: string, text: string): Promise<{ ok: boolean; xp: number }> {

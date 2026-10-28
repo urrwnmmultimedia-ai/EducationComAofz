@@ -1,6 +1,6 @@
 // สร้าง seed ของ DB Quest จากไฟล์ต้นฉบับ (ข้อมูลมีที่เดียว ไม่เขียนซ้ำ)
 //   supabase/seed_dbquest.sql      <- src/content/units/course.json + sNN.json (คาบ ใบงาน เกม — ไม่มีเฉลย)
-//   supabase/seed/answer_keys.sql  <- supabase/answer_keys/sNN.json (เฉลย อยู่นอก src จึงไม่ถูก build ไปกับเว็บ)
+//   supabase/seed/answer_keys.sql  <- supabase/answer_keys/sNN.json + supabase/dbq_games/*.json (เฉลย/สำรับเกม อยู่นอก src จึงไม่ถูก build ไปกับเว็บ)
 // ใช้: node scripts/build-dbquest-seed.mjs (หรือ npm run seed:build)
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -39,6 +39,16 @@ const keyRows = readdirSync(keysDir)
         `  (${q(k.item_id)}, ${q(k.item_type)}, ${q(k.grade_type)}, ${file.unit ?? 'null'}, ${file.session ?? 'null'}, ` +
         `${qj(k.answer ?? {})}, ${q(k.explanation ?? '')}, ${q(k.hint ?? '')}, ${qj(k.rubric ?? null)}, ${q(k.teacher_notes ?? '')})`,
     )
+  })
+
+// สำรับเกม (คู่คำ-ความหมาย ซ้ำกับเฉลยแบบฝึก) — ไปอยู่ใน answer_keys.sql ด้วย
+const decksDir = join(root, 'supabase/dbq_games')
+const deckRows = readdirSync(decksDir)
+  .filter((f) => f.endsWith('.json'))
+  .sort()
+  .map((f) => {
+    const { game_key, ...config } = JSON.parse(readFileSync(join(decksDir, f), 'utf8'))
+    return `  (${q(game_key)}, ${qj(config)})`
   })
 
 const lessons = course.sessions
@@ -119,6 +129,14 @@ on conflict (item_id) do update
   set item_type = excluded.item_type, grade_type = excluded.grade_type, unit_no = excluded.unit_no,
       session_no = excluded.session_no, answer = excluded.answer, explanation = excluded.explanation,
       hint = excluded.hint, rubric = excluded.rubric, teacher_notes = excluded.teacher_notes, updated_at = now();
-`
+${deckRows.length ? `
+-- สำรับเกม <- supabase/dbq_games/*.json
+insert into public.dbq_game_decks (game_key, config) values
+${deckRows.join(',\n')}
+on conflict (game_key) do update set config = excluded.config, updated_at = now();
+` : ''}`
 writeFileSync(join(root, 'supabase/seed/answer_keys.sql'), keysSql)
-console.log(`seed_dbquest.sql: ${course.sessions.length} lessons, ${sessions.length} session files · answer_keys.sql: ${keyRows.length} items`)
+console.log(
+  `seed_dbquest.sql: ${course.sessions.length} lessons, ${sessions.length} session files · ` +
+    `answer_keys.sql: ${keyRows.length} items, ${deckRows.length} game decks`,
+)

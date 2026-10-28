@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { NongDataSays } from '@/components/illustrations/NongData'
-import { course, findSession, findUnit } from '@/content/course'
+import { course } from '@/content/course'
 
 // หน้านักเรียน DB Quest ช่วงเฟส 1 — โครงหน้าพร้อมเส้นทาง เนื้อหาจริงมาในเฟสที่ระบุ
 
@@ -39,31 +39,6 @@ export function DbqHomePage() {
         </ol>
       </section>
     </div>
-  )
-}
-
-export function DbqLessonPage() {
-  const no = Number(useParams().sessionNo)
-  const session = findSession(no)
-  if (!session) return <ComingSoon title="ไม่พบคาบนี้" phase={3} />
-  const unit = findUnit(session.unit)
-  return (
-    <ComingSoon title={`คาบ ${session.no}: ${session.title}`} phase={3}>
-      {unit && (
-        <p className="text-slate-600 dark:text-dq-300">
-          {unit.icon} หน่วย {unit.no} {unit.title}
-        </p>
-      )}
-      <ol className="grid gap-2 sm:grid-cols-3">
-        {course.steps.map((step, i) => (
-          <li key={step.id} className="rounded-2xl bg-white p-3 ring-1 ring-dq-100 dark:bg-dq-900 dark:ring-dq-800">
-            <span className="block text-sm text-slate-500 dark:text-dq-300">ขั้นที่ {i + 1}</span>
-            <span className="font-display">{step.title}</span>
-            <span className="block text-sm text-xp-600 dark:text-xp-400">{step.minutes} นาที</span>
-          </li>
-        ))}
-      </ol>
-    </ComingSoon>
   )
 }
 

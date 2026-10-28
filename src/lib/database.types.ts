@@ -330,6 +330,12 @@ export type Database = {
       dbq_me: { Args: Record<string, never>; Returns: Json }
       dbq_admin_get_settings: { Args: Record<string, never>; Returns: Json }
       dbq_admin_set_setting: { Args: { p_key: string; p_value: Json }; Returns: undefined }
+      dbq_my_map: { Args: Record<string, never>; Returns: Json }
+      dbq_session_state: { Args: { p_session: number }; Returns: Json }
+      dbq_check_answer: { Args: { p_item_id: string; p_response: Json }; Returns: Json }
+      dbq_complete_step: { Args: { p_session: number; p_step: string; p_data?: Json }; Returns: Json }
+      dbq_submit_worksheet: { Args: { p_item_id: string; p_content: Json }; Returns: Json }
+      dbq_submit_game_result: { Args: { p_game_key: string; p_score: number; p_duration_sec: number }; Returns: Json }
     }
     Enums: Record<never, never>
     CompositeTypes: Record<never, never>

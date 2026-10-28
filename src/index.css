@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans Thai", "Sarabun", system-ui, sans-serif;
+  --font-display: "Mitr", "Noto Sans Thai", sans-serif;
+
+  --color-brand-50: #f5f3ff;
+  --color-brand-100: #ede9fe;
+  --color-brand-200: #ddd6fe;
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+  --color-brand-700: #6d28d9;
+  --color-brand-800: #5b21b6;
+  --color-brand-900: #3b0764;
+
+  --color-sun-300: #fde047;
+  --color-sun-400: #facc15;
+  --color-mint-400: #34d399;
+  --color-mint-500: #10b981;
+  --color-coral-400: #fb7185;
+  --color-sky2-400: #38bdf8;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-brand-50 text-slate-800 antialiased;
+    font-family: var(--font-sans);
+    line-height: 1.6;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    line-height: 1.3;
+  }
+}

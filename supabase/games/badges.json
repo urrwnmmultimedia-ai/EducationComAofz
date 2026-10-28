@@ -1,0 +1,10 @@
+[
+  { "code": "5g-master", "name": "เจ้าแห่ง 5G", "icon": "📡", "rule": { "kind": "game_score", "slug": "5g-time-machine", "min_pct": 80 } },
+  { "code": "ev-fan", "name": "สายรถไฟฟ้า", "icon": "🚗", "rule": { "kind": "game_score", "slug": "ev-garage", "min_pct": 80 } },
+  { "code": "fast-courier", "name": "นักส่งของเร็ว", "icon": "📦", "rule": { "kind": "game_score", "slug": "logistics-rush", "min_pct": 80 } },
+  { "code": "problem-detective", "name": "นักสืบปัญหา", "icon": "🔍", "rule": { "kind": "game_score", "slug": "problem-detective", "min_pct": 80 } },
+  { "code": "prototype-maker", "name": "ช่างต้นแบบ", "icon": "🛠️", "rule": { "kind": "submission_session", "session_no": 13 } },
+  { "code": "ip-guardian", "name": "ผู้พิทักษ์ลิขสิทธิ์", "icon": "🛡️", "rule": { "kind": "game_score", "slug": "ip-hunter", "min_pct": 80 } },
+  { "code": "unit-complete", "name": "ส่งงานครบทั้งหน่วย", "icon": "📚", "rule": { "kind": "unit_complete" } },
+  { "code": "attendance-5", "name": "ไม่ขาดเรียน 5 คาบ", "icon": "🗓️", "rule": { "kind": "attendance", "count": 5 } }
+]

@@ -1,0 +1,409 @@
+// ทดสอบ migration + RLS + RPC ทั้งหมดบน Postgres จำลอง (PGlite) โดยไม่ต้องมีโปรเจกต์ Supabase
+// ใช้: npm run test:db
+// จำลองสิ่งที่ Supabase มีให้: schema auth/storage/extensions, role anon/authenticated, auth.uid()
+// แต่ละผู้ใช้ทดสอบ = เบราว์เซอร์หนึ่งเครื่อง (anonymous sign-in) แล้วล็อกอินด้วยรหัส
+import { PGlite } from '@electric-sql/pglite'
+import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto'
+import { readFileSync, readdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+const db = new PGlite({ extensions: { pgcrypto } })
+
+// จำลองสิ่งที่ Supabase มีให้
+await db.exec(`
+  create schema extensions;
+  create schema auth;
+  create schema storage;
+  create role anon nologin; create role authenticated nologin; create role service_role nologin;
+  grant usage on schema public, auth, storage, extensions to anon, authenticated;
+  create table auth.users (id uuid primary key);
+  create function auth.uid() returns uuid language sql stable as $$
+    select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+  create table storage.buckets (id text primary key, name text, public bool, file_size_limit bigint, allowed_mime_types text[]);
+  create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text);
+  alter table storage.objects enable row level security;
+  create function storage.foldername(name text) returns text[] language sql as $$ select string_to_array(name, '/') $$;
+  alter default privileges in schema public grant all on tables to anon, authenticated;
+  alter default privileges in schema public grant all on functions to anon, authenticated;
+`)
+
+const dir = join(root, 'supabase', 'migrations')
+for (const f of readdirSync(dir).sort()) {
+  await db.exec(readFileSync(join(dir, f), 'utf8'))
+  console.log('migration ok:', f)
+}
+await db.exec(readFileSync(join(root, 'supabase', 'seed.sql'), 'utf8'))
+await db.exec(readFileSync(join(root, 'supabase', 'seed_questions.sql'), 'utf8'))
+await db.exec(readFileSync(join(root, 'supabase', 'seed_games.sql'), 'utf8'))
+console.log('seed ok')
+
+const A = '00000000-0000-0000-0000-00000000000a'
+const B = '00000000-0000-0000-0000-00000000000b'
+const T = '00000000-0000-0000-0000-00000000000c'
+await db.exec(`insert into auth.users values ('${A}'), ('${B}'), ('${T}');`)
+
+async function as(uid, sql) {
+  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${uid}', false);`)
+  try {
+    return (await db.query(sql)).rows
+  } finally {
+    await db.exec('reset role;')
+  }
+}
+let failed = 0
+const check = (name, cond) => {
+  if (!cond) failed++
+  console.log(cond ? 'PASS' : 'FAIL', name)
+}
+
+let r = await as(A, `select public.login_with_code('99999', 'devA') as r`)
+check('wrong code -> not_found', r[0].r.error === 'not_found')
+r = await as(A, `select public.login_with_code('10001', 'devA') as r`)
+check('student login', r[0].r.ok && r[0].r.student.nickname === 'ต้นกล้า' && r[0].r.student.classroom_name === 'ม.3/1')
+r = await as(B, `select public.login_with_code('10002', 'devB') as r`)
+check('student B login', r[0].r.ok)
+r = await as(T, `select public.login_with_code('superurrwnm', 'devT') as r`)
+check('admin login', r[0].r.ok && r[0].r.role === 'admin')
+
+r = await as(A, `select public.whoami() as r`)
+check('whoami student', r[0].r.role === 'student')
+r = await as(A, `select count(*)::int n from public.students`)
+check('student sees only self', r[0].n === 1)
+r = await as(T, `select count(*)::int n from public.students`)
+check('admin sees all students', r[0].n === 5)
+r = await as(A, `select count(*)::int n from public.app_secrets`).catch(() => 'denied')
+check('app_secrets denied', r === 'denied')
+r = await as(T, `select count(*)::int n from public.app_secrets`).catch(() => 'denied')
+check('app_secrets denied for admin too', r === 'denied')
+r = await as(A, `update public.app_settings set device_lock = true returning id`)
+check('student cannot update settings', r.length === 0)
+
+// งาน: นักเรียน A ห้ามเห็นงาน B, ห้ามให้คะแนนตัวเอง
+await db.exec(`insert into public.assignments (id, title, max_score) values ('11111111-1111-1111-1111-111111111111', 'งานทดสอบ', 3);`)
+const sidB = (await as(B, `select public.current_student_id() id`))[0].id
+await as(B, `insert into public.submissions (assignment_id, student_id, status, score) values ('11111111-1111-1111-1111-111111111111', '${sidB}', 'submitted', 99)`)
+r = await as(B, `select score, submitted_at from public.submissions`)
+check('student cannot self-score', r[0].score === null && r[0].submitted_at !== null)
+r = await as(A, `select count(*)::int n from public.submissions`)
+check('student A cannot read B submission', r[0].n === 0)
+r = await as(A, `insert into public.submissions (assignment_id, student_id) values ('11111111-1111-1111-1111-111111111111', '${sidB}')`).catch(() => 'denied')
+check('student A cannot insert as B', r === 'denied')
+await as(T, `update public.submissions set score = 3, status = 'graded'`)
+r = await as(B, `update public.submissions set content = '{"x":1}' returning id`)
+check('graded submission locked for student', r.length === 0)
+
+// คาบเรียน: เห็นเฉพาะที่ปลดล็อก
+await db.exec(`insert into public.classroom_session_unlocks (classroom_id, session_no, is_unlocked)
+  select id, 1, true from public.classrooms;`)
+r = await as(A, `select session_no from public.class_sessions`)
+check('student sees only unlocked sessions', r.length === 1 && r[0].session_no === 1)
+r = await as(A, `select count(*)::int n from public.questions`)
+check('student cannot read questions', r[0].n === 0)
+
+// ล็อกอุปกรณ์
+await db.exec(`update public.app_settings set device_lock = true`)
+r = await as(B, `select public.login_with_code('10001', 'devB') as r`)
+check('device lock blocks other device', r[0].r.error === 'device_locked')
+r = await as(T, `select public.admin_reset_device(id) from public.students where student_code = '10001'`)
+r = await as(B, `select public.login_with_code('10001', 'devB') as r`)
+check('after reset, new device ok', r[0].r.ok)
+r = await as(A, `select public.whoami() as r`)
+check('reset kicked old session', r[0].r.role === null)
+
+// rate limit
+for (let i = 0; i < 10; i++) await as(A, `select public.login_with_code('00000', 'devA')`)
+r = await as(A, `select public.login_with_code('10003', 'devA') as r`)
+check('rate limited after 10 fails', r[0].r.error === 'rate_limited' && r[0].r.retry_after_sec > 0)
+
+// admin code change
+r = await as(A, `select public.admin_set_admin_code('hacker1')`).catch(() => 'denied')
+check('student cannot change admin code', r === 'denied')
+await as(T, `select public.admin_set_admin_code('newcode99')`)
+r = await as(B, `select public.login_with_code('newcode99', 'devB') as r`)
+check('new admin code works', r[0].r.role === 'admin')
+
+await as(B, `select public.logout()`)
+r = await as(B, `select public.whoami() as r`)
+check('logout clears session', r[0].r.role === null)
+
+
+// ---------- Phase 2 ----------
+const D = '00000000-0000-0000-0000-00000000000d'
+await db.exec(`insert into auth.users values ('${D}')`)
+
+r = await db.query(`select (select count(*)::int from public.units) u, (select count(*)::int from public.class_sessions) s, (select count(*)::int from public.lessons) l`)
+check('seed 3 units / 20 sessions / 20 lessons', r.rows[0].u === 3 && r.rows[0].s === 20 && r.rows[0].l === 20)
+r = await db.query(`select jsonb_array_length(steps) n, steps->0->>'key' k from public.class_sessions where session_no = 2`)
+check('session 2 has 6 steps', r.rows[0].n === 6 && r.rows[0].k === 'warmup')
+r = await db.query(`select sum((x->>'minutes')::int)::int m from public.class_sessions, jsonb_array_elements(steps) x group by session_no`)
+check('every session = 120 min', r.rows.every((x) => x.m === 120))
+await db.exec(readFileSync(join(root, 'supabase', 'seed.sql'), 'utf8'))
+r = await db.query(`select count(*)::int n from public.lessons`)
+check('seed idempotent', r.rows[0].n === 20)
+
+await as(D, `select public.login_with_code('10004', 'devA2')`)
+r = await as(D, `select * from public.my_session_list()`)
+check('my_session_list shows 20 with lock state', r.length === 20 && r[0].is_unlocked === true && r[1].is_unlocked === false)
+r = await as(D, `select count(*)::int n from public.lessons`)
+check('student reads only unlocked lessons', r[0].n === 1)
+r = await as(D, `select public.checkin_session(2) ok`)
+check('no checkin on locked session', r[0].ok === false)
+await as(T, `select public.login_with_code('newcode99', 'devT')`)
+await as(T, `select public.admin_set_session_unlock(2, true, null)`)
+r = await as(D, `select public.checkin_session(2) ok`)
+check('checkin latest unlocked', r[0].ok === true)
+r = await as(D, `select public.checkin_session(2) ok`)
+check('checkin once only', r[0].ok === false)
+r = await as(D, `select coalesce(sum(xp),0)::int xp from public.xp_events`)
+check('attendance +10 XP', r[0].xp === 10)
+r = await as(D, `select public.mark_step_done(2, 'content') s`)
+r = await as(D, `select public.mark_step_done(2, 'warmup') s`)
+check('mark steps', JSON.stringify(r[0].s) === '["content","warmup"]')
+r = await as(D, `select public.mark_step_done(3, 'content')`).catch(() => 'denied')
+check('cannot mark locked session', r === 'denied')
+r = await as(D, `select public.admin_swap_sessions(2, 3)`).catch(() => 'denied')
+check('student cannot swap', r === 'denied')
+await as(T, `select public.admin_swap_sessions(2, 3)`)
+r = await db.query(`select session_no, title from public.class_sessions where session_no in (2,3) order by 1`)
+const pr = await db.query(`select session_no from public.session_progress`)
+const lr = await db.query(`select session_no from public.lessons where title = 'รถยนต์ไฟฟ้า'`)
+check('swap moves session + progress + lessons', r.rows[0].title.startsWith('1.2') && pr.rows[0].session_no === 3 && lr.rows[0].session_no === 2)
+
+// ---------- Phase 3 ----------
+r = await db.query(`select category, sum(max_score)::float t from public.assignments where title <> 'งานทดสอบ' group by 1 order by 1`)
+const tot = Object.fromEntries(r.rows.map((x) => [x.category, x.t]))
+check('seed totals 30/15/15/20/20', tot.work === 30 && tot.project === 15 && tot.unit_test === 15 && tot.midterm === 20 && tot.final === 20)
+const E = '00000000-0000-0000-0000-00000000000e'
+await db.exec(`insert into auth.users values ('${E}')`)
+await as(E, `select public.login_with_code('10005', 'devE')`)
+const sidE = (await as(E, `select public.current_student_id() id`))[0].id
+// หลังสลับคาบ 2↔3 การปลดล็อกย้ายตาม: คาบ 3 เปิด, คาบ 2 ปิด
+const a2 = (await db.query(`select id from public.assignments where session_no = 3 and type = 'table'`)).rows[0].id
+const a3 = (await db.query(`select id from public.assignments where session_no = 2 limit 1`)).rows[0].id
+const mid = (await db.query(`select id from public.assignments where category = 'midterm'`)).rows[0].id
+// session 2 & 3 swapped earlier: session_no 2 = รถยนต์ไฟฟ้า (unlocked), 3 = 5G (locked)
+r = await as(E, `insert into public.submissions (assignment_id, student_id, status) values ('${a3}', '${sidE}', 'submitted')`).catch((e) => e.message)
+check('cannot submit locked session', r === 'session_locked' || r === 'assignment_not_submittable')
+r = await as(E, `insert into public.submissions (assignment_id, student_id, status) values ('${mid}', '${sidE}', 'submitted')`).catch((e) => e.message)
+check('cannot submit score_only', r === 'assignment_not_submittable' || r === 'session_locked')
+r = await as(E, `insert into public.submissions (assignment_id, student_id, status, file_paths) values ('${a2}', '${sidE}', 'draft', array['other/x.png'])`).catch((e) => e.message)
+check('file path must be own folder', r === 'invalid_file_path')
+await as(E, `insert into public.submissions (assignment_id, student_id, status, content, file_paths) values ('${a2}', '${sidE}', 'submitted', '{"rows":[["a"]]}', array['${sidE}/${a2}/1.png'])`)
+r = await as(E, `select coalesce(sum(xp),0)::int xp from public.xp_events where source = 'assignment'`)
+check('on-time submit +30 XP', r[0].xp === 30)
+await as(E, `update public.submissions set status = 'draft' where assignment_id = '${a2}'`)
+await as(E, `update public.submissions set status = 'submitted' where assignment_id = '${a2}'`)
+r = await as(E, `select coalesce(sum(xp),0)::int xp from public.xp_events where source = 'assignment'`)
+check('XP only once', r[0].xp === 30)
+const subId = (await db.query(`select id from public.submissions where assignment_id = '${a2}' and student_id = '${sidE}'`)).rows[0].id
+r = await as(E, `select public.grade_submission('${subId}', 3, 'ดี')`).catch(() => 'denied')
+check('student cannot grade', r === 'denied')
+r = await as(T, `select public.grade_submission('${subId}', 99, 'x')`).catch((e) => e.message)
+check('score > max rejected', r === 'score_out_of_range')
+await as(T, `select public.grade_submission('${subId}', 1, 'แก้ตาราง', 'returned')`)
+r = await as(E, `update public.submissions set content = '{"rows":[["b"]]}', status = 'submitted' where id = '${subId}' returning status, score`)
+check('student resubmits returned work', r.length === 1 && r[0].status === 'submitted')
+await as(T, `select public.grade_submission('${subId}', 2.5, 'ดีมาก')`)
+r = await as(E, `select score::float, feedback, status from public.submissions where id = '${subId}'`)
+check('graded visible to student', r[0].score === 2.5 && r[0].status === 'graded' && r[0].feedback === 'ดีมาก')
+await as(T, `select public.admin_set_score('${mid}', '${sidE}', 17)`)
+r = await as(E, `select score::float from public.submissions where assignment_id = '${mid}'`)
+check('admin_set_score upsert', r[0].score === 17)
+await as(T, `select public.admin_set_score('${mid}', '${sidE}', null)`)
+r = await as(E, `select score, status from public.submissions where assignment_id = '${mid}'`)
+check('admin_set_score clear', r[0].score === null && r[0].status === 'draft')
+r = await as(T, `select public.admin_import_students('[{"student_code":"20001","first_name":"ใหม่","classroom":"ม.3/2","number":"1"},{"student_code":"10001","first_name":"ธนกร","nickname":"กล้า","classroom":"ม.3/1"}]'::jsonb) r`)
+check('import students', r[0].r.inserted === 1 && r[0].r.updated === 1)
+r = await db.query(`select c.name from public.students s join public.classrooms c on c.id = s.classroom_id where student_code = '20001'`)
+check('import creates classroom', r.rows[0]?.name === 'ม.3/2')
+r = await as(T, `select public.admin_import_students('[{"student_code":"abc","first_name":"x"}]'::jsonb)`).catch((e) => e.message)
+check('import validates code', String(r).startsWith('invalid_row'))
+r = await as(E, `select count(*)::int n from public.my_gradebook_items()`)
+const all = (await db.query(`select count(*)::int n from public.assignments`)).rows[0].n
+const r2 = await as(E, `select count(*)::int n from public.assignments`)
+console.log(r[0].n === all && r2[0].n < all ? 'PASS my_gradebook_items shows all, table hides locked' : 'FAIL my_gradebook_items')
+
+// ---------- Phase 4 ----------
+const g = async (type, correct, answer) => (await db.query(`select public.grade_answer($1, $2::jsonb, $3::jsonb) p`, [type, JSON.stringify(correct), JSON.stringify(answer)])).rows[0].p
+check('grade mcq', Number(await g('mcq', { index: 2 }, { index: 2 })) === 1 && Number(await g('mcq', { index: 2 }, { index: 1 })) === 0)
+check('grade tf', Number(await g('true_false', { value: false }, { value: false })) === 1 && Number(await g('true_false', { value: false }, { value: 'false' })) === 0)
+check('grade matching partial', Number(await g('matching', { pairs: [2, 0, 1, 3] }, { pairs: [2, 0, 3, 1] })) === 0.5)
+check('grade ordering', Number(await g('ordering', { order: [1, 0, 2] }, { order: [1, 0, 2] })) === 1)
+check('grade fill normalize', Number(await g('fill', { accept: ['kWh', 'กิโลวัตต์-ชั่วโมง'] }, { text: ' KWH ' })) === 1)
+check('grade short pending', (await g('short', null, { text: 'คำตอบ' })) === null && Number(await g('short', null, { text: ' ' })) === 0)
+check('grade null answer = 0', Number(await g('mcq', { index: 1 }, null)) === 0)
+
+r = await db.query(`select count(*)::int q, (select count(*)::int from public.exams) e from public.questions`)
+check('seed 150 questions / 25 exams', r.rows[0].q === 150 && r.rows[0].e === 25)
+await db.exec(readFileSync(join(root, 'supabase', 'seed_questions.sql'), 'utf8'))
+r = await db.query(`select count(*)::int q from public.questions`)
+check('question seed idempotent', r.rows[0].q === 150)
+r = await db.query(`select count(*)::int n from public.exams where kind in ('unit_test','midterm','final') and assignment_id is null`)
+check('scored exams linked to gradebook', r.rows[0].n === 0)
+
+const F = '00000000-0000-0000-0000-00000000000f'
+await db.exec(`insert into auth.users values ('${F}')`)
+await db.exec('update public.app_settings set device_lock = false')
+await as(F, `select public.login_with_code('10002', 'devF')`)
+r = await as(F, `select count(*)::int n from public.questions`)
+check('student cannot read questions table', r[0].n === 0)
+
+const correctAnswerFor = async (qid) => {
+  const c = (await db.query(`select type, correct_answer c from public.questions where id = $1`, [qid])).rows[0]
+  return { type: c.type, ans: c.type === 'fill' ? { text: c.c.accept[0] } : c.c }
+}
+
+const ex1 = (await db.query(`select id from public.exams where kind = 'exit_ticket' and session_no = 1`)).rows[0].id
+const st = (await as(F, `select public.start_exam('${ex1}') r`))[0].r
+check('start_exam returns 5 questions', st.questions.length === 5)
+check('no answers leaked to client', !JSON.stringify(st).includes('correct') && !JSON.stringify(st).includes('explanation'))
+const again = (await as(F, `select public.start_exam('${ex1}') r`))[0].r
+check('resume same attempt', again.attempt_id === st.attempt_id)
+for (const q of st.questions) {
+  const { ans } = await correctAnswerFor(q.id)
+  await as(F, `select public.save_exam_answer('${st.attempt_id}', '${q.id}', '${JSON.stringify(ans)}'::jsonb)`)
+}
+r = await as(F, `select public.save_exam_answer('${st.attempt_id}', '${ex1}', '{}'::jsonb)`).catch((e) => e.message)
+check('reject question not in exam', r === 'question_not_in_exam')
+await as(F, `select public.record_tab_switch('${st.attempt_id}')`)
+const res = (await as(F, `select public.submit_exam('${st.attempt_id}') r`))[0].r
+check('exit ticket full score', Number(res.score) === 5 && Number(res.max_points) === 5 && res.show_answers === true && res.review.length === 5)
+r = await as(F, `select coalesce(sum(xp),0)::int xp from public.xp_events where source = 'exit_ticket'`)
+check('exit ticket full +20 XP', r[0].xp === 20)
+r = (await as(F, `select public.start_exam('${ex1}') r`))[0].r
+check('max attempts -> returns last result', r.finished === true && Number(r.result.score) === 5 && !r.attempt_id)
+r = await as(F, `select public.save_exam_answer('${st.attempt_id}', '${st.questions[0].id}', '{}'::jsonb)`).catch((e) => e.message)
+check('no edit after submit', r === 'already_submitted')
+r = await as(F, `select tab_switches from public.exam_attempts where id = '${st.attempt_id}'`)
+check('tab switch recorded', r[0].tab_switches === 1)
+
+const ut1 = (await db.query(`select id, assignment_id from public.exams where title = 'ทดสอบท้ายหน่วยที่ 1'`)).rows[0]
+r = await as(F, `select public.start_exam('${ut1.id}')`).catch((e) => e.message)
+check('locked session exam blocked', r === 'exam_locked')
+await as(T, `select public.admin_set_session_unlock(6, true, null)`)
+const st2 = (await as(F, `select public.start_exam('${ut1.id}') r`))[0].r
+check('unit test 20 questions', st2.questions.length === 20)
+let shortQ = null
+let answered = 0
+for (const q of st2.questions) {
+  const { type, ans } = await correctAnswerFor(q.id)
+  if (type === 'short') {
+    shortQ = q.id
+    await as(F, `select public.save_exam_answer('${st2.attempt_id}', '${q.id}', '{"text":"มอเตอร์ใช้แม่เหล็กไฟฟ้า"}'::jsonb)`)
+    continue
+  }
+  if (answered >= 10) continue
+  await as(F, `select public.save_exam_answer('${st2.attempt_id}', '${q.id}', '${JSON.stringify(ans)}'::jsonb)`)
+  answered++
+}
+const res2 = (await as(F, `select public.submit_exam('${st2.attempt_id}') r`))[0].r
+check('unit test needs review, no answers shown', res2.needs_review === true && Number(res2.score) === 10 && res2.review === null)
+r = await as(F, `select score::float from public.submissions where assignment_id = '${ut1.assignment_id}'`)
+check('unit test synced to gradebook (10/20 -> 2.5/5)', r[0]?.score === 2.5)
+r = await as(F, `select public.admin_grade_exam_answer('${st2.attempt_id}', '${shortQ}', 1)`).catch(() => 'denied')
+check('student cannot grade exam', r === 'denied')
+const res3 = (await as(T, `select public.admin_grade_exam_answer('${st2.attempt_id}', '${shortQ}', 1) r`))[0].r
+check('admin grades short answer', Number(res3.score) === 11 && res3.needs_review === false)
+r = await as(F, `select score::float from public.submissions where assignment_id = '${ut1.assignment_id}'`)
+check('gradebook updated after review (11/20 -> 2.75)', r[0]?.score === 2.75)
+await as(T, `select public.admin_rescore_exam('${ut1.id}')`)
+r = await as(F, `select score::float s from public.exam_attempts where id = '${st2.attempt_id}'`)
+check('rescore keeps teacher points', r[0].s === 11)
+
+const pre = (await db.query(`select id from public.exams where kind = 'pretest'`)).rows[0].id
+const st3 = (await as(F, `select public.start_exam('${pre}') r`))[0].r
+await db.exec(`update public.exam_attempts set deadline_at = now() - interval '5 minutes' where id = '${st3.attempt_id}'`)
+r = await as(F, `select public.save_exam_answer('${st3.attempt_id}', '${st3.questions[0].id}', '{"index":0}'::jsonb)`).catch((e) => e.message)
+check('time up blocks saving', r === 'time_up')
+r = (await as(F, `select public.start_exam('${pre}') r`))[0].r
+const subm = await db.query(`select submitted_at is not null s from public.exam_attempts where id = '${st3.attempt_id}'`)
+check('expired attempt auto-submitted on revisit', r.finished === true && subm.rows[0].s === true)
+r = await as(E, `select public.exam_result('${st3.attempt_id}')`).catch((e) => e.message)
+check('cannot view other student result', r === 'attempt_not_found')
+
+// ---------- Phase 5 ----------
+r = await db.query(`select (select count(*)::int from public.games) g, (select count(*)::int from public.badges) b`)
+check('seed 17 games / 8 badges', r.rows[0].g === 17 && r.rows[0].b === 8)
+await db.exec(readFileSync(join(root, 'supabase', 'seed_games.sql'), 'utf8'))
+r = await db.query(`select count(*)::int g from public.games`)
+check('game seed idempotent', r.rows[0].g === 17)
+
+const G = '00000000-0000-0000-0000-000000000010'
+await db.exec(`insert into auth.users values ('${G}')`)
+await as(G, `select public.login_with_code('10004', 'devG')`)
+const sidG = (await as(G, `select public.current_student_id() id`))[0].id
+
+r = await as(G, `select slug, is_unlocked from public.my_games()`)
+const unlocked = Object.fromEntries(r.map((x) => [x.slug, x.is_unlocked]))
+check('my_games lists 17 with lock state', r.length === 17 && unlocked['warmup'] === true && unlocked['ip-hunter'] === false)
+
+r = await as(G, `select public.submit_game_result('ip-hunter', 90, 60)`).catch((e) => e.message)
+check('locked game rejected', r === 'game_locked')
+r = await as(G, `select public.submit_game_result('warmup', 101, 60)`).catch((e) => e.message)
+check('score above max rejected', r === 'invalid_score')
+r = await as(G, `select public.submit_game_result('warmup', 80, 3)`).catch((e) => e.message)
+check('too short duration rejected', r === 'invalid_duration')
+
+const play1 = (await as(G, `select public.submit_game_result('warmup', 80, 30) r`))[0].r
+check('first play full XP (80% of 10 = 8)', play1.xp === 8 && play1.first_play === true)
+r = await as(G, `select public.submit_game_result('warmup', 100, 30)`).catch((e) => e.message)
+check('rapid resubmit blocked', r === 'too_fast')
+await db.exec(`update public.game_plays set played_at = played_at - interval '1 minute' where student_id = '${sidG}'`)
+const play2 = (await as(G, `select public.submit_game_result('warmup', 100, 30) r`))[0].r
+check('second play 20% XP (10*0.2 = 2)', play2.xp === 2 && play2.first_play === false && play2.best_score === 100)
+await db.exec(`update public.game_plays set played_at = played_at - interval '1 minute' where student_id = '${sidG}'`)
+await as(G, `select public.submit_game_result('warmup', 100, 30)`)
+await db.exec(`update public.game_plays set played_at = played_at - interval '1 minute' where student_id = '${sidG}'`)
+const play4 = (await as(G, `select public.submit_game_result('warmup', 100, 30) r`))[0].r
+check('4th play today capped (0 XP)', play4.xp === 0 && play4.capped === true)
+r = await as(G, `select coalesce(sum(xp),0)::int xp from public.xp_events where source = 'game'`)
+check('game XP total 8+2+2', r[0].xp === 12)
+r = await as(G, `insert into public.game_plays (game_id, student_id, score, duration_sec, xp_earned) select id, '${sidG}', 100, 10, 999 from public.games where slug = 'warmup'`).catch(() => 'denied')
+check('student cannot insert game_plays directly', r === 'denied')
+
+// เหรียญ: 5G Time Machine >= 80% (คาบ 3 = 5G หลังสลับ เปิดแล้ว)
+const p5g = (await as(G, `select public.submit_game_result('5g-time-machine', 85, 40) r`))[0].r
+check('badge awarded on game score', p5g.new_badges.some((b) => b.code === '5g-master'))
+r = await as(G, `select count(*)::int n from public.student_badges`)
+check('student sees own badge', r[0].n >= 1)
+await db.exec(`update public.game_plays set played_at = played_at - interval '1 minute' where student_id = '${sidG}'`)
+const p5g2 = (await as(G, `select public.submit_game_result('5g-time-machine', 90, 40) r`))[0].r
+check('badge not awarded twice', !p5g2.new_badges.some((b) => b.code === '5g-master'))
+// เหรียญมาเรียน 5 คาบ
+await db.exec(`insert into public.attendance (student_id, session_no, status) select '${sidG}', n, 'present' from generate_series(11, 15) n`)
+r = await db.query(`select count(*)::int n from public.student_badges sb join public.badges b on b.id = sb.badge_id where sb.student_id = '${sidG}' and b.code = 'attendance-5'`)
+check('attendance badge via trigger', r.rows[0].n === 1)
+
+// ลีดเดอร์บอร์ด
+r = await as(G, `select * from public.leaderboard('class')`)
+const me = r.find((x) => x.is_me)
+check('leaderboard class shows me with xp', !!me && me.xp >= 12 && r.every((x) => x.classroom_name === 'ม.3/1'))
+check('leaderboard hides student ids/codes', !Object.keys(r[0]).some((k) => k.includes('id') || k.includes('code')))
+await db.exec(`update public.app_settings set leaderboard_mode = 'hidden'`)
+r = await as(G, `select * from public.leaderboard('all')`)
+const ra = await as(T, `select * from public.leaderboard('all')`)
+check('hidden mode: students see nothing, admin sees all', r.length === 0 && ra.length > 0)
+await db.exec(`update public.app_settings set leaderboard_mode = 'top10'`)
+r = await db.query(`select updated_at from public.leaderboard_ticks`)
+check('leaderboard tick row exists', r.rows.length === 1)
+
+// อวาตาร์
+await as(G, `select public.set_my_avatar('robot')`)
+r = await as(G, `select avatar from public.students`)
+check('set avatar', r[0].avatar === 'robot')
+r = await as(G, `select public.set_my_avatar('<script>')`).catch((e) => e.message)
+check('invalid avatar rejected', r === 'invalid_avatar')
+
+// ---------- Phase 6 ----------
+// ครูลบผลสอบ (ให้สอบใหม่) แล้วคะแนนในสมุดคะแนนต้องถูกล้าง
+const utAttempt = (await db.query(`select a.id, e.assignment_id, a.student_id from public.exam_attempts a join public.exams e on e.id = a.exam_id where e.title = 'ทดสอบท้ายหน่วยที่ 1' limit 1`)).rows[0]
+await as(T, `delete from public.exam_attempts where id = '${utAttempt.id}'`)
+r = await db.query(`select count(*)::int n from public.submissions where assignment_id = '${utAttempt.assignment_id}' and student_id = '${utAttempt.student_id}'`)
+check('deleting exam attempt clears gradebook score', r.rows[0].n === 0)
+r = await as(F, `delete from public.exam_attempts returning id`)
+check('student cannot delete own attempts', r.length === 0)
+
+console.log(failed ? `${failed} FAILED` : 'ALL PASSED')
+process.exit(failed ? 1 : 0)

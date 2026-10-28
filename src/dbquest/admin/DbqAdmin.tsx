@@ -1,17 +1,17 @@
 import { useState } from 'react'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '@/app/AuthContext'
-import { NongData, NongDataSays } from '@/components/illustrations/NongData'
+import { NongData } from '@/components/illustrations/NongData'
 
 const NAV = [
-  { to: '/db/admin', label: 'ภาพรวม', end: true, phase: 8 },
-  { to: '/db/admin/students', label: 'นักเรียน', end: false, phase: 8 },
-  { to: '/db/admin/unlock', label: 'ปลดล็อกคาบ', end: false, phase: 3 },
-  { to: '/db/admin/grading', label: 'ตรวจงาน', end: false, phase: 8 },
-  { to: '/db/admin/exams', label: 'ข้อสอบ / ผลสอบ', end: false, phase: 8 },
-  { to: '/db/admin/gradebook', label: 'สมุดคะแนน', end: false, phase: 8 },
-  { to: '/db/admin/answer-keys', label: 'เฉลยทั้งหมด', end: false, phase: 3 },
-  { to: '/db/admin/settings', label: 'ตั้งค่า', end: false, phase: 8 },
+  { to: '/db/admin', label: 'ภาพรวม', end: true },
+  { to: '/db/admin/students', label: 'นักเรียน', end: false },
+  { to: '/db/admin/unlock', label: 'ปลดล็อกคาบ', end: false },
+  { to: '/db/admin/grading', label: 'ตรวจงาน', end: false },
+  { to: '/db/admin/exams', label: 'กรอกคะแนนสอบ/อื่น ๆ', end: false },
+  { to: '/db/admin/gradebook', label: 'สมุดคะแนน', end: false },
+  { to: '/db/admin/answer-keys', label: 'เฉลยทั้งหมด', end: false },
+  { to: '/db/admin/settings', label: 'ตั้งค่า', end: false },
 ]
 
 // หน้าครูของ DB Quest — ใช้รหัสครูเดียวกับเว็บ ม.3 สลับไปมาได้จากเมนู
@@ -73,13 +73,3 @@ export function DbqAdminLayout() {
   )
 }
 
-export function DbqAdminComingSoon() {
-  const { pathname } = useLocation()
-  const item = [...NAV].reverse().find((n) => pathname.startsWith(n.to)) ?? NAV[0]
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl text-dq-900">{item?.label}</h1>
-      <NongDataSays mood="think">หน้านี้จะเปิดใช้ในเฟส {item?.phase}</NongDataSays>
-    </div>
-  )
-}

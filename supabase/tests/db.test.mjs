@@ -423,7 +423,7 @@ r = await as(D5, `select public.whoami() as r`)
 check('dbq: whoami carries course', r[0].r.student.course === 'dbquest_m5')
 
 const dbqTables = (await db.query(`select tablename from pg_tables where schemaname = 'public' and tablename like 'dbq\\_%'`)).rows.map((x) => x.tablename)
-check('dbq: 17 tables exist', dbqTables.length === 17)
+check('dbq: 18 tables exist', dbqTables.length === 18)
 check('dbq: RLS on every table', (await db.query(`select count(*)::int n from pg_tables where tablename like 'dbq\\_%' and not rowsecurity`)).rows[0].n === 0)
 let directOk = 0
 for (const t of dbqTables) {
@@ -682,6 +682,109 @@ r = await as(T, `select public.dbq_complete_step(1, 'lesson', '{}') as r`)
 check('dbq010: admin preview complete_step not recorded', r[0].r.preview === true)
 r = await db.query(`select count(*)::int n from public.dbq_item_attempts a join public.students s on s.id = a.student_id where s.student_code not in ('55555', '55600')`)
 check('dbq010: no attempts recorded for non-students', r.rows[0].n === 0)
+
+// ---------- DB Quest: คะแนนและหลังบ้าน (migration 013) ----------
+for (const fn of [
+  `dbq_admin_overview()`,
+  `dbq_admin_students(null)`,
+  `dbq_admin_gradebook(null)`,
+  `dbq_admin_submissions('{}')`,
+  `dbq_admin_set_manual_score(public.current_student_id(), 'midterm', 20, 20)`,
+]) {
+  r = await as(D5, `select public.${fn} as r`).catch(err)
+  check(`dbq013: student cannot call ${fn.split('(')[0]}`, r === 'forbidden')
+}
+r = await as(D5, `select public.dbq_student_scores(public.current_student_id()) as r`).catch(() => 'denied')
+check('dbq013: dbq_student_scores not callable by client', r === 'denied')
+r = await as(D3, `select public.dbq_my_scores() as r`).catch(err)
+check('dbq013: ม.3 student cannot read DB Quest scores', r === 'forbidden')
+
+// คะแนนของฉัน: ใบงาน 4/10 (ws-s01 ได้ 4, ws-s02 ยังไม่ส่ง) · เกม 100/200 (2 เกม เล่น 1 เกม)
+r = await as(D5, `select public.dbq_my_scores() as r`)
+let sc = r[0].r.scores
+check('dbq013: worksheet category counts missing work as 0', sc.categories.worksheet.earned == 4 && sc.categories.worksheet.max == 10 && sc.categories.worksheet.pct == 40 && sc.categories.worksheet.points == 10)
+check('dbq013: game category = best score per game', sc.categories.game.pct == 50 && sc.categories.game.points == 5)
+check('dbq013: manual categories empty until entered', sc.categories.midterm.pct === null && sc.total == 15 && sc.available == 35)
+check('dbq013: my_scores lists assignments with status', r[0].r.assignments.map((a) => `${a.item_id}:${a.status}`).join() === 'ws-s01:graded,ws-s02:missing')
+check('dbq013: my_scores lists games', r[0].r.games.find((g) => g.game_key === 'memory-match').best_stars === 3)
+r = await as(T, `select public.dbq_my_scores() as r`)
+check('dbq013: admin preview my_scores', r[0].r.preview === true)
+
+// คะแนนที่ครูกรอก
+const sidD5 = (await db.query(`select id from public.students where student_code = '55555'`)).rows[0].id
+r = await as(T, `select public.dbq_admin_set_manual_score('${sidD5}', 'midterm', 15, 20)`)
+r = await as(D5, `select public.dbq_my_scores() as r`)
+sc = r[0].r.scores
+check('dbq013: manual midterm 15/20 -> 7.5 points', sc.categories.midterm.pct == 75 && sc.categories.midterm.points == 7.5 && sc.total == 22.5 && sc.available == 45)
+r = await as(T, `select public.dbq_admin_set_manual_score('${sidD5}', 'midterm', 25, 20)`).catch(err)
+check('dbq013: manual score over max rejected', r === 'invalid_score')
+r = await as(T, `select public.dbq_admin_set_manual_score('${sidD5}', 'worksheet', 5, 10)`).catch(err)
+check('dbq013: auto category cannot be entered manually', r === 'invalid_category')
+r = await as(T, `select public.dbq_admin_set_manual_score('${sidD5}', 'final', 30, 40)`)
+r = await as(T, `select public.dbq_admin_set_manual_score('${sidD5}', 'final', null)`)
+r = await db.query(`select count(*)::int n from public.dbq_manual_scores where category = 'final'`)
+check('dbq013: null manual score deletes', r.rows[0].n === 0)
+
+// ตรวจงาน
+r = await as(D6, `select public.dbq_submit_worksheet('ws-s01', '{"text":"งานของห้อง 5/2"}') as r`)
+check('dbq013: second student submits worksheet', r[0].r.ok)
+r = await as(T, `select public.dbq_admin_overview() as r`)
+check('dbq013: overview counts pending grading', r[0].r.pending_grading === 1 && r[0].r.classrooms.find((c) => c.name === 'ม.5/2').pending_grading === 1)
+check('dbq013: overview session progress', r[0].r.sessions.length === 20 && r[0].r.sessions[0].completed >= 1)
+r = await as(T, `select public.dbq_admin_submissions('{"status":"pending"}') as r`)
+const pend = r[0].r
+check('dbq013: pending list has rubric + sample for teacher', pend.length === 1 && pend[0].student.student_code === '55600' && pend[0].rubric.length === 3 && pend[0].sample.length > 0)
+r = await as(T, `select public.dbq_admin_grade_submission('${pend[0].id}', 6, '') as r`).catch(err)
+check('dbq013: grade above max rejected', r === 'invalid_score')
+r = await as(T, `select public.dbq_admin_grade_submission('${pend[0].id}', 4.5, 'ตัวอย่างดีมาก') as r`)
+check('dbq013: grade saved', r[0].r.graded === true)
+r = await as(D6, `select public.dbq_my_scores() as r`)
+check('dbq013: student sees score + feedback', r[0].r.assignments[0].status === 'graded' && r[0].r.assignments[0].score == 4.5 && r[0].r.assignments[0].feedback === 'ตัวอย่างดีมาก')
+r = await as(D6, `select public.dbq_submit_worksheet('ws-s01', '{"text":"แก้"}') as r`).catch(err)
+check('dbq013: graded work locked for student', r === 'already_graded')
+await as(T, `select public.dbq_admin_grade_submission('${pend[0].id}', null) as r`)
+r = await as(D6, `select public.dbq_submit_worksheet('ws-s01', '{"text":"แก้แล้ว"}') as r`)
+check('dbq013: ungrade lets student resubmit', r[0].r.ok)
+r = await as(T, `select public.dbq_admin_submissions('{"status":"graded"}') as r`)
+check('dbq013: graded filter', r[0].r.length === 1 && r[0].r[0].student.student_code === '55555')
+
+// รายชื่อ / รายละเอียด / สมุดคะแนน
+const meXp = (await as(D5, `select public.dbq_me() as r`))[0].r.xp
+r = await as(T, `select public.dbq_admin_students(null) as r`)
+const d5row = r[0].r.find((x) => x.student_code === '55555')
+check('dbq013: students list', d5row.xp === meXp && d5row.sessions_done === 1 && d5row.badges === 2 && d5row.classroom_name === 'ม.5/1' && r[0].r.every((x) => x.classroom_name.startsWith('ม.5')))
+r = await as(T, `select public.dbq_admin_student_detail('${sidD5}') as r`)
+check('dbq013: student detail', r[0].r.sessions.length === 20 && r[0].r.sessions[0].pct === 100 && r[0].r.scores.total == 22.5 && r[0].r.games.length === 1 && r[0].r.recent_xp.length > 0)
+const sidD3 = (await db.query(`select id from public.students where student_code = '33333'`)).rows[0].id
+r = await as(T, `select public.dbq_admin_student_detail('${sidD3}') as r`).catch(err)
+check('dbq013: ม.3 student not in DB Quest detail', r === 'not_found')
+r = await as(T, `select public.dbq_admin_gradebook('${room52}') as r`)
+check('dbq013: gradebook filtered by room', r[0].r.rows.length >= 1 && r[0].r.rows.every((x) => x.classroom_name === 'ม.5/2') && r[0].r.assignments.length === 2)
+r = await as(T, `select public.dbq_admin_gradebook(null) as r`)
+const gb5 = r[0].r.rows.find((x) => x.student_code === '55555')
+const ws1 = r[0].r.assignments.find((a) => a.item_id === 'ws-s01').id
+check('dbq013: gradebook cells', gb5.work[ws1].status === 'graded' && gb5.work[ws1].score == 4 && gb5.manual.midterm.score == 15 && gb5.scores.total == 22.5 && r[0].r.manual_max.midterm == 20)
+
+// ตั้งค่า
+r = await as(T, `select public.dbq_admin_set_setting('score_weights', '{"worksheet":25,"unit_quiz":15,"game":10,"project":15,"attendance":5,"midterm":10,"final":19}')`).catch(err)
+check('dbq013: weights must sum 100', r === 'weights_must_sum_100')
+r = await as(T, `select public.dbq_admin_set_setting('score_weights', '{"worksheet":25}')`).catch(err)
+check('dbq013: weights need every category', r === 'invalid_value')
+r = await as(T, `select public.dbq_admin_set_setting('unlock_threshold_pct', '150')`).catch(err)
+check('dbq013: threshold range checked', r === 'invalid_value')
+r = await as(T, `select public.dbq_admin_set_setting('leaderboard_enabled', '"yes"')`).catch(err)
+check('dbq013: boolean setting checked', r === 'invalid_value')
+await as(T, `select public.dbq_admin_set_setting('score_weights', '{"worksheet":50,"unit_quiz":0,"game":50,"project":0,"attendance":0,"midterm":0,"final":0}')`)
+r = await as(D5, `select public.dbq_my_scores() as r`)
+check('dbq013: new weights applied', r[0].r.scores.total == 45)
+await as(T, `select public.dbq_admin_set_setting('score_weights', '{"worksheet":25,"unit_quiz":15,"game":10,"project":15,"attendance":5,"midterm":10,"final":20}')`)
+
+// อันดับ
+r = await as(D5, `select public.dbq_leaderboard() as r`)
+check('dbq013: leaderboard respects disabled setting', r[0].r.enabled === false)
+await as(T, `select public.dbq_admin_set_setting('leaderboard_enabled', 'true')`)
+r = await as(D5, `select public.dbq_leaderboard() as r`)
+check('dbq013: leaderboard ranks own room', r[0].r.enabled && r[0].r.rows[0].is_me === true && r[0].r.rows[0].rank === 1 && r[0].r.rows.every((x) => !('student_code' in x)))
 
 console.log(failed ? `${failed} FAILED` : 'ALL PASSED')
 process.exit(failed ? 1 : 0)

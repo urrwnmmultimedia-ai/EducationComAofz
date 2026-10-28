@@ -120,7 +120,7 @@
 - **ตั้งวิชาของห้อง:** หน้าครู → ห้องเรียน → เลือก "ม.5 DB Quest" (ห้องที่สร้างจากการนำเข้ารายชื่อและชื่อขึ้นต้น `ม.5` ตั้งให้อัตโนมัติ)
 - **รหัสทดลอง:** `33333` (ม.3/1) · `55555` (ม.5/1) + นักเรียน ม.5 ตัวอย่าง `55501`–`55504`
 - **ฐานข้อมูล:** ตาราง DB Quest ขึ้นต้น `dbq_` เปิด RLS แต่ไม่มี policy เลย (อ่าน/เขียนตรงไม่ได้ทั้งนักเรียนและครู) ใช้ผ่าน RPC `dbq_*` เท่านั้น
-- **อัปเดตฐานข้อมูลที่ติดตั้งแล้ว:** รันใน SQL Editor ครั้งเดียวตามลำดับ `supabase/updates/dbquest_phase2.sql` → `dbquest_phase3.sql` (คาบเรียน เฉลย เกม)
+- **อัปเดตฐานข้อมูลที่ติดตั้งแล้ว:** รันใน SQL Editor ครั้งเดียวตามลำดับ `supabase/updates/dbquest_phase2.sql` → `dbquest_phase3.sql` (คาบเรียน เฉลย เกม) → `dbquest_phase4.sql` (ระบบคะแนน หลังบ้านครู)
 - **เพิ่ม/แก้คาบ เฉลย หรือสำรับเกม:** แก้ไฟล์ต้นฉบับ → `npm run seed:build` → รัน `supabase/updates/dbquest_content.sql` ใน SQL Editor (รันซ้ำได้)
 - **เนื้อหา** (ไม่มีเฉลย) อยู่ใน `src/content/units/sNN.json` · **เฉลย** อยู่ที่ `supabase/answer_keys/sNN.json` · **สำรับเกม** อยู่ที่ `supabase/dbq_games/` → `npm run seed:build` สร้าง `supabase/seed/answer_keys.sql` (เข้าตาราง `dbq_answer_keys` / `dbq_game_decks` ซึ่งอ่านตรงไม่ได้)
 - `npm run build` รัน `scripts/check-content.mjs` ก่อนทุกครั้ง ถ้าพบคีย์ `answer` `correct` `solution` `key` ในไฟล์ `src/content/` build จะล้ม

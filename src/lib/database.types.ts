@@ -336,6 +336,21 @@ export type Database = {
       dbq_complete_step: { Args: { p_session: number; p_step: string; p_data?: Json }; Returns: Json }
       dbq_submit_worksheet: { Args: { p_item_id: string; p_content: Json }; Returns: Json }
       dbq_game_deck: { Args: { p_game_key: string }; Returns: Json }
+      dbq_get_answer_key: { Args: { p_scope?: Json }; Returns: Json }
+      dbq_admin_unlock_overview: { Args: Record<string, never>; Returns: Json }
+      dbq_admin_set_unlock: { Args: { p_session: number; p_unlocked: boolean; p_classroom_id?: string | null }; Returns: undefined }
+      dbq_admin_overview: { Args: Record<string, never>; Returns: Json }
+      dbq_admin_students: { Args: { p_classroom_id?: string | null }; Returns: Json }
+      dbq_admin_student_detail: { Args: { p_student_id: string }; Returns: Json }
+      dbq_admin_submissions: { Args: { p_filter?: Json }; Returns: Json }
+      dbq_admin_grade_submission: { Args: { p_submission_id: string; p_score: number | null; p_feedback?: string | null }; Returns: Json }
+      dbq_admin_set_manual_score: {
+        Args: { p_student_id: string; p_category: string; p_score: number | null; p_max_score?: number }
+        Returns: undefined
+      }
+      dbq_admin_gradebook: { Args: { p_classroom_id?: string | null }; Returns: Json }
+      dbq_my_scores: { Args: Record<string, never>; Returns: Json }
+      dbq_leaderboard: { Args: Record<string, never>; Returns: Json }
       dbq_submit_game_result: { Args: { p_game_key: string; p_score: number; p_duration_sec: number }; Returns: Json }
     }
     Enums: Record<never, never>

@@ -50,14 +50,6 @@ export function DbqGlossaryPage() {
   return <ComingSoon title="พจนานุกรมศัพท์" phase={4} />
 }
 
-export function DbqAssignmentsPage() {
-  return <ComingSoon title="งานของฉัน" phase={8} />
-}
-
 export function DbqExamPage() {
   return <ComingSoon title="แบบทดสอบ" phase={8} />
-}
-
-export function DbqMePage() {
-  return <ComingSoon title="คะแนนของฉัน" phase={8} />
 }

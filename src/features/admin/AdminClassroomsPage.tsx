@@ -2,12 +2,20 @@ import { useState, type FormEvent } from 'react'
 import { z } from 'zod'
 import { Button } from '@/components/Button'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
-import type { ClassroomRow } from '@/lib/database.types'
+import type { ClassroomRow, CourseKey } from '@/lib/database.types'
 import { useAsync } from '@/lib/useAsync'
 import { fetchClassrooms, upsertClassroom } from './adminLessonsApi'
 
 const nameSchema = z.string().trim().min(1, 'กรุณากรอกชื่อห้อง').max(30, 'ชื่อห้องยาวเกินไป')
 const INPUT = 'w-full rounded-xl border-2 border-brand-100 bg-white px-3 py-2 outline-none focus:border-brand-500'
+
+const COURSES: { value: CourseKey; label: string }[] = [
+  { value: 'design_m3', label: 'ม.3 ออกแบบและเทคโนโลยี' },
+  { value: 'dbquest_m5', label: 'ม.5 DB Quest ฐานข้อมูล' },
+]
+
+// ห้องชื่อขึ้นต้น ม.5 เดาว่าเป็น DB Quest (เปลี่ยนเองได้)
+const guessCourse = (name: string): CourseKey => (name.trim().startsWith('ม.5') ? 'dbquest_m5' : 'design_m3')
 
 export function AdminClassroomsPage() {
   const state = useAsync(fetchClassrooms, [])
@@ -16,7 +24,7 @@ export function AdminClassroomsPage() {
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-2xl text-brand-900">ห้องเรียน</h1>
-        <p className="text-sm text-slate-500">เพิ่ม/แก้ชื่อห้อง แล้วไปเปิด-ปิดคาบรายห้องที่หน้า "บทเรียน / คาบเรียน"</p>
+        <p className="text-sm text-slate-500">เพิ่ม/แก้ชื่อห้อง และเลือกวิชาของห้อง (นักเรียนห้องไหนจะเข้าเว็บของวิชานั้น) แล้วไปเปิด-ปิดคาบรายห้องที่หน้า "บทเรียน / คาบเรียน"</p>
       </div>
       {state.status === 'loading' && <LoadingBlock />}
       {state.status === 'error' && <ErrorBlock message={state.error} onRetry={state.reload} />}
@@ -34,6 +42,8 @@ export function AdminClassroomsPage() {
 
 function RoomForm({ room, nextOrder = 0, onSaved }: { room: ClassroomRow | null; nextOrder?: number; onSaved: () => void }) {
   const [name, setName] = useState(room?.name ?? '')
+  const [course, setCourse] = useState<CourseKey | null>(room?.course ?? null)
+  const effectiveCourse = course ?? guessCourse(name)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [message, setMessage] = useState<string | null>(null)
 
@@ -48,10 +58,13 @@ function RoomForm({ room, nextOrder = 0, onSaved }: { room: ClassroomRow | null;
     }
     setStatus('saving')
     try {
-      await upsertClassroom({ id: room?.id, name: parsed.data, sort_order: room?.sort_order ?? nextOrder })
+      await upsertClassroom({ id: room?.id, name: parsed.data, sort_order: room?.sort_order ?? nextOrder, course: effectiveCourse })
       setStatus('saved')
       setMessage(null)
-      if (!room) setName('')
+      if (!room) {
+        setName('')
+        setCourse(null)
+      }
       onSaved()
     } catch {
       setStatus('error')
@@ -71,6 +84,21 @@ function RoomForm({ room, nextOrder = 0, onSaved }: { room: ClassroomRow | null;
           setStatus('idle')
         }}
       />
+      <select
+        className={`${INPUT} w-auto`}
+        aria-label={room ? `วิชาของห้อง ${room.name}` : 'วิชาของห้องใหม่'}
+        value={effectiveCourse}
+        onChange={(e) => {
+          setCourse(e.target.value as CourseKey)
+          setStatus('idle')
+        }}
+      >
+        {COURSES.map((c) => (
+          <option key={c.value} value={c.value}>
+            {c.label}
+          </option>
+        ))}
+      </select>
       <Button type="submit" variant={room ? 'secondary' : 'primary'} loading={status === 'saving'}>
         {room ? 'บันทึก' : '+ เพิ่มห้อง'}
       </Button>

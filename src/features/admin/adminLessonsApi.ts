@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type {
+  CourseKey,
   ClassSessionRow,
   ClassroomRow,
   ClassroomSessionUnlockRow,
@@ -105,9 +106,10 @@ export async function fetchClassrooms(): Promise<ClassroomRow[]> {
   return data
 }
 
-export async function upsertClassroom(room: { id?: string; name: string; sort_order: number }) {
+export async function upsertClassroom(room: { id?: string; name: string; sort_order: number; course: CourseKey }) {
+  const row = { name: room.name, sort_order: room.sort_order, course: room.course }
   const { error } = room.id
-    ? await supabase.from('classrooms').update({ name: room.name, sort_order: room.sort_order }).eq('id', room.id)
-    : await supabase.from('classrooms').insert({ name: room.name, sort_order: room.sort_order })
+    ? await supabase.from('classrooms').update(row).eq('id', room.id)
+    : await supabase.from('classrooms').insert(row)
   if (error) throw error
 }

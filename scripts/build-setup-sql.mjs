@@ -12,7 +12,7 @@ const parts = [
     .filter((f) => f.endsWith('.sql'))
     .sort()
     .map((f) => [`migrations/${f}`, readFileSync(join(dir, f), 'utf8')]),
-  ...['seed.sql', 'seed_questions.sql', 'seed_games.sql'].map((f) => [f, readFileSync(join(root, 'supabase', f), 'utf8')]),
+  ...['seed.sql', 'seed_questions.sql', 'seed_games.sql', 'seed_dbquest.sql'].map((f) => [f, readFileSync(join(root, 'supabase', f), 'utf8')]),
 ]
 
 const out =

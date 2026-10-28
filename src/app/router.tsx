@@ -23,7 +23,7 @@ export const router = createBrowserRouter([
   {
     errorElement: <RouteError />,
     element: (
-      <RequireRole role="student">
+      <RequireRole role="student" course="design_m3">
         <StudentLayout />
       </RequireRole>
     ),
@@ -41,7 +41,7 @@ export const router = createBrowserRouter([
     // ครูเปิดดูหน้าหน่วย/คาบ/เกมแบบนักเรียนได้ (โหมดดูตัวอย่าง)
     errorElement: <RouteError />,
     element: (
-      <RequireRole role={['student', 'admin']}>
+      <RequireRole role={['student', 'admin']} course="design_m3">
         <StudentLayout />
       </RequireRole>
     ),
@@ -79,7 +79,11 @@ export const router = createBrowserRouter([
   {
     path: '/db',
     errorElement: <RouteError />,
-    element: <RequireRole role={['student', 'admin']}>{lazyPage(() => import('@/dbquest/DbqLayout'), 'DbqLayout')}</RequireRole>,
+    element: (
+      <RequireRole role={['student', 'admin']} course="dbquest_m5">
+        {lazyPage(() => import('@/dbquest/DbqLayout'), 'DbqLayout')}
+      </RequireRole>
+    ),
     children: [
       { index: true, element: <Navigate to="/db/home" replace /> },
       { path: 'home', element: lazyPage(() => import('@/dbquest/pages/DbqPages'), 'DbqHomePage') },

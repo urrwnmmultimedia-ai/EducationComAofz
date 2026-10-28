@@ -19,10 +19,13 @@ export type AppSettingsRow = {
   updated_at: string
 }
 
+export type CourseKey = 'design_m3' | 'dbquest_m5'
+
 export type ClassroomRow = {
   id: string
   name: string
   sort_order: number
+  course: CourseKey
   created_at: string
 }
 
@@ -324,6 +327,9 @@ export type Database = {
         Args: { p_session_no: number; p_unlocked: boolean; p_classroom_id?: string | null }
         Returns: undefined
       }
+      dbq_me: { Args: Record<string, never>; Returns: Json }
+      dbq_admin_get_settings: { Args: Record<string, never>; Returns: Json }
+      dbq_admin_set_setting: { Args: { p_key: string; p_value: Json }; Returns: undefined }
     }
     Enums: Record<never, never>
     CompositeTypes: Record<never, never>

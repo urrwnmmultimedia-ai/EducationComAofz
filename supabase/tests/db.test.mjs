@@ -405,5 +405,58 @@ check('deleting exam attempt clears gradebook score', r.rows[0].n === 0)
 r = await as(F, `delete from public.exam_attempts returning id`)
 check('student cannot delete own attempts', r.length === 0)
 
+// ---------- DB Quest (ม.5) ----------
+await db.exec(readFileSync(join(root, 'supabase', 'seed_dbquest.sql'), 'utf8'))
+await db.exec(readFileSync(join(root, 'supabase', 'seed_dbquest.sql'), 'utf8')) // รันซ้ำได้
+const D5 = '00000000-0000-0000-0000-0000000000d5'
+const D3 = '00000000-0000-0000-0000-0000000000d3'
+await db.exec(`insert into auth.users values ('${D5}'), ('${D3}');`)
+
+r = await as(D5, `select public.login_with_code('55555', 'devD5') as r`)
+check('dbq: 55555 logs in as ม.5 DB Quest', r[0].r.ok && r[0].r.student.course === 'dbquest_m5' && r[0].r.student.classroom_name === 'ม.5/1')
+r = await as(D3, `select public.login_with_code('33333', 'devD3') as r`)
+check('dbq: 33333 logs in as ม.3 design', r[0].r.ok && r[0].r.student.course === 'design_m3')
+r = await as(D5, `select public.whoami() as r`)
+check('dbq: whoami carries course', r[0].r.student.course === 'dbquest_m5')
+
+const dbqTables = (await db.query(`select tablename from pg_tables where schemaname = 'public' and tablename like 'dbq\\_%'`)).rows.map((x) => x.tablename)
+check('dbq: 13 tables exist', dbqTables.length === 13)
+check('dbq: RLS on every table', (await db.query(`select count(*)::int n from pg_tables where tablename like 'dbq\\_%' and not rowsecurity`)).rows[0].n === 0)
+let directOk = 0
+for (const t of dbqTables) {
+  for (const uid of [D5, T]) {
+    const res = await as(uid, `select 1 from public.${t} limit 1`).catch(() => 'denied')
+    if (res === 'denied') directOk++
+  }
+}
+check('dbq: student and admin cannot read any dbq table directly', directOk === dbqTables.length * 2)
+r = await as(D5, `insert into public.dbq_xp_events (student_id, source, amount) select id, 'hack', 9999 from public.students limit 1`).catch(() => 'denied')
+check('dbq: student cannot insert XP directly', r === 'denied')
+
+r = await as(D5, `select public.dbq_me() as r`)
+check('dbq: dbq_me for ม.5 student', r[0].r.student.student_code === '55555' && r[0].r.xp === 0 && r[0].r.settings.unlock_threshold_pct === 80)
+r = await as(D3, `select public.dbq_me() as r`).catch(() => 'denied')
+check('dbq: ม.3 student cannot use DB Quest RPC', r === 'denied')
+r = await as(T, `select public.dbq_me() as r`)
+check('dbq: admin can call dbq_me', r[0].r.role === 'admin' && r[0].r.student === null)
+r = await as(D5, `select public.dbq_admin_get_settings() as r`).catch(() => 'denied')
+check('dbq: student cannot read admin settings', r === 'denied')
+r = await as(D5, `select public.dbq_student_id() as r`).catch(() => 'denied')
+check('dbq: helper functions not callable by client', r === 'denied')
+await as(T, `select public.dbq_admin_set_setting('leaderboard_enabled', 'false')`)
+r = await as(D5, `select public.dbq_me() as r`)
+check('dbq: admin setting change visible', r[0].r.settings.leaderboard_enabled === false)
+r = await as(T, `select public.dbq_admin_set_setting('admin_code', '"x"')`).catch(() => 'denied')
+check('dbq: unknown setting rejected', r === 'denied')
+
+await as(T, `select public.admin_import_students('[{"student_code":"55600","first_name":"นำเข้า","classroom":"ม.5/2"}]'::jsonb)`)
+r = await db.query(`select course from public.classrooms where name = 'ม.5/2'`)
+check('dbq: CSV-created ม.5 room becomes DB Quest', r.rows[0]?.course === 'dbquest_m5')
+
+// เปิดคาบเว็บ ม.3 "ทุกห้อง" ต้องไม่ไปเปิดให้ห้อง ม.5
+await as(T, `select public.admin_set_session_unlock(7, true)`)
+r = await db.query(`select count(*)::int n from public.classroom_session_unlocks u join public.classrooms c on c.id = u.classroom_id where c.course = 'dbquest_m5'`)
+check('dbq: M.3 unlock-all skips ม.5 rooms', r.rows[0].n === 0)
+
 console.log(failed ? `${failed} FAILED` : 'ALL PASSED')
 process.exit(failed ? 1 : 0)

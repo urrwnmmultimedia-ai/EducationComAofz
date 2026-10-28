@@ -14,10 +14,13 @@ export const studentProfileSchema = z.object({
   avatar: z.string(),
   classroom_id: z.string().nullable(),
   classroom_name: z.string().nullable(),
+  // ห้องเรียนบอกวิชา: ม.3 ออกแบบและเทคโนโลยี / ม.5 DB Quest (ฐานข้อมูลเก่าที่ยังไม่มีคอลัมน์นี้ = ม.3)
+  course: z.enum(['design_m3', 'dbquest_m5']).default('design_m3'),
 })
 export type StudentProfile = z.infer<typeof studentProfileSchema>
 
 export type Role = 'admin' | 'student'
+export type Course = StudentProfile['course']
 
 const whoamiSchema = z.object({
   role: z.enum(['admin', 'student']).nullable(),
@@ -37,6 +40,13 @@ const loginResultSchema = z.discriminatedUnion('ok', [
 export type LoginResult =
   | { ok: true; identity: Identity }
   | { ok: false; error: LoginErrorCode; retryAfterSec?: number }
+
+// หน้าแรกหลังเข้าสู่ระบบ: ครูไปหน้าครู ม.3 (สลับไป DB Quest จากเมนูได้) นักเรียนไปตามวิชาของห้อง
+export function homePathFor(identity: Identity): string {
+  if (identity.role === 'admin') return '/admin'
+  if (identity.role === 'student') return identity.student?.course === 'dbquest_m5' ? '/db/home' : '/home'
+  return '/'
+}
 
 // ให้เบราว์เซอร์มี auth.uid() แบบ anonymous เสมอ
 export async function ensureAnonymousSession(): Promise<void> {

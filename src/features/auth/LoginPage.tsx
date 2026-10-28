@@ -3,18 +3,22 @@ import { Navigate, useNavigate } from 'react-router'
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/Button'
 import { FullPageMessage } from '@/components/FullPageMessage'
-import { Doctor, NamWan, Non } from '@/components/characters/Characters'
+import { Avatar, Doctor, NamWan, Non } from '@/components/characters/Characters'
+import { homePathFor, type Identity } from './authApi'
 import { checkCodeFormat, loginErrorMessage, sanitizeStudentInput, type CodeMode } from './code'
 import { useStudentCodeLength } from './useStudentCodeLength'
 
 export function LoginPage() {
-  const { status, identity, login, refresh } = useAuth()
+  const { status, identity, login, logout, refresh } = useAuth()
   const navigate = useNavigate()
   const codeLength = useStudentCodeLength(status === 'ready')
   const [mode, setMode] = useState<CodeMode>('student')
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  // นักเรียนต้องกด "ใช่ฉัน" ก่อนเข้า (กันพิมพ์รหัสเพื่อนผิด)
+  const [confirming, setConfirming] = useState<Identity | null>(null)
+  const [cancelling, setCancelling] = useState(false)
 
   if (status === 'unconfigured') {
     return (
@@ -34,8 +38,42 @@ export function LoginPage() {
       />
     )
   }
-  if (identity.role === 'student') return <Navigate to="/home" replace />
-  if (identity.role === 'admin') return <Navigate to="/admin" replace />
+  if (confirming?.student) {
+    const st = confirming.student
+    const notMe = async () => {
+      setCancelling(true)
+      await logout()
+      setCancelling(false)
+      setConfirming(null)
+      setCode('')
+    }
+    return (
+      <main className="grid min-h-dvh place-items-center px-4 py-10">
+        <section className="w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-brand-100 sm:p-8">
+          <h1 className="text-2xl text-brand-900">ใช่ฉันไหม?</h1>
+          <Avatar name={st.avatar} className="mx-auto mt-4 size-24" />
+          <p className="mt-3 font-display text-xl text-slate-800">
+            {st.prefix}
+            {st.first_name} {st.last_name}
+            {st.nickname && <span className="text-slate-500"> ({st.nickname})</span>}
+          </p>
+          <p className="text-slate-600">
+            {st.classroom_name ?? 'ยังไม่ระบุห้อง'}
+            {st.number != null && ` · เลขที่ ${st.number}`}
+          </p>
+          <div className="mt-6 flex flex-col gap-3">
+            <Button className="w-full text-lg" disabled={cancelling} onClick={() => navigate(homePathFor(confirming), { replace: true })}>
+              ใช่ ฉันเอง เข้าเรียนเลย
+            </Button>
+            <Button variant="secondary" className="w-full" loading={cancelling} loadingText="กำลังยกเลิก…" onClick={() => void notMe()}>
+              ไม่ใช่ฉัน กรอกรหัสใหม่
+            </Button>
+          </div>
+        </section>
+      </main>
+    )
+  }
+  if (identity.role) return <Navigate to={homePathFor(identity)} replace />
 
   const switchMode = (next: CodeMode) => {
     setMode(next)
@@ -56,7 +94,8 @@ export function LoginPage() {
     const result = await login(check.value)
     setSubmitting(false)
     if (result.ok) {
-      navigate(result.identity.role === 'admin' ? '/admin' : '/home', { replace: true })
+      if (result.identity.role === 'student') setConfirming(result.identity)
+      else navigate(homePathFor(result.identity), { replace: true })
       return
     }
     // โหมดครูไม่บอกว่าผิดเพราะอะไร เพื่อไม่ให้เดาง่าย
@@ -82,9 +121,9 @@ export function LoginPage() {
         </div>
 
         <section className="rounded-3xl bg-white p-6 pt-8 shadow-xl ring-1 ring-brand-100 sm:p-8 sm:pt-10">
-          <p className="text-center text-sm font-medium text-brand-600">วิชาเทคโนโลยี (การออกแบบและเทคโนโลยี) ม.3</p>
+          <p className="text-center text-sm font-medium text-brand-600">ม.3 การออกแบบและเทคโนโลยี · ม.5 DB Quest ฐานข้อมูล</p>
           <h1 className="mt-1 text-center text-2xl text-brand-900 sm:text-3xl">
-            {isStudent ? 'ห้องเรียนนักออกแบบ' : 'เข้าสู่ระบบสำหรับครู'}
+            {isStudent ? 'เข้าห้องเรียน' : 'เข้าสู่ระบบสำหรับครู'}
           </h1>
 
           <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4" noValidate>

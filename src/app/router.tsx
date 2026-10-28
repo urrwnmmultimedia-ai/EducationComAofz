@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentType } from 'react'
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, Navigate } from 'react-router'
 import { RequireRole } from './guards'
 import { RouteError } from './RouteError'
 import { LoginPage } from '@/features/auth/LoginPage'
@@ -73,6 +73,33 @@ export const router = createBrowserRouter([
       { path: 'games', element: lazyPage(() => import('@/features/admin/AdminGamesPage'), 'AdminGamesPage') },
       { path: 'games/:slug', element: lazyPage(() => import('@/features/admin/AdminGamesPage'), 'AdminGameEditPage') },
       { path: 'settings', element: lazyPage(() => import('@/features/admin/AdminSettingsPage'), 'AdminSettingsPage') },
+    ],
+  },
+  // ---------- DB Quest (ม.5) — แยกไฟล์โหลดทั้งก้อน ----------
+  {
+    path: '/db',
+    errorElement: <RouteError />,
+    element: <RequireRole role={['student', 'admin']}>{lazyPage(() => import('@/dbquest/DbqLayout'), 'DbqLayout')}</RequireRole>,
+    children: [
+      { index: true, element: <Navigate to="/db/home" replace /> },
+      { path: 'home', element: lazyPage(() => import('@/dbquest/pages/DbqPages'), 'DbqHomePage') },
+      { path: 'map', element: lazyPage(() => import('@/dbquest/pages/DbqMapPage'), 'DbqMapPage') },
+      { path: 'lesson/:sessionNo', element: lazyPage(() => import('@/dbquest/pages/DbqPages'), 'DbqLessonPage') },
+      { path: 'games/:gameKey', element: lazyPage(() => import('@/dbquest/pages/DbqPages'), 'DbqGamePage') },
+      { path: 'sql', element: lazyPage(() => import('@/dbquest/pages/DbqPages'), 'DbqSqlPage') },
+      { path: 'glossary', element: lazyPage(() => import('@/dbquest/pages/DbqPages'), 'DbqGlossaryPage') },
+      { path: 'assignments', element: lazyPage(() => import('@/dbquest/pages/DbqPages'), 'DbqAssignmentsPage') },
+      { path: 'exam/:quizId', element: lazyPage(() => import('@/dbquest/pages/DbqPages'), 'DbqExamPage') },
+      { path: 'me', element: lazyPage(() => import('@/dbquest/pages/DbqPages'), 'DbqMePage') },
+    ],
+  },
+  {
+    path: '/db/admin',
+    errorElement: <RouteError />,
+    element: <RequireRole role="admin">{lazyPage(() => import('@/dbquest/admin/DbqAdmin'), 'DbqAdminLayout')}</RequireRole>,
+    children: [
+      { index: true, element: lazyPage(() => import('@/dbquest/admin/DbqAdmin'), 'DbqAdminComingSoon') },
+      { path: '*', element: lazyPage(() => import('@/dbquest/admin/DbqAdmin'), 'DbqAdminComingSoon') },
     ],
   },
   { path: '*', element: <NotFoundPage /> },

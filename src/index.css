@@ -21,7 +21,27 @@
   --color-mint-500: #10b981;
   --color-coral-400: #fb7185;
   --color-sky2-400: #38bdf8;
+
+  /* DB Quest (ม.5): น้ำเงิน-ฟ้า + ส้มสำหรับ XP/รางวัล */
+  --color-dq-50: #eff6ff;
+  --color-dq-100: #dbeafe;
+  --color-dq-200: #bfdbfe;
+  --color-dq-300: #93c5fd;
+  --color-dq-400: #60a5fa;
+  --color-dq-500: #3b82f6;
+  --color-dq-600: #2563eb;
+  --color-dq-700: #1d4ed8;
+  --color-dq-800: #1e40af;
+  --color-dq-900: #172554;
+  --color-dq-950: #0b1229;
+  --color-xp-300: #fdba74;
+  --color-xp-400: #fb923c;
+  --color-xp-500: #f97316;
+  --color-xp-600: #ea580c;
 }
+
+/* โหมดมืดใช้เฉพาะ DB Quest: เปิดด้วยคลาส .dark บนกล่องนอกสุดของหน้า */
+@custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   html {

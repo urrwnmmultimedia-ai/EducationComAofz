@@ -1,0 +1,53 @@
+{
+  "title": "DB Quest – เรียนฐานข้อมูลด้วยตัวเอง",
+  "level": "ม.5",
+  "objectives": [
+    { "no": 1, "text": "อธิบายและใช้คำศัพท์พื้นฐานด้านคอมพิวเตอร์และฐานข้อมูลได้ถูกต้อง" },
+    { "no": 2, "text": "อธิบายลำดับชั้นของข้อมูล และจำแนกความแตกต่างระหว่างฐานข้อมูล (DB) กับระบบจัดการฐานข้อมูล (DBMS) ได้" },
+    { "no": 3, "text": "เปรียบเทียบโมเดลฐานข้อมูลแบบต่าง ๆ และเลือกโมเดลให้เหมาะกับสถานการณ์ได้" },
+    { "no": 4, "text": "วิเคราะห์ความต้องการและออกแบบฐานข้อมูลด้วย E-R Diagram กำหนดความสัมพันธ์และคีย์ได้" },
+    { "no": 5, "text": "ปรับโครงสร้างตารางด้วย Normalization ถึงระดับ 3NF ได้" },
+    { "no": 6, "text": "เขียนคำสั่ง SQL กลุ่ม DDL และ DML เพื่อสร้างและจัดการข้อมูลได้" },
+    { "no": 7, "text": "อธิบายหลักการกำหนดสิทธิ์ผู้ใช้ การสำรองและกู้คืนข้อมูล และตระหนักถึงความปลอดภัยของข้อมูลได้" },
+    { "no": 8, "text": "(จิตพิสัย) มีวินัยในการเรียนรู้ด้วยตนเอง รับผิดชอบงาน และใช้ข้อมูลอย่างมีจริยธรรม" }
+  ],
+  "units": [
+    { "no": 1, "title": "คำศัพท์ฐานข้อมูลและคอมพิวเตอร์เบื้องต้น", "icon": "📖", "objectives": [1] },
+    { "no": 2, "title": "ความรู้เบื้องต้นและโครงสร้างข้อมูล", "icon": "🧱", "objectives": [2] },
+    { "no": 3, "title": "โมเดลฐานข้อมูล", "icon": "🧭", "objectives": [3] },
+    { "no": 4, "title": "การออกแบบฐานข้อมูล (E-R, ความสัมพันธ์, คีย์)", "icon": "🔗", "objectives": [4] },
+    { "no": 5, "title": "การจัดระเบียบข้อมูล (Normalization)", "icon": "🩺", "objectives": [5] },
+    { "no": 6, "title": "ภาษา SQL", "icon": "⚔️", "objectives": [6] },
+    { "no": 7, "title": "ความปลอดภัยและการดูแลรักษาฐานข้อมูล", "icon": "🛡️", "objectives": [7] }
+  ],
+  "sessions": [
+    { "no": 1, "unit": 1, "kind": "lesson", "title": "คำศัพท์คอมพิวเตอร์ที่ต้องรู้" },
+    { "no": 2, "unit": 1, "kind": "lesson", "title": "คำศัพท์ฐานข้อมูลในชีวิตจริง" },
+    { "no": 3, "unit": 2, "kind": "lesson", "title": "ลำดับชั้นของข้อมูล Bit → Database" },
+    { "no": 4, "unit": 2, "kind": "lesson", "title": "ฐานข้อมูล (DB) กับระบบจัดการฐานข้อมูล (DBMS)" },
+    { "no": 5, "unit": 3, "kind": "lesson", "title": "โมเดลแบบตาราง ต้นไม้ และเครือข่าย" },
+    { "no": 6, "unit": 3, "kind": "lesson", "title": "โมเดลกราฟและเอกสาร เลือกโมเดลให้เหมาะงาน" },
+    { "no": 7, "unit": 4, "kind": "lesson", "title": "วิเคราะห์ความต้องการ หา Entity และ Attribute" },
+    { "no": 8, "unit": 4, "kind": "lesson", "title": "ความสัมพันธ์ 1:1, 1:M, M:N และ E-R Diagram" },
+    { "no": 9, "unit": 4, "kind": "lesson", "title": "คีย์หลัก (Primary Key) คีย์นอก (Foreign Key) และตารางเชื่อม" },
+    { "no": 10, "unit": 5, "kind": "lesson", "title": "ความซ้ำซ้อนและความผิดปกติ (Anomaly) กับ 1NF" },
+    { "no": 11, "unit": 5, "kind": "lesson", "title": "2NF และ 3NF" },
+    { "no": 12, "unit": null, "kind": "midterm", "title": "สอบกลางภาค (หน่วย 1–5) + ทบทวน" },
+    { "no": 13, "unit": 6, "kind": "lesson", "title": "DDL: สร้างตาราง (CREATE TABLE)" },
+    { "no": 14, "unit": 6, "kind": "lesson", "title": "DDL: แก้ไขตารางและข้อกำหนด (ALTER, DROP, Constraint)" },
+    { "no": 15, "unit": 6, "kind": "lesson", "title": "DML: INSERT, UPDATE, DELETE" },
+    { "no": 16, "unit": 6, "kind": "lesson", "title": "SELECT, WHERE, ORDER BY, LIKE" },
+    { "no": 17, "unit": 6, "kind": "lesson", "title": "ฟังก์ชันรวม GROUP BY และ JOIN" },
+    { "no": 18, "unit": 7, "kind": "lesson", "title": "สิทธิ์ผู้ใช้ การสำรองและกู้คืนข้อมูล" },
+    { "no": 19, "unit": null, "kind": "project", "title": "โครงงานฐานข้อมูลห้องสมุด นำเสนอ/ส่งงาน" },
+    { "no": 20, "unit": null, "kind": "final", "title": "สอบปลายภาค (หน่วย 1–7) + สรุปผล" }
+  ],
+  "steps": [
+    { "id": "warmup", "title": "เปิดคาบ", "minutes": 10 },
+    { "id": "lesson", "title": "บทเรียน", "minutes": 35 },
+    { "id": "practice", "title": "ฝึกปฏิบัติ", "minutes": 30 },
+    { "id": "game", "title": "เกมประจำหน่วย", "minutes": 25 },
+    { "id": "worksheet", "title": "ใบงาน", "minutes": 15 },
+    { "id": "wrapup", "title": "ปิดคาบ", "minutes": 5 }
+  ]
+}

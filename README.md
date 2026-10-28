@@ -110,6 +110,27 @@
 
 ---
 
+## DB Quest – เรียนฐานข้อมูลด้วยตัวเอง (ม.5)
+
+เว็บที่สองในระบบเดียวกัน วิชาฐานข้อมูลสำหรับ ม.5 · 7 หน่วย · 20 คาบ (คาบละ 2 ชั่วโมง)
+
+- **ล็อกอินร่วมกัน:** หน้าแรกช่องเดียวเหมือนเดิม ระบบดูห้องเรียนของนักเรียน ห้อง ม.3 ไปเว็บออกแบบเทคโนโลยี ห้อง ม.5 ไป DB Quest (`/db/...`) รหัสครูตัวเดียวกัน
+- **หน้านักเรียน:** `/db/home` `/db/map` `/db/lesson/:sessionNo` `/db/games/:gameKey` `/db/sql` `/db/glossary` `/db/assignments` `/db/exam/:quizId` `/db/me`
+- **หน้าครู:** `/db/admin` (สลับไปหน้าครู ม.3 ได้จากเมนู)
+- **เนื้อหา** (ไม่มีเฉลย) อยู่ใน `src/content/units/` · **เฉลย** อยู่ใน Supabase ตาราง `answer_keys` เท่านั้น
+- `npm run build` รัน `scripts/check-content.mjs` ก่อนทุกครั้ง ถ้าพบคีย์ `answer` `correct` `solution` `key` ในไฟล์ `src/content/` build จะล้ม
+
+| เฟส | งาน | สถานะ |
+| --- | --- | --- |
+| 1 | โครงหน้า เส้นทาง `/db/*` ธีมน้ำเงิน-ฟ้า/ส้ม โหมดมืด น้องดาต้า โครงรายวิชา 20 คาบ ตัวกันเฉลยหลุด | เสร็จ |
+| 2 | ตาราง DB Quest + RLS + แยกเส้นทางตามห้อง ม.3/ม.5 | |
+| 3 | ระบบ 6 ขั้นต่อคาบ ปลดล็อก progress XP ภาพประกอบกลาง เฉลย + โหมดครู | |
+| 4–7 | เนื้อหา เกม ใบงาน เฉลย หน่วย 1–7 + โครงงาน | |
+| 8 | งาน ข้อสอบ สมุดคะแนน หน้าครูทั้งหมด | |
+| 9 | ทดสอบความปลอดภัยและมือถือ แล้ว deploy | |
+
+---
+
 ## ความปลอดภัย
 
 - เบราว์เซอร์ทุกเครื่องได้ `auth.uid()` แบบ anonymous · ตรวจรหัสใน RPC `login_with_code` (SECURITY DEFINER) เท่านั้น
@@ -151,8 +172,10 @@ src/
   app/          router, AuthContext, guards, หน้า error
   lib/          supabase client, scoring.ts, grade.ts, levels.ts, itemAnalysis.ts
   features/     auth, student, lessons, units, assignments, exams, games, leaderboard, admin
+  dbquest/      DB Quest ม.5: layout, หน้านักเรียน, admin/
+  content/      เนื้อหา DB Quest (JSON ไม่มีเฉลย) + course.ts
   games/        shared (GameShell, schemas, logic, sfx) + engine เกม 7 แบบ + registry
   components/   UI กลาง, ตัวละคร SVG (ด็อกเตอร์ น้ำหวาน นนท์ ...)
 supabase/       migrations/, seed*.sql, setup_all.sql, questions/, games/, tests/
-scripts/        สร้างไฟล์ seed
+scripts/        สร้างไฟล์ seed, check-content.mjs (กันเฉลยหลุด)
 ```

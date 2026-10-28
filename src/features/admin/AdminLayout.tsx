@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/Button'
 import { Doctor } from '@/components/characters/Characters'
@@ -59,6 +59,11 @@ export function AdminLayout() {
             </NavLink>
           ))}
         </nav>
+        <div className="px-2 pb-2 md:pt-4">
+          <Link to="/db/admin" className="block rounded-xl px-3 py-2 font-display text-sm text-dq-700 ring-2 ring-dq-100 hover:bg-dq-50">
+            ไปหน้าครู DB Quest ม.5
+          </Link>
+        </div>
         <div className="hidden px-2 py-4 md:block">{logoutButton('secondary', 'w-full')}</div>
       </aside>
       <main className="mx-auto w-full max-w-6xl px-4 py-6">

@@ -158,7 +158,7 @@ function Board({ deck, onFinish }: { deck: GameDeck; onFinish: (s: MatchState) =
                 disabled={!canFlip(state, i)}
                 onClick={() => setState((s) => flip(s, i))}
                 aria-label={faceUp ? `${c.side === 'term' ? 'คำศัพท์' : 'ความหมาย'}: ${c.text}` : `ไพ่ใบที่ ${i + 1} คว่ำอยู่`}
-                className={`grid h-28 w-full place-items-center rounded-2xl p-2 text-center text-base leading-snug ring-2 transition sm:h-32 ${
+                className={`grid h-24 w-full place-items-center rounded-2xl p-2 text-center text-base leading-snug ring-2 transition ${
                   matched
                     ? 'bg-emerald-100 text-emerald-900 ring-emerald-300 dark:bg-emerald-950 dark:text-emerald-100 dark:ring-emerald-800'
                     : wrong

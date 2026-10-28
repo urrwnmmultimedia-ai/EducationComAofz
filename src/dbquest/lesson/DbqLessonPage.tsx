@@ -120,7 +120,7 @@ function LessonFlow({ no, content, initial }: { no: number; content: SessionCont
   const canOpen = (s: StepKey) => done.has(s) || s === firstOpen
   const allDone = steps.every((s) => done.has(s))
 
-  const stepProps = { content, busy, finish, onChecked, solved, attempted, done: done.has(current) }
+  const stepProps = { content, busy, finish, onChecked, solved, attempted, done: done.has(current), preview: initial.preview }
   return (
     <>
       {initial.preview && (
@@ -185,6 +185,7 @@ interface StepProps {
   onChecked: (id: string, r: CheckResult) => void
   solved: Set<string>
   attempted: Set<string>
+  preview: boolean
 }
 
 function StepHeader({ step, children }: { step: StepKey; children?: ReactNode }) {
@@ -315,7 +316,7 @@ function GameStep({ content, busy, done, finish }: StepProps) {
   )
 }
 
-function WorksheetStep({ content, busy, done, finish, initialSubmission }: StepProps & { initialSubmission?: SessionState['submissions'][string] }) {
+function WorksheetStep({ content, busy, done, finish, preview, initialSubmission }: StepProps & { initialSubmission?: SessionState['submissions'][string] }) {
   const ws = content.worksheet
   const [text, setText] = useState(initialSubmission?.content.text ?? '')
   const [sending, setSending] = useState(false)
@@ -327,7 +328,8 @@ function WorksheetStep({ content, busy, done, finish, initialSubmission }: StepP
     setSending(true)
     setError(null)
     try {
-      await submitWorksheet(ws.item_id, text)
+      // ครูดูตัวอย่าง: ไม่ส่งจริง (เซิร์ฟเวอร์รับใบงานจากนักเรียนเท่านั้น)
+      if (!preview) await submitWorksheet(ws.item_id, text)
       await finish('worksheet')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'ส่งไม่สำเร็จ')

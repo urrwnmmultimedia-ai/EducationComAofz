@@ -6,7 +6,7 @@ import type { ComponentType } from 'react'
 function DataToInformation() {
   const raw = ['72', '65', '88', '91', '54', '70']
   return (
-    <svg viewBox="0 0 360 200" className="h-auto w-full max-w-md text-dq-700 dark:text-dq-200" role="presentation">
+    <svg viewBox="0 0 380 170" className="h-auto w-full max-w-md text-dq-700 dark:text-dq-200" role="presentation">
       {raw.map((n, i) => (
         <g key={n} transform={`translate(${30 + (i % 3) * 38}, ${20 + Math.floor(i / 3) * 34})`}>
           <rect width="32" height="26" rx="6" className="fill-dq-100 dark:fill-dq-800" />

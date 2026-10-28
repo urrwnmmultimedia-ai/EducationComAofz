@@ -27,6 +27,15 @@ export function SegmentView({ segment }: { segment: Segment }) {
           </div>
         </aside>
       )
+    case 'example':
+      return (
+        <aside className="my-4 rounded-2xl bg-mint-400/15 p-4 ring-1 ring-mint-400/50">
+          <p className="mb-1 font-display text-emerald-800">📌 ตัวอย่างใกล้ตัว</p>
+          <Markdown text={segment.text} />
+        </aside>
+      )
+    case 'think':
+      return <ThinkBox question={segment.question} answer={segment.answer} />
     case 'embed':
       return segment.embedUrl ? (
         <div className="my-4 aspect-video overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-brand-100">
@@ -49,6 +58,34 @@ export function SegmentView({ segment }: { segment: Segment }) {
         </p>
       )
   }
+}
+
+// กล่อง "ลองคิดดู": ให้นักเรียนคิดก่อน แล้วค่อยกดดูแนวคิด
+function ThinkBox({ question, answer }: { question: string; answer: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <aside className="my-4 rounded-2xl bg-brand-100/70 p-4 ring-1 ring-brand-300">
+      <p className="mb-1 font-display text-brand-800">🤔 ลองคิดดู</p>
+      <Markdown text={question} />
+      {answer && (
+        <div className="mt-2">
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+            className="rounded-xl bg-white px-3 py-1.5 font-display text-sm text-brand-700 ring-1 ring-brand-300 hover:bg-brand-50"
+          >
+            {open ? 'ซ่อนแนวคิด' : 'คิดแล้ว ดูแนวคิด →'}
+          </button>
+          {open && (
+            <div className="mt-2 rounded-xl bg-white p-3">
+              <Markdown text={answer} />
+            </div>
+          )}
+        </div>
+      )}
+    </aside>
+  )
 }
 
 // แสดงเนื้อหาเป็นการ์ดทีละใบ (เหมือนสไลด์) พร้อมปุ่มก่อนหน้า/ถัดไป

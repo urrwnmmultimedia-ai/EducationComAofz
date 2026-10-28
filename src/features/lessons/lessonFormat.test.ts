@@ -11,6 +11,21 @@ describe('parseSegments', () => {
       { kind: 'doctor', text: 'อธิบาย' },
     ])
   })
+  it('กล่องลองคิดดู แยกคำถามกับแนวคิดด้วย ---', () => {
+    expect(parseSegments(':::think\nทำไม?\n---\nเพราะ\nอธิบาย\n:::')).toEqual([
+      { kind: 'think', question: 'ทำไม?', answer: 'เพราะ\nอธิบาย' },
+    ])
+  })
+  it('กล่องลองคิดดูไม่มีแนวคิด และกล่องตัวอย่าง', () => {
+    expect(parseSegments(':::think\nคิดเอง\n:::\n:::example\nร้านข้างบ้าน\n:::')).toEqual([
+      { kind: 'think', question: 'คิดเอง', answer: '' },
+      { kind: 'example', text: 'ร้านข้างบ้าน' },
+    ])
+  })
+  it('ตาราง markdown (| --- |) ในกล่องลองคิดดูไม่ถูกตัดเป็นแนวคิด', () => {
+    const [seg] = parseSegments(':::think\n| a | b |\n| --- | --- |\n---\nตอบ\n:::')
+    expect(seg).toEqual({ kind: 'think', question: '| a | b |\n| --- | --- |', answer: 'ตอบ' })
+  })
   it('กล่องที่ลืมปิดยังแสดงได้', () => {
     expect(parseSegments(':::tip\nไม่ได้ปิด')).toEqual([{ kind: 'tip', text: 'ไม่ได้ปิด' }])
   })

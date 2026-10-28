@@ -181,7 +181,11 @@ function LessonsEditor({ data, onChanged }: { data: SessionEditData; onChanged: 
             <code>**ตัวหนา**</code>, รายการ <code>- ข้อ</code>, ตาราง <code>| a | b |</code>, รูป <code>![คำอธิบาย](ลิงก์รูป)</code>
           </li>
           <li>
-            <code>:::tip</code> … <code>:::</code> = กล่องเกร็ดน่ารู้ / <code>:::doctor</code> … <code>:::</code> = ด็อกเตอร์อธิบาย
+            <code>:::tip</code> … <code>:::</code> = กล่องเกร็ดน่ารู้ / <code>:::doctor</code> … <code>:::</code> = ด็อกเตอร์อธิบาย /{' '}
+            <code>:::example</code> … <code>:::</code> = ตัวอย่างใกล้ตัว
+          </li>
+          <li>
+            <code>:::think</code> คำถาม <code>---</code> แนวคิด <code>:::</code> = กล่องลองคิดดู (นักเรียนกดดูแนวคิดเอง)
           </li>
           <li>
             <code>:::embed https://youtu.be/…</code> = ฝังวิดีโอ YouTube หรือลิงก์ Canva (บรรทัดเดียว)

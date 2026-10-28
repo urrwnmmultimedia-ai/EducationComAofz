@@ -2,11 +2,16 @@
 //   "## หัวข้อ"          เริ่มการ์ดใหม่
 //   ":::tip ... :::"     กล่องเกร็ดน่ารู้
 //   ":::doctor ... :::"  กล่องด็อกเตอร์อธิบาย
+//   ":::example ... :::" กล่องตัวอย่างใกล้ตัว
+//   ":::think ... --- ... :::"  กล่องลองคิดดู: คำถาม แล้วบรรทัด "---" ตามด้วยแนวคิด (นักเรียนกดดูเอง)
 //   ":::embed URL"       ฝังวิดีโอ YouTube หรือสไลด์ Canva (บรรทัดเดียว)
+
+type CalloutKind = 'tip' | 'doctor' | 'example'
 
 export type Segment =
   | { kind: 'markdown'; text: string }
-  | { kind: 'tip' | 'doctor'; text: string }
+  | { kind: CalloutKind; text: string }
+  | { kind: 'think'; question: string; answer: string }
   | { kind: 'embed'; url: string; embedUrl: string | null }
 
 export interface LessonCard {
@@ -14,14 +19,24 @@ export interface LessonCard {
   segments: Segment[]
 }
 
-const CALLOUT_OPEN = /^:::(tip|doctor)\s*$/
+const CALLOUT_OPEN = /^:::(tip|doctor|example|think)\s*$/
 const CALLOUT_CLOSE = /^:::\s*$/
 const EMBED = /^:::embed\s+(\S+)\s*$/
+
+function closeCallout(kind: CalloutKind | 'think', lines: string[]): Segment {
+  if (kind === 'think') {
+    const sep = lines.findIndex((l) => l.trim() === '---')
+    const q = sep >= 0 ? lines.slice(0, sep) : lines
+    const a = sep >= 0 ? lines.slice(sep + 1) : []
+    return { kind: 'think', question: q.join('\n').trim(), answer: a.join('\n').trim() }
+  }
+  return { kind, text: lines.join('\n').trim() }
+}
 
 export function parseSegments(md: string): Segment[] {
   const out: Segment[] = []
   let buf: string[] = []
-  let callout: { kind: 'tip' | 'doctor'; lines: string[] } | null = null
+  let callout: { kind: CalloutKind | 'think'; lines: string[] } | null = null
 
   const flush = () => {
     const text = buf.join('\n').trim()
@@ -32,7 +47,7 @@ export function parseSegments(md: string): Segment[] {
   for (const line of md.replace(/\r\n/g, '\n').split('\n')) {
     if (callout) {
       if (CALLOUT_CLOSE.test(line.trim())) {
-        out.push({ kind: callout.kind, text: callout.lines.join('\n').trim() })
+        out.push(closeCallout(callout.kind, callout.lines))
         callout = null
       } else {
         callout.lines.push(line)
@@ -42,7 +57,7 @@ export function parseSegments(md: string): Segment[] {
     const open = CALLOUT_OPEN.exec(line.trim())
     if (open) {
       flush()
-      callout = { kind: open[1] as 'tip' | 'doctor', lines: [] }
+      callout = { kind: open[1] as CalloutKind | 'think', lines: [] }
       continue
     }
     const embed = EMBED.exec(line.trim())
@@ -55,7 +70,7 @@ export function parseSegments(md: string): Segment[] {
     buf.push(line)
   }
   // กล่องที่ลืมปิด ให้ถือว่าจบที่ท้ายเนื้อหา
-  if (callout) out.push({ kind: callout.kind, text: callout.lines.join('\n').trim() })
+  if (callout) out.push(closeCallout(callout.kind, callout.lines))
   flush()
   return out
 }

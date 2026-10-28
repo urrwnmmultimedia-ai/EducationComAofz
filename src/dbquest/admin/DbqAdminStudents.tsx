@@ -5,6 +5,7 @@ import { btn, displayName, formatDateTime, PageHeader, panel, RoomSelect } from 
 import { CATEGORIES, CATEGORY_LABEL, fetchStudentDetail, fetchStudents, type Scores } from './dbqAdminApi'
 import { gradeOf } from './gradebookModel'
 import { xpLabel } from './xpLabel'
+import { fetchGameTitles, gameTitle } from '../gameTitles'
 
 export function DbqAdminStudents() {
   const [params, setParams] = useSearchParams()
@@ -103,10 +104,10 @@ export function ScoreBreakdown({ scores }: { scores: Scores }) {
 
 export function DbqAdminStudentDetail() {
   const id = useParams().studentId ?? ''
-  const res = useAsync(() => fetchStudentDetail(id), [id])
+  const res = useAsync(() => Promise.all([fetchStudentDetail(id), fetchGameTitles()]), [id])
   if (res.status === 'loading') return <LoadingBlock />
   if (res.status === 'error') return <ErrorBlock message={res.error} onRetry={res.reload} />
-  const d = res.data
+  const [d, titles] = res.data
 
   return (
     <div className="space-y-4">
@@ -148,7 +149,7 @@ export function DbqAdminStudentDetail() {
             <ul className="space-y-1 text-sm">
               {d.games.map((g) => (
                 <li key={g.game_key} className="flex justify-between gap-2">
-                  <span className="font-mono">{g.game_key}</span>
+                  <span>{gameTitle(titles, g.game_key)}</span>
                   <span>
                     ดีสุด {g.best_score} · {'⭐'.repeat(g.best_stars)} · เล่น {g.plays} ครั้ง
                   </span>
@@ -175,7 +176,7 @@ export function DbqAdminStudentDetail() {
             {d.recent_xp.map((x, i) => (
               <li key={i} className="grid grid-cols-[1fr_3rem_auto] items-baseline gap-2">
                 <span className="text-slate-700" title={x.source}>
-                  {xpLabel(x.source)}
+                  {xpLabel(x.source, titles)}
                 </span>
                 <span className="text-right font-display text-xp-600">+{x.amount}</span>
                 <span className="text-slate-400">{formatDateTime(x.created_at)}</span>

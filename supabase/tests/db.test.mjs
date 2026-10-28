@@ -786,5 +786,14 @@ await as(T, `select public.dbq_admin_set_setting('leaderboard_enabled', 'true')`
 r = await as(D5, `select public.dbq_leaderboard() as r`)
 check('dbq013: leaderboard ranks own room', r[0].r.enabled && r[0].r.rows[0].is_me === true && r[0].r.rows[0].rank === 1 && r[0].r.rows.every((x) => !('student_code' in x)))
 
+// ---------- DB Quest: ชื่อเกม (migration 014) ----------
+r = await as(D5, `select public.dbq_game_titles() as r`)
+check('dbq014: game titles for student', r[0].r['memory-match'] === '🃏 Memory Match' && r[0].r['db-terms-match'].includes('ศัพท์ฐานข้อมูล'))
+check('dbq014: titles carry no deck pairs', !JSON.stringify(r[0].r).includes('meaning'))
+r = await as(D3, `select public.dbq_game_titles() as r`).catch(err)
+check('dbq014: ม.3 student denied', r === 'forbidden')
+r = await as(T, `select public.dbq_game_titles() as r`)
+check('dbq014: admin gets titles', Object.keys(r[0].r).length === 2)
+
 console.log(failed ? `${failed} FAILED` : 'ALL PASSED')
 process.exit(failed ? 1 : 0)

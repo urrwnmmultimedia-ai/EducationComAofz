@@ -3682,6 +3682,28 @@ grant execute on function
   public.dbq_leaderboard()
 to authenticated;
 
+-- >>>>>>>>>> migrations/20261028000014_dbquest_game_titles.sql
+-- =============================================================
+-- 014 DB Quest: ชื่อเกม (จากสำรับ) ให้หน้าเว็บแสดงชื่อจริงแทนรหัสเกม
+--   * คืนเฉพาะ game_key -> title (ไม่มีคู่คำในสำรับ)
+-- =============================================================
+
+create or replace function public.dbq_game_titles()
+returns jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+begin
+  perform public.dbq_require_member();
+  return coalesce((
+    select jsonb_object_agg(game_key, coalesce(config ->> 'title', game_key)) from public.dbq_game_decks
+  ), '{}'::jsonb);
+end;
+$$;
+
+revoke execute on function public.dbq_game_titles() from public, anon;
+grant execute on function public.dbq_game_titles() to authenticated;
+
 -- >>>>>>>>>> seed.sql
 -- =============================================================
 -- Seed ข้อมูลเริ่มต้น (รันซ้ำได้ ไม่สร้างข้อมูลซ้ำ)

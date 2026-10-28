@@ -1,11 +1,12 @@
 import { course } from '@/content/course'
+import { gameTitle, type GameTitles } from '../gameTitles'
 
 // แปลงรหัสแหล่ง XP (dbq_xp_events.source) เป็นข้อความที่ครูอ่านได้
 //   step:1:lesson · session:1 · item:s01-c2-q · item:s01-p1 · game:memory-match:star2 · worksheet:ws-s01
 
 const STEP_TITLE: Record<string, string> = Object.fromEntries(course.steps.map((s) => [s.id, s.title]))
 
-export function xpLabel(source: string): string {
+export function xpLabel(source: string, games?: GameTitles): string {
   const [kind, a = '', b = ''] = source.split(':')
   switch (kind) {
     case 'step':
@@ -20,7 +21,8 @@ export function xpLabel(source: string): string {
     }
     case 'game': {
       const star = /^star(\d)$/.exec(b)
-      return star ? `เกม ${a} · ได้ดาวที่ ${star[1]}` : `เกม ${a}`
+      const name = gameTitle(games, a)
+      return star ? `${name} · ได้ดาวที่ ${star[1]}` : name
     }
     case 'worksheet': {
       const m = /^ws-s(\d+)$/.exec(a)

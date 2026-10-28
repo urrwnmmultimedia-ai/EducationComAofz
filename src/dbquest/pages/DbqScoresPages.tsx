@@ -4,6 +4,7 @@ import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import { computeGrade, formatGrade } from '@/lib/grade'
 import { useAsync } from '@/lib/useAsync'
 import { CATEGORIES, CATEGORY_LABEL } from '../admin/dbqAdminApi'
+import { fetchGameTitles, gameTitle } from '../gameTitles'
 import { fetchLeaderboard, fetchMe, fetchMyScores, type MyScores } from './dbqStudentApi'
 
 const card = 'rounded-3xl bg-white p-5 ring-1 ring-dq-100 dark:bg-dq-900 dark:ring-dq-800'
@@ -99,10 +100,10 @@ function ScoreSummary({ data }: { data: Extract<MyScores, { preview: false }> })
 
 // ฉัน: XP เหรียญ คะแนนสะสม เกม อันดับในห้อง
 export function DbqMePage() {
-  const res = useAsync(() => Promise.all([fetchMe(), fetchMyScores(), fetchLeaderboard()]), [])
+  const res = useAsync(() => Promise.all([fetchMe(), fetchMyScores(), fetchLeaderboard(), fetchGameTitles()]), [])
   if (res.status === 'loading') return <LoadingBlock />
   if (res.status === 'error') return <ErrorBlock message={res.error} onRetry={res.reload} />
-  const [me, scores, board] = res.data
+  const [me, scores, board, titles] = res.data
   if (scores.preview) return <Preview />
 
   return (
@@ -132,7 +133,7 @@ export function DbqMePage() {
             {scores.games.map((g) => (
               <li key={g.game_key} className="flex flex-wrap items-center justify-between gap-2">
                 <Link to={`/db/games/${g.game_key}`} className="text-dq-700 underline-offset-2 hover:underline dark:text-dq-300">
-                  คาบ {g.session_no} · {g.game_key}
+                  คาบ {g.session_no} · {gameTitle(titles, g.game_key)}
                 </Link>
                 <span>{g.plays === 0 ? 'ยังไม่เคยเล่น' : `ดีสุด ${g.best_score} · ${'⭐'.repeat(g.best_stars ?? 0)}`}</span>
               </li>

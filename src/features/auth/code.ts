@@ -23,7 +23,7 @@ export function sanitizeStudentInput(raw: string, studentCodeLength: number): st
   return raw.replace(/[^0-9]/g, '').slice(0, studentCodeLength)
 }
 
-export type LoginErrorCode = 'not_signed_in' | 'rate_limited' | 'not_found' | 'device_locked' | 'network'
+export type LoginErrorCode = 'not_signed_in' | 'rate_limited' | 'not_found' | 'device_locked' | 'network' | 'busy'
 
 export function loginErrorMessage(code: LoginErrorCode, retryAfterSec?: number): string {
   switch (code) {
@@ -39,5 +39,7 @@ export function loginErrorMessage(code: LoginErrorCode, retryAfterSec?: number):
       return 'ระบบยังเตรียมตัวไม่เสร็จ ลองรีเฟรชหน้าเว็บอีกครั้ง'
     case 'network':
       return 'เชื่อมต่ออินเทอร์เน็ตไม่ได้ ตรวจสอบเน็ตแล้วลองใหม่'
+    case 'busy':
+      return 'มีคนเข้าระบบพร้อมกันเยอะ รอสักครู่แล้วกดเข้าเรียนอีกครั้ง'
   }
 }

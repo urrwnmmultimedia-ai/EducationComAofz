@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import {
   ensureAnonymousSession,
@@ -8,8 +8,13 @@ import {
   type Identity,
   type LoginResult,
 } from '@/features/auth/authApi'
+import { classifyError, retryDelayMs, sleep } from '@/features/auth/connection'
 
-type AuthStatus = 'loading' | 'ready' | 'error' | 'unconfigured'
+// busy = Supabase จำกัดจำนวนครั้งต่อ IP (ทั้งห้องเข้าพร้อมกัน) — ระบบรอแล้วลองใหม่ให้เอง
+type AuthStatus = 'loading' | 'ready' | 'error' | 'busy' | 'unconfigured'
+
+// ลองต่อระบบซ้ำกี่ครั้งก่อนยอมแสดงหน้าผิดพลาด (busy รอนานกว่าและลองมากกว่า)
+const MAX_TRIES = { busy: 6, network: 3, auth: 2 } as const
 
 interface AuthContextValue {
   status: AuthStatus
@@ -27,15 +32,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>(isSupabaseConfigured ? 'loading' : 'unconfigured')
   const [identity, setIdentity] = useState<Identity>(EMPTY)
 
+  // รอบล่าสุดเท่านั้นที่เปลี่ยนสถานะได้ (กดลองใหม่ระหว่างที่ยังรออยู่)
+  const run = useRef(0)
   const refresh = useCallback(async () => {
     if (!isSupabaseConfigured) return
-    try {
-      await ensureAnonymousSession()
-      setIdentity(await fetchIdentity())
-      setStatus('ready')
-    } catch (err) {
-      console.error('[auth] init failed', err)
-      setStatus('error')
+    const mine = ++run.current
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await ensureAnonymousSession()
+        const who = await fetchIdentity()
+        if (run.current !== mine) return
+        setIdentity(who)
+        setStatus('ready')
+        return
+      } catch (err) {
+        if (run.current !== mine) return
+        const problem = classifyError(err)
+        console.error(`[auth] init failed (${problem}, try ${attempt + 1})`, err)
+        if (attempt + 1 >= MAX_TRIES[problem]) {
+          setStatus(problem === 'busy' ? 'busy' : 'error')
+          return
+        }
+        if (problem === 'busy') setStatus('busy')
+        await sleep(retryDelayMs(problem, attempt))
+        if (run.current !== mine) return
+      }
     }
   }, [])
 
@@ -51,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return result
     } catch (err) {
       console.error('[auth] login failed', err)
-      return { ok: false, error: 'network' } as const
+      return { ok: false, error: classifyError(err) === 'busy' ? 'busy' : 'network' } as const
     }
   }, [])
 

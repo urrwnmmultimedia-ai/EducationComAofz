@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
 import { getDeviceKey } from '@/lib/deviceKey'
+import { classifyError } from './connection'
 import type { LoginErrorCode } from './code'
 
 export const studentProfileSchema = z.object({
@@ -48,7 +49,7 @@ export function homePathFor(identity: Identity): string {
   return '/'
 }
 
-// ให้เบราว์เซอร์มี auth.uid() แบบ anonymous เสมอ
+// ให้เบราว์เซอร์มี auth.uid() แบบ anonymous เสมอ (ใช้ตัวเดิมซ้ำ — การสร้างใหม่ถูก Supabase จำกัดจำนวนต่อ IP)
 export async function ensureAnonymousSession(): Promise<void> {
   const { data } = await supabase.auth.getSession()
   if (data.session) return
@@ -56,22 +57,43 @@ export async function ensureAnonymousSession(): Promise<void> {
   if (error) throw error
 }
 
+// session ในเครื่องเสีย (หมดอายุ/refresh token ใช้ไม่ได้): ล้างเฉพาะในเครื่องแล้วขอ anonymous ใหม่
+async function resetLocalSession(): Promise<void> {
+  await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+  await ensureAnonymousSession()
+}
+
+// เรียก RPC ครั้งเดียว ถ้าพังเพราะ session เสีย ซ่อม session แล้วลองซ้ำอีก 1 ครั้ง
+async function withSessionRepair<T>(call: () => Promise<{ data: T; error: unknown }>): Promise<T> {
+  const first = await call()
+  if (!first.error) return first.data
+  if (classifyError(first.error) !== 'auth') throw first.error
+  await resetLocalSession()
+  const second = await call()
+  if (second.error) throw second.error
+  return second.data
+}
+
 export async function fetchIdentity(): Promise<Identity> {
-  const { data, error } = await supabase.rpc('whoami')
-  if (error) throw error
+  const data = await withSessionRepair(async () => await supabase.rpc('whoami'))
   return whoamiSchema.parse(data)
 }
 
 export async function loginWithCode(code: string): Promise<LoginResult> {
-  const { data, error } = await supabase.rpc('login_with_code', { p_code: code, p_device_key: getDeviceKey() })
-  if (error) return { ok: false, error: 'network' }
+  let data: unknown
+  try {
+    data = await withSessionRepair(async () => await supabase.rpc('login_with_code', { p_code: code, p_device_key: getDeviceKey() }))
+  } catch (err) {
+    return { ok: false, error: classifyError(err) === 'busy' ? 'busy' : 'network' }
+  }
   const parsed = loginResultSchema.parse(data)
   if (parsed.ok) return { ok: true, identity: { role: parsed.role, student: parsed.student } }
   return { ok: false, error: parsed.error, retryAfterSec: parsed.retry_after_sec }
 }
 
+// ออกจากระบบ: ตัดการผูกรหัสกับเครื่องนี้ แต่ใช้ anonymous user เดิมต่อ
+// (เดิม signOut + signInAnonymously ทุกครั้ง → นักเรียนสลับกันใช้เครื่อง/ทั้งห้องเปลี่ยนคน ชนเพดานสร้าง user ต่อ IP แล้วต่อระบบไม่ได้)
 export async function logoutAndReset(): Promise<void> {
-  await supabase.rpc('logout')
-  await supabase.auth.signOut()
-  await supabase.auth.signInAnonymously()
+  const { error } = await supabase.rpc('logout')
+  if (error && classifyError(error) === 'auth') await resetLocalSession()
 }

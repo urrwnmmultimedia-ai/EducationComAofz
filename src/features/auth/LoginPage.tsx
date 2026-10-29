@@ -33,6 +33,16 @@ export function LoginPage() {
     )
   }
   if (status === 'loading') return <FullPageMessage loading title="กำลังเตรียมห้องเรียน…" />
+  if (status === 'busy') {
+    return (
+      <FullPageMessage
+        loading
+        title="มีคนเข้าระบบพร้อมกันเยอะ"
+        detail="ระบบกำลังลองเชื่อมต่อใหม่ให้อัตโนมัติ รอสักครู่ (หรือกดลองใหม่)"
+        action={<Button onClick={() => void refresh()}>ลองใหม่</Button>}
+      />
+    )
+  }
   if (status === 'error') {
     return (
       <FullPageMessage

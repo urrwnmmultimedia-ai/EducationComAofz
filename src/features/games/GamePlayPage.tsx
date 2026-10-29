@@ -14,15 +14,40 @@ export function GamePlayPage() {
   const preview = params.get('preview') === '1' // ครูทดลองเล่น: ไม่ส่งผล
   // เปิดจากขั้น "เกม" ในคาบ: เล่นจบแล้วกลับคาบเดิม และบันทึกขั้นเกมให้เลย
   const fromSession = Number(params.get('session')) || null
+  return (
+    <GameView
+      slug={slug}
+      preview={preview}
+      sessionNo={fromSession}
+      backTo={preview ? '/admin/games' : fromSession ? `/sessions/${fromSession}?after=game` : '/games'}
+      backLabel={fromSession ? `ไปขั้นต่อไปของคาบ ${fromSession}` : 'กลับหน้าเกม'}
+    />
+  )
+}
+
+interface GameViewProps {
+  slug: string
+  preview: boolean
+  sessionNo: number | null
+  backTo: string
+  backLabel: string
+  onStepDone?: (completed: string[]) => void // ฝังในหน้าคาบ: แจ้งขั้นที่ทำเสร็จหลังบันทึกขั้นเกม
+}
+
+// ตัวเกมพร้อมโหลดข้อมูลและส่งผล — ใช้ทั้งหน้าเกมเดี่ยว และฝังในขั้น "เกม" ของหน้าคาบ
+export function GameView({ slug, preview, sessionNo, backTo, backLabel, onStepDone }: GameViewProps) {
   const state = useAsync(() => fetchGame(slug), [slug])
   const onSubmit = useCallback(
     async (score: number, duration: number) => {
       if (preview) return { xp: 0, first_play: false, plays_today: 0, daily_limit: 3, capped: false, best_score: score, new_badges: [] }
       const result = await submitGameResult(slug, score, duration)
-      if (fromSession) await markStepDone(fromSession, 'game').catch(() => undefined)
+      if (sessionNo) {
+        const steps = await markStepDone(sessionNo, 'game').catch(() => null)
+        if (steps) onStepDone?.(steps)
+      }
       return result
     },
-    [slug, preview, fromSession],
+    [slug, preview, sessionNo, onStepDone],
   )
 
   if (state.status === 'loading') return <LoadingBlock label="กำลังโหลดเกม…" />
@@ -38,8 +63,8 @@ export function GamePlayPage() {
       config={parsed.config}
       Game={gameComponent(parsed.config)}
       onSubmit={onSubmit}
-      backTo={preview ? '/admin/games' : fromSession ? `/sessions/${fromSession}?after=game` : '/games'}
-      backLabel={fromSession ? `ไปขั้นต่อไปของคาบ ${fromSession}` : 'กลับหน้าเกม'}
+      backTo={backTo}
+      backLabel={backLabel}
       maxXp={state.data.max_xp}
     />
   )

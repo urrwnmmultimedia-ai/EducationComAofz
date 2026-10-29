@@ -5,25 +5,51 @@
 //   ":::example ... :::" กล่องตัวอย่างใกล้ตัว
 //   ":::think ... --- ... :::"  กล่องลองคิดดู: คำถาม แล้วบรรทัด "---" ตามด้วยแนวคิด (นักเรียนกดดูเอง)
 //   ":::embed URL"       ฝังวิดีโอ YouTube หรือสไลด์ Canva (บรรทัดเดียว)
+//   ":::check ... :::"   เช็กความเข้าใจท้ายการ์ด: คำถาม แล้วตัวเลือก "- [ ] ผิด" / "- [x] ถูก" (ถูกได้ข้อเดียว)
+//                        ตามด้วยบรรทัด "---" และคำอธิบายเฉลย (ไม่บังคับ)
 
 type CalloutKind = 'tip' | 'doctor' | 'example'
+type BlockKind = CalloutKind | 'think' | 'check'
 
 export type Segment =
   | { kind: 'markdown'; text: string }
   | { kind: CalloutKind; text: string }
   | { kind: 'think'; question: string; answer: string }
   | { kind: 'embed'; url: string; embedUrl: string | null }
+  | { kind: 'check'; question: string; choices: string[]; correct: number; explain: string }
 
 export interface LessonCard {
   title: string
   segments: Segment[]
 }
 
-const CALLOUT_OPEN = /^:::(tip|doctor|example|think)\s*$/
+const CALLOUT_OPEN = /^:::(tip|doctor|example|think|check)\s*$/
 const CALLOUT_CLOSE = /^:::\s*$/
 const EMBED = /^:::embed\s+(\S+)\s*$/
 
-function closeCallout(kind: CalloutKind | 'think', lines: string[]): Segment {
+const CHOICE = /^\s*-\s*\[( |x|X)\]\s+(.+)$/
+
+function closeCallout(kind: BlockKind, lines: string[]): Segment {
+  if (kind === 'check') {
+    const sep = lines.findIndex((l) => l.trim() === '---')
+    const body = sep >= 0 ? lines.slice(0, sep) : lines
+    const question: string[] = []
+    const choices: string[] = []
+    let correct = -1
+    for (const l of body) {
+      const m = CHOICE.exec(l)
+      if (!m) {
+        if (choices.length === 0) question.push(l)
+        continue
+      }
+      if (m[1] !== ' ' && correct < 0) correct = choices.length
+      choices.push(m[2]?.trim() ?? '')
+    }
+    // เขียนผิดรูปแบบ (ไม่มีตัวเลือก/ไม่มีข้อถูก) แสดงเป็นกล่องลองคิดดูแทน ไม่ให้หน้าเรียนพัง
+    if (choices.length < 2 || correct < 0) return { kind: 'think', question: body.join('\n').trim(), answer: '' }
+    const explain = sep >= 0 ? lines.slice(sep + 1).join('\n').trim() : ''
+    return { kind: 'check', question: question.join('\n').trim(), choices, correct, explain }
+  }
   if (kind === 'think') {
     const sep = lines.findIndex((l) => l.trim() === '---')
     const q = sep >= 0 ? lines.slice(0, sep) : lines
@@ -36,7 +62,7 @@ function closeCallout(kind: CalloutKind | 'think', lines: string[]): Segment {
 export function parseSegments(md: string): Segment[] {
   const out: Segment[] = []
   let buf: string[] = []
-  let callout: { kind: CalloutKind | 'think'; lines: string[] } | null = null
+  let callout: { kind: BlockKind; lines: string[] } | null = null
 
   const flush = () => {
     const text = buf.join('\n').trim()
@@ -57,7 +83,7 @@ export function parseSegments(md: string): Segment[] {
     const open = CALLOUT_OPEN.exec(line.trim())
     if (open) {
       flush()
-      callout = { kind: open[1] as CalloutKind | 'think', lines: [] }
+      callout = { kind: open[1] as BlockKind, lines: [] }
       continue
     }
     const embed = EMBED.exec(line.trim())

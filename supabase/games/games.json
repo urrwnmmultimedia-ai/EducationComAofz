@@ -20,6 +20,43 @@
     }
   },
   {
+    "slug": "ipo-sorter",
+    "unit": null,
+    "title": "IPO Sorter",
+    "description": "แยกอุปกรณ์และการทำงานของคอมพิวเตอร์ลงกล่อง Input / Process / Output",
+    "max_xp": 40,
+    "min_duration_sec": 20,
+    "config": {
+      "engine": "sort",
+      "mode": "board",
+      "instructions": "ลาก (หรือแตะการ์ด แล้วแตะกล่อง) อุปกรณ์หรือการทำงานแต่ละอย่างไปไว้ในขั้นที่ถูกต้อง แล้วกดตรวจคำตอบ จบแล้วมีคำถามโบนัส",
+      "timeLimitSec": 150,
+      "buckets": [
+        { "id": "input", "label": "Input (รับเข้า)", "icon": "⌨️" },
+        { "id": "process", "label": "Process (ประมวลผล)", "icon": "🧠" },
+        { "id": "output", "label": "Output (แสดงผล)", "icon": "🖥️" }
+      ],
+      "cards": [
+        { "text": "คีย์บอร์ดพิมพ์ข้อความ", "bucket": "input" },
+        { "text": "เมาส์คลิกสั่งงาน", "bucket": "input" },
+        { "text": "ไมโครโฟนรับเสียงพูด", "bucket": "input" },
+        { "text": "สแกนเนอร์รับภาพเอกสาร", "bucket": "input" },
+        { "text": "กล้องมือถืออ่าน QR Code", "bucket": "input" },
+        { "text": "CPU คำนวณผลบวกคะแนน", "bucket": "process", "explain": "การคำนวณเป็นงานของหน่วยประมวลผล" },
+        { "text": "จัดเรียงรายชื่อจาก ก-ฮ", "bucket": "process" },
+        { "text": "ตรวจว่ารหัสผ่านถูกต้องไหม", "bucket": "process", "explain": "การตรวจสอบ/เปรียบเทียบเป็นการประมวลผลเชิงตรรกะ" },
+        { "text": "ดึงไฟล์จากหน่วยความจำมาใช้งาน", "bucket": "process" },
+        { "text": "จอภาพแสดงข้อความ", "bucket": "output" },
+        { "text": "เครื่องพิมพ์พิมพ์ใบเสร็จ", "bucket": "output" },
+        { "text": "ลำโพงเล่นเพลง", "bucket": "output" }
+      ],
+      "bonus": [
+        { "q": "CPU ย่อมาจากอะไร", "choices": ["Computer Personal Unit", "Central Processing Unit", "Control Print Unit", "Central Program User"], "answer": 1, "explain": "CPU = Central Processing Unit หน่วยประมวลผลกลาง" },
+        { "q": "ข้อมูลที่ผ่านการประมวลผลแล้ว นำไปใช้ตัดสินใจได้ เรียกว่าอะไร", "choices": ["ข้อมูลดิบ", "สารสนเทศ (Information)", "อุปกรณ์รับเข้า", "โปรแกรม"], "answer": 1, "explain": "Process เปลี่ยนข้อมูลให้เป็นสารสนเทศ" }
+      ]
+    }
+  },
+  {
     "slug": "5g-time-machine",
     "unit": 1,
     "title": "5G Time Machine",

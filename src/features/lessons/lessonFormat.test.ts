@@ -26,6 +26,14 @@ describe('parseSegments', () => {
     const [seg] = parseSegments(':::think\n| a | b |\n| --- | --- |\n---\nตอบ\n:::')
     expect(seg).toEqual({ kind: 'think', question: '| a | b |\n| --- | --- |', answer: 'ตอบ' })
   })
+  it('กล่องเช็กความเข้าใจ: คำถาม ตัวเลือก ข้อถูก และคำอธิบาย', () => {
+    expect(parseSegments(':::check\nข้อใดคือ Input\n- [ ] จอภาพ\n- [x] คีย์บอร์ด\n- [ ] ลำโพง\n---\nคีย์บอร์ดรับข้อมูลเข้า\n:::')).toEqual([
+      { kind: 'check', question: 'ข้อใดคือ Input', choices: ['จอภาพ', 'คีย์บอร์ด', 'ลำโพง'], correct: 1, explain: 'คีย์บอร์ดรับข้อมูลเข้า' },
+    ])
+  })
+  it('กล่องเช็กความเข้าใจที่ไม่มีข้อถูก แสดงเป็นกล่องลองคิดดูแทน', () => {
+    expect(parseSegments(':::check\nถาม\n- [ ] ก\n- [ ] ข\n:::')).toEqual([{ kind: 'think', question: 'ถาม\n- [ ] ก\n- [ ] ข', answer: '' }])
+  })
   it('กล่องที่ลืมปิดยังแสดงได้', () => {
     expect(parseSegments(':::tip\nไม่ได้ปิด')).toEqual([{ kind: 'tip', text: 'ไม่ได้ปิด' }])
   })

@@ -9,6 +9,10 @@ export const stepSchema = z.object({
   label: z.string(),
   minutes: z.number().int().nonnegative(),
   items: z.array(z.string()).optional(),
+  // ขั้นเปิดคาบแบบ DB Quest (ไม่บังคับ): คำถามใหญ่ให้เดาก่อนเรียน เรียนไปทำไม และเป้าหมายของคาบ
+  question: z.string().optional(),
+  why: z.string().optional(),
+  goals: z.array(z.string()).optional(),
 })
 export type SessionStep = z.infer<typeof stepSchema>
 

@@ -31,7 +31,7 @@ One teacher's own classroom platform, not a generic LMS: course content, answer 
 ## Capabilities and Constraints
 
 - Stack: React + Vite + TypeScript, Tailwind CSS v4, Supabase, deployed on Vercel. Thai-first UI.
-- ม.3: 3 units / 20 sessions, lessons in Markdown, 17 games, exit tickets, exams, attendance, gradebook.
+- ม.3: 3 units / 20 sessions, lessons in Markdown, 18 games, exit tickets, exams, attendance, gradebook.
 - ม.5 DB Quest: 7 units / 20 sessions, JSON session content, server-checked questions, memory-match games, worksheets, scoring by weighted categories, teacher back office.
 - Content after DB Quest session 2 is still to be written; UI must handle "content coming soon" states.
 - DB Quest already has light/dark mode; the M.3 site is light only today.

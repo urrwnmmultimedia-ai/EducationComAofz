@@ -325,10 +325,10 @@ check('cannot view other student result', r === 'attempt_not_found')
 
 // ---------- Phase 5 ----------
 r = await db.query(`select (select count(*)::int from public.games) g, (select count(*)::int from public.badges) b`)
-check('seed 17 games / 8 badges', r.rows[0].g === 17 && r.rows[0].b === 8)
+check('seed 18 games / 8 badges', r.rows[0].g === 18 && r.rows[0].b === 8)
 await db.exec(readFileSync(join(root, 'supabase', 'seed_games.sql'), 'utf8'))
 r = await db.query(`select count(*)::int g from public.games`)
-check('game seed idempotent', r.rows[0].g === 17)
+check('game seed idempotent', r.rows[0].g === 18)
 
 const G = '00000000-0000-0000-0000-000000000010'
 await db.exec(`insert into auth.users values ('${G}')`)
@@ -337,7 +337,7 @@ const sidG = (await as(G, `select public.current_student_id() id`))[0].id
 
 r = await as(G, `select slug, is_unlocked from public.my_games()`)
 const unlocked = Object.fromEntries(r.map((x) => [x.slug, x.is_unlocked]))
-check('my_games lists 17 with lock state', r.length === 17 && unlocked['warmup'] === true && unlocked['ip-hunter'] === false)
+check('my_games lists 18 with lock state', r.length === 18 && unlocked['warmup'] === true && unlocked['ip-hunter'] === false)
 
 r = await as(G, `select public.submit_game_result('ip-hunter', 90, 60)`).catch((e) => e.message)
 check('locked game rejected', r === 'game_locked')

@@ -47,5 +47,5 @@ export function useSessionPage(sessionNo: number, isStudent: boolean) {
 
   const steps = detail.data ? parseSteps(detail.data.session.steps) : []
 
-  return { detail, steps, completed, checkedIn, savingStep, saveError, completeStep }
+  return { detail, steps, completed, setCompleted, checkedIn, savingStep, saveError, completeStep }
 }

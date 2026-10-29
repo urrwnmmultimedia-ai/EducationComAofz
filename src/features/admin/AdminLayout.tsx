@@ -9,6 +9,7 @@ import {
   Settings,
   SquarePen,
   UserCheck,
+  UserCog,
   Users,
 } from 'lucide-react'
 import { AdminShell } from '@/components/shell/AdminShell'
@@ -23,7 +24,8 @@ const NAV: NavItem[] = [
   { to: '/admin/questions', label: 'คลังข้อสอบ', icon: FileQuestion },
   { to: '/admin/games', label: 'เกม', icon: Gamepad2 },
   { to: '/admin/gradebook', label: 'สมุดคะแนน', icon: NotebookTabs },
-  { to: '/admin/students', label: 'นักเรียน', icon: Users },
+  { to: '/admin/progress', label: 'ความคืบหน้านักเรียน', icon: Users },
+  { to: '/admin/students', label: 'รายชื่อนักเรียน', icon: UserCog },
   { to: '/admin/classrooms', label: 'ห้องเรียน', icon: School },
   { to: '/admin/settings', label: 'ตั้งค่า', icon: Settings },
 ]

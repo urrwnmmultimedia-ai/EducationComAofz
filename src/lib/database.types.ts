@@ -122,6 +122,13 @@ export type SubmissionRow = {
   updated_at: string
 }
 
+export type SessionProgressRow = {
+  student_id: string
+  session_no: number
+  completed_steps: string[]
+  updated_at: string
+}
+
 export type XpEventRow = {
   id: string
   student_id: string
@@ -280,6 +287,7 @@ export type Database = {
       classroom_session_unlocks: Table<ClassroomSessionUnlockRow>
       assignments: Table<AssignmentRow>
       submissions: Table<SubmissionRow>
+      session_progress: Table<SessionProgressRow>
       xp_events: Table<XpEventRow>
       student_badges: Table<StudentBadgeRow>
       attendance: Table<AttendanceRow>

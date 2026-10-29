@@ -4,6 +4,9 @@ import type { Json } from '@/lib/database.types'
 export const STEP_KEYS = ['warmup', 'content', 'game', 'work', 'exit', 'summary'] as const
 export type StepKey = (typeof STEP_KEYS)[number]
 
+// คะแนนเกมขั้นต่ำ (0–100) ที่ถือว่าผ่านขั้น "เกม" ของคาบ
+export const GAME_PASS_SCORE = 50
+
 export const stepSchema = z.object({
   key: z.enum(STEP_KEYS),
   label: z.string(),
@@ -34,6 +37,14 @@ export function parseSteps(raw: Json): SessionStep[] {
 
 export function totalMinutes(steps: SessionStep[]): number {
   return steps.reduce((sum, s) => sum + s.minutes, 0)
+}
+
+// ความคืบหน้าทั้งวิชา (0–100): นับทุกคาบ รวมคาบที่ยังไม่เปิด — ขั้นที่ทำเสร็จ / ขั้นทั้งหมดของทุกคาบ
+export function courseProgressPercent(items: { completed_steps: string[]; total_steps: number }[]): number {
+  const total = items.reduce((s, i) => s + i.total_steps, 0)
+  if (total === 0) return 0
+  const done = items.reduce((s, i) => s + Math.min(i.completed_steps.length, i.total_steps), 0)
+  return Math.round((done / total) * 100)
 }
 
 // ความคืบหน้า (0–100) ของชุดคาบ: นับขั้นตอนที่ทำเสร็จ / ขั้นตอนทั้งหมดของคาบที่เปิดแล้ว

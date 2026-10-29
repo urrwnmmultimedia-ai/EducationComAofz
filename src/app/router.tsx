@@ -21,9 +21,10 @@ function lazyPage<K extends string>(loader: () => Promise<Record<K, ComponentTyp
 export const router = createBrowserRouter([
   { path: '/', element: <LoginPage />, errorElement: <RouteError /> },
   {
+    // หน้านักเรียน ม.3 — ครูเปิดดูได้ทุกหน้า (โหมดดูตัวอย่าง ไม่บันทึกผล)
     errorElement: <RouteError />,
     element: (
-      <RequireRole role="student" course="design_m3">
+      <RequireRole role={['student', 'admin']} course="design_m3">
         <StudentLayout />
       </RequireRole>
     ),
@@ -32,20 +33,11 @@ export const router = createBrowserRouter([
       { path: '/games', element: lazyPage(() => import('@/features/games/GamesPage'), 'GamesPage') },
       { path: '/assignments/:id', element: lazyPage(() => import('@/features/assignments/AssignmentPage'), 'AssignmentPage') },
       { path: '/exams/:id', element: lazyPage(() => import('@/features/exams/ExamPage'), 'ExamPage') },
-      { path: '/scores', element: lazyPage(() => import('@/features/student/ScoresPage'), 'ScoresPage') },
+      // คะแนนย้ายไปอยู่ในหน้า "ฉัน"
+      { path: '/scores', element: <Navigate to="/profile?tab=scores" replace /> },
       { path: '/leaderboard', element: lazyPage(() => import('@/features/leaderboard/LeaderboardPage'), 'LeaderboardPage') },
       { path: '/profile', element: lazyPage(() => import('@/features/student/ProfilePage'), 'ProfilePage') },
-    ],
-  },
-  {
-    // ครูเปิดดูหน้าหน่วย/คาบ/เกมแบบนักเรียนได้ (โหมดดูตัวอย่าง)
-    errorElement: <RouteError />,
-    element: (
-      <RequireRole role={['student', 'admin']} course="design_m3">
-        <StudentLayout />
-      </RequireRole>
-    ),
-    children: [
+      { path: '/lessons', element: lazyPage(() => import('@/features/lessons/LessonsMapPage'), 'LessonsMapPage') },
       { path: '/units/:unitId', element: lazyPage(() => import('@/features/units/UnitPage'), 'UnitPage') },
       { path: '/sessions/:no', element: lazyPage(() => import('@/features/lessons/SessionPage'), 'SessionPage') },
       { path: '/games/:slug', element: lazyPage(() => import('@/features/games/GamePlayPage'), 'GamePlayPage') },
@@ -59,7 +51,6 @@ export const router = createBrowserRouter([
       { index: true, element: lazyPage(() => import('@/features/admin/AdminDashboardPage'), 'AdminDashboardPage') },
       { path: 'sessions', element: lazyPage(() => import('@/features/admin/AdminSessionsPage'), 'AdminSessionsPage') },
       { path: 'sessions/:no', element: lazyPage(() => import('@/features/admin/AdminSessionEditPage'), 'AdminSessionEditPage') },
-      { path: 'attendance', element: lazyPage(() => import('@/features/admin/AdminAttendancePage'), 'AdminAttendancePage') },
       { path: 'classrooms', element: lazyPage(() => import('@/features/admin/AdminClassroomsPage'), 'AdminClassroomsPage') },
       { path: 'progress', element: lazyPage(() => import('@/features/admin/AdminProgressPage'), 'AdminProgressPage') },
       { path: 'progress/:studentId', element: lazyPage(() => import('@/features/admin/AdminProgressPage'), 'AdminStudentProgressPage') },

@@ -111,7 +111,7 @@ export function DbqAdminStudentDetail() {
   if (res.status === 'loading') return <LoadingBlock />
   if (res.status === 'error') return <ErrorBlock message={res.error} onRetry={res.reload} />
   const [d, titles] = res.data
-  const evo = evolutionOf(d.xp, d.sessions.filter((s) => s.kind === 'lesson' && s.pct === 100).length)
+  const evo = evolutionOf(d.scores.total)
 
   return (
     <div className="space-y-4">
@@ -240,7 +240,7 @@ function SessionRow({
       {confirming && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="min-w-0 flex-1 text-amber-950">
-            รีเซ็ตคาบ {s.session_no} ของ {studentName}? ความคืบหน้าทุกขั้น คำตอบ และ XP ของคาบนี้จะหาย ส่วนใบงานที่ส่ง คะแนนเกม และเหรียญยังอยู่
+            รีเซ็ตคาบ {s.session_no} ของ {studentName}? ความคืบหน้าทุกขั้น คำตอบ ใบงานที่ส่ง (รวมคะแนนที่ตรวจแล้ว) คะแนนเกม และ XP ของคาบนี้จะหายทั้งหมด (เหรียญยังอยู่)
             ถ้าคาบถัดไปเปิดเพราะทำคาบนี้ครบตามเกณฑ์ จะถูกล็อกกลับจนกว่าจะทำใหม่
           </p>
           <button type="button" className={btn.secondary} disabled={busy} onClick={() => setConfirming(false)}>

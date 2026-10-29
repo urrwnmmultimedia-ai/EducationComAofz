@@ -4023,6 +4023,297 @@ begin
 end;
 $$;
 
+-- >>>>>>>>>> migrations/20261028000018_exam_instant_check.sql
+-- =============================================================
+-- 018 ตรวจข้อสอบทีละข้อ (ม.3): ตอบแล้วรู้ทันทีว่าถูกหรือผิด
+--   * ใช้ได้เฉพาะชุดที่ครูเปิดให้ดูเฉลย (exams.show_answers) เช่น Exit ticket
+--     ชุดสอบอื่น (กลางภาค/ปลายภาค ฯลฯ) ยังทำทีละข้อ แต่ไม่บอกผลจนกว่าจะส่ง
+--   * ข้อที่ตรวจแล้วล็อกคำตอบ (exam_attempts.checked) แก้ไม่ได้ ส่งซ้ำได้ผลเดิม
+--   * ข้อเขียน (short) ไม่ตรวจทันที — บันทึกคำตอบแล้วครูตรวจทีหลัง
+-- =============================================================
+
+alter table public.exam_attempts
+  add column if not exists checked uuid[] not null default '{}';
+
+-- บันทึกคำตอบระหว่างสอบ (เดิม) + ห้ามแก้ข้อที่ตรวจทันทีไปแล้ว
+create or replace function public.save_exam_answer(p_attempt_id uuid, p_question_id uuid, p_answer jsonb)
+returns timestamptz
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_att public.exam_attempts%rowtype;
+begin
+  select * into v_att from public.exam_attempts where id = p_attempt_id for update;
+  if not found or v_att.student_id is distinct from public.current_student_id() then
+    raise exception 'attempt_not_found' using errcode = '42501';
+  end if;
+  if v_att.submitted_at is not null then
+    raise exception 'already_submitted' using errcode = '42501';
+  end if;
+  if v_att.deadline_at is not null and now() > v_att.deadline_at + interval '30 seconds' then
+    raise exception 'time_up' using errcode = '42501';
+  end if;
+  if not (p_question_id = any(v_att.question_order)) then
+    raise exception 'question_not_in_exam' using errcode = '22023';
+  end if;
+  if p_question_id = any(v_att.checked) then
+    raise exception 'answer_locked' using errcode = '42501';
+  end if;
+  if length(coalesce(p_answer, 'null'::jsonb)::text) > 5000 then
+    raise exception 'answer_too_long' using errcode = '22023';
+  end if;
+  update public.exam_attempts
+  set answers = answers || jsonb_build_object(p_question_id::text, p_answer), saved_at = now()
+  where id = p_attempt_id;
+  return now();
+end;
+$$;
+
+-- ผลตรวจของข้อที่ล็อกแล้ว { points, correct, explanation, answer }
+create or replace function public._checked_feedback(p_att public.exam_attempts, p_question_id uuid)
+returns jsonb
+language sql stable security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'question_id', q.id,
+    'points', public.grade_answer(q.type, q.correct_answer, p_att.answers -> q.id::text),
+    'correct', q.correct_answer,
+    'explanation', q.explanation,
+    'answer', p_att.answers -> q.id::text
+  )
+  from public.questions q
+  where q.id = p_question_id
+$$;
+
+-- ตอบข้อนี้แล้วตรวจทันที: บันทึกคำตอบ ล็อกข้อ แล้วคืนผล (ข้อที่ล็อกแล้วคืนผลเดิม ไม่รับคำตอบใหม่)
+create or replace function public.check_exam_answer(p_attempt_id uuid, p_question_id uuid, p_answer jsonb)
+returns jsonb
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_att  public.exam_attempts%rowtype;
+  v_show boolean;
+  v_type text;
+begin
+  select * into v_att from public.exam_attempts where id = p_attempt_id for update;
+  if not found or v_att.student_id is distinct from public.current_student_id() then
+    raise exception 'attempt_not_found' using errcode = '42501';
+  end if;
+  select show_answers into v_show from public.exams where id = v_att.exam_id;
+  if not coalesce(v_show, false) then
+    raise exception 'instant_check_off' using errcode = '42501';
+  end if;
+  if not (p_question_id = any(v_att.question_order)) then
+    raise exception 'question_not_in_exam' using errcode = '22023';
+  end if;
+  select type into v_type from public.questions where id = p_question_id;
+  if v_type = 'short' then
+    raise exception 'needs_teacher' using errcode = '22023';
+  end if;
+
+  if not (p_question_id = any(v_att.checked)) then
+    if v_att.submitted_at is not null then
+      raise exception 'already_submitted' using errcode = '42501';
+    end if;
+    if v_att.deadline_at is not null and now() > v_att.deadline_at + interval '30 seconds' then
+      raise exception 'time_up' using errcode = '42501';
+    end if;
+    if p_answer is null or length(p_answer::text) > 5000 then
+      raise exception 'answer_too_long' using errcode = '22023';
+    end if;
+    update public.exam_attempts
+    set answers = answers || jsonb_build_object(p_question_id::text, p_answer),
+        checked = checked || p_question_id,
+        saved_at = now()
+    where id = p_attempt_id
+    returning * into v_att;
+  end if;
+
+  return public._checked_feedback(v_att, p_question_id);
+end;
+$$;
+
+-- ผลตรวจของทุกข้อที่ล็อกแล้ว (กลับมาทำต่อหลังเน็ตหลุด/รีเฟรช)
+create or replace function public.exam_checked_feedback(p_attempt_id uuid)
+returns jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_att public.exam_attempts%rowtype;
+begin
+  select * into v_att from public.exam_attempts where id = p_attempt_id;
+  if not found or v_att.student_id is distinct from public.current_student_id() then
+    raise exception 'attempt_not_found' using errcode = '42501';
+  end if;
+  return coalesce((
+    select jsonb_object_agg(c.id::text, public._checked_feedback(v_att, c.id))
+    from unnest(v_att.checked) as c(id)
+  ), '{}'::jsonb);
+end;
+$$;
+
+revoke execute on function
+  public._checked_feedback(public.exam_attempts, uuid),
+  public.check_exam_answer(uuid, uuid, jsonb),
+  public.exam_checked_feedback(uuid)
+from public, anon, authenticated;
+
+grant execute on function
+  public.check_exam_answer(uuid, uuid, jsonb),
+  public.exam_checked_feedback(uuid)
+to authenticated;
+
+-- >>>>>>>>>> migrations/20261028000019_reset_session_scores.sql
+-- =============================================================
+-- 019 รีเซ็ตคาบของนักเรียน 1 คนแบบล้างคะแนนด้วย (ให้ทำคาบนั้นใหม่ได้จริง)
+--   เดิมรีเซ็ตแค่ขั้นที่ทำเสร็จ — งาน/ข้อสอบ/เกมที่ส่งแล้วยังอยู่ ทำให้ระบบล็อกขั้น
+--   นับว่าผ่านเองทันที และข้อสอบที่ทำได้ครั้งเดียวทำใหม่ไม่ได้
+--   * ม.3  admin_reset_session_scores: ลบขั้นที่ทำเสร็จ งานที่ส่ง (รวมคะแนนที่ครูตรวจ)
+--          ผลสอบ/Exit ticket ผลเกมประจำคาบ และ XP ที่ได้จากสิ่งเหล่านั้น
+--   * ม.5  dbq_admin_reset_session: ลบใบงานที่ส่ง และคะแนนเกมประจำคาบเพิ่มด้วย
+--   เหรียญที่ได้ไปแล้วยังอยู่ · ไฟล์ที่อัปโหลดไว้ใน storage ไม่ถูกลบ
+-- =============================================================
+
+create or replace function public.admin_reset_session_scores(p_student_id uuid, p_session_no int)
+returns jsonb
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_steps int;
+  v_subs  int;
+  v_exams int;
+  v_games int;
+  v_xp    int := 0;
+  v_n     int;
+begin
+  if not public.is_admin() then
+    raise exception 'not_admin' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.students where id = p_student_id) then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+
+  delete from public.session_progress where student_id = p_student_id and session_no = p_session_no;
+  get diagnostics v_steps = row_count;
+
+  -- XP จากการส่งงาน และ Exit ticket ของคาบนี้
+  delete from public.xp_events x
+  where x.student_id = p_student_id
+    and ((x.source = 'assignment' and x.ref_id in (select id from public.assignments where session_no = p_session_no))
+      or (x.source = 'exit_ticket' and x.ref_id in (select id from public.exams where session_no = p_session_no)));
+  get diagnostics v_n = row_count;
+  v_xp := v_xp + v_n;
+
+  -- งานที่ส่ง + คะแนนสมุดคะแนนที่มาจากชุดสอบของคาบนี้
+  delete from public.submissions s
+  where s.student_id = p_student_id
+    and s.assignment_id in (
+      select id from public.assignments where session_no = p_session_no
+      union
+      select assignment_id from public.exams where session_no = p_session_no and assignment_id is not null
+    );
+  get diagnostics v_subs = row_count;
+
+  delete from public.exam_attempts a
+  where a.student_id = p_student_id
+    and a.exam_id in (select id from public.exams where session_no = p_session_no);
+  get diagnostics v_exams = row_count;
+
+  -- เกมประจำคาบ: XP ของแต่ละรอบ แล้วจึงลบรอบที่เล่น
+  delete from public.xp_events x
+  where x.student_id = p_student_id and x.source = 'game'
+    and x.ref_id in (
+      select gp.id from public.game_plays gp
+      join public.games g on g.id = gp.game_id
+      join public.class_sessions cs on cs.game_slug = g.slug
+      where gp.student_id = p_student_id and cs.session_no = p_session_no
+    );
+  get diagnostics v_n = row_count;
+  v_xp := v_xp + v_n;
+
+  delete from public.game_plays gp
+  using public.games g, public.class_sessions cs
+  where gp.student_id = p_student_id and gp.game_id = g.id
+    and cs.game_slug = g.slug and cs.session_no = p_session_no;
+  get diagnostics v_games = row_count;
+
+  return jsonb_build_object('ok', true, 'steps', v_steps, 'submissions', v_subs, 'exam_attempts', v_exams, 'game_plays', v_games, 'xp_events', v_xp);
+end;
+$$;
+
+revoke execute on function public.admin_reset_session_scores(uuid, int) from public, anon;
+grant execute on function public.admin_reset_session_scores(uuid, int) to authenticated;
+
+-- ม.5: รีเซ็ตคาบล้างใบงานที่ส่งและคะแนนเกมประจำคาบด้วย
+create or replace function public.dbq_admin_reset_session(p_student_id uuid, p_session int)
+returns jsonb
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_steps int;
+  v_items int;
+  v_xp    int;
+  v_ws    int;
+  v_games int;
+  v_game  text;
+begin
+  perform public.dbq_require_admin();
+  if not exists (
+    select 1 from public.students st join public.classrooms c on c.id = st.classroom_id
+    where st.id = p_student_id and c.course = 'dbquest_m5'
+  ) then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.dbq_lessons where session_no = p_session) then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  select game_key into v_game from public.dbq_lessons where session_no = p_session;
+
+  delete from public.dbq_progress where student_id = p_student_id and session_no = p_session;
+  get diagnostics v_steps = row_count;
+
+  delete from public.dbq_xp_events e
+  where e.student_id = p_student_id
+    and (
+      e.source like format('step:%s:%%', p_session)
+      or e.source = format('session:%s', p_session)
+      or (e.source like 'item:%' and substr(e.source, 6) in (
+        select k.item_id from public.dbq_answer_keys k where k.session_no = p_session and k.item_type in ('check', 'practice', 'wrapup')
+      ))
+      or (e.source like 'worksheet:%' and substr(e.source, 11) in (
+        select a.item_id from public.dbq_assignments a where a.session_no = p_session
+      ))
+      or (v_game is not null and e.source like format('game:%s:%%', v_game))
+    );
+  get diagnostics v_xp = row_count;
+
+  delete from public.dbq_item_attempts a
+  using public.dbq_answer_keys k
+  where a.student_id = p_student_id and a.item_id = k.item_id
+    and k.session_no = p_session and k.item_type in ('check', 'practice', 'wrapup');
+  get diagnostics v_items = row_count;
+
+  delete from public.dbq_submissions s
+  using public.dbq_assignments a
+  where s.student_id = p_student_id and s.assignment_id = a.id and a.session_no = p_session;
+  get diagnostics v_ws = row_count;
+
+  -- เกมที่ใช้หลายคาบ: ล้างเฉพาะเมื่อคาบนี้เป็นคาบแรกของเกม (คาบที่ผลเกมนับเข้า)
+  delete from public.dbq_game_scores g
+  where g.student_id = p_student_id and v_game is not null and g.game_key = v_game
+    and p_session = (select min(session_no) from public.dbq_lessons where game_key = v_game);
+  get diagnostics v_games = row_count;
+
+  return jsonb_build_object('ok', true, 'steps', v_steps, 'items', v_items, 'xp_events', v_xp, 'worksheets', v_ws, 'game_scores', v_games);
+end;
+$$;
+
 -- >>>>>>>>>> seed.sql
 -- =============================================================
 -- Seed ข้อมูลเริ่มต้น (รันซ้ำได้ ไม่สร้างข้อมูลซ้ำ)
@@ -4120,10 +4411,7 @@ from (values
    'คอมพิวเตอร์ทำงาน 3 ขั้น: Input รับข้อมูลเข้า → Process ประมวลผลด้วย CPU → Output แสดงผลลัพธ์ (มีแบบทดสอบก่อนเรียน ไม่คิดคะแนน)',
    'ใบงาน IPO ของอุปกรณ์รอบตัว (ฝึกทำ ไม่คิดคะแนน)', 'ipo-sorter',
    '[{"key":"warmup","label":"เปิดคาบ","minutes":15,
-      "question":"กด 7 × 8 = บนเครื่องคิดเลขในมือถือ ก่อนเลข 56 จะโผล่บนจอ เครื่องทำอะไรไปบ้าง?",
-      "why":"คอมพิวเตอร์ทุกเครื่อง ตั้งแต่มือถือ โน้ตบุ๊ก จนถึงตู้ ATM ทำงานด้วยหลักการเดียวกัน ถ้าเข้าใจหลักนี้ จะเข้าใจเทคโนโลยีทุกชิ้นที่เราจะเรียนตลอดเทอม",
-      "goals":["บอกความหมายของ Input, Process และ Output ได้","ยกตัวอย่างอุปกรณ์รับเข้าและอุปกรณ์แสดงผลได้","วิเคราะห์การทำงานของอุปกรณ์รอบตัวตามขั้นตอน IPO ได้"],
-      "items":["วันนี้เราใช้คอมพิวเตอร์หรือมือถือทำอะไรไปแล้วบ้าง?","ตอนพูดสั่งมือถือว่า \"เปิดเพลง\" เครื่องรู้ได้อย่างไรว่าเราพูดอะไร?"]},
+      "question":"กด 7 × 8 = บนเครื่องคิดเลขในมือถือ ก่อนเลข 56 จะโผล่บนจอ เครื่องทำอะไรไปบ้าง?"},
      {"key":"content","label":"บทเรียน","minutes":35},
      {"key":"game","label":"เกม","minutes":20},
      {"key":"work","label":"ใบงาน","minutes":30},

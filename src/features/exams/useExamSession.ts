@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { parseAnswer, remainingMs, type ActiveAttempt, type Answer, type ExamResult } from './examModel'
-import { recordTabSwitch, saveAnswer, submitExam } from './examsApi'
+import { parseAnswer, remainingMs, type ActiveAttempt, type Answer, type ExamResult, type Feedback } from './examModel'
+import { checkExamAnswer, fetchCheckedFeedback, recordTabSwitch, saveAnswer, submitExam } from './examsApi'
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'offline'
 
 const SAVE_DELAY_MS = 600
 
-// logic ระหว่างทำข้อสอบ: บันทึกคำตอบอัตโนมัติ, จับเวลา, นับการสลับแท็บ, ส่งข้อสอบ
-export function useExamSession(attempt: ActiveAttempt, onFinished: (r: ExamResult) => void) {
+// logic ระหว่างทำข้อสอบ: บันทึกคำตอบอัตโนมัติ, ตรวจทีละข้อ (instant), จับเวลา, นับการสลับแท็บ, ส่งข้อสอบ
+export function useExamSession(attempt: ActiveAttempt, onFinished: (r: ExamResult) => void, instant = false) {
   const clientAtStart = useRef(Date.now())
   const [answers, setAnswers] = useState<Record<string, Answer>>(() => {
     const init: Record<string, Answer> = {}
@@ -22,6 +22,8 @@ export function useExamSession(attempt: ActiveAttempt, onFinished: (r: ExamResul
   const [left, setLeft] = useState(() => remainingMs(attempt.deadline_at, attempt.server_now, clientAtStart.current, Date.now()))
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  // ผลตรวจทันทีของข้อที่ล็อกแล้ว (ชุดที่เปิดให้ดูเฉลย)
+  const [feedback, setFeedback] = useState<Record<string, Feedback>>({})
 
   // คำตอบที่ยังไม่ได้บันทึก (ส่งซ้ำได้เมื่อเน็ตกลับมา)
   const pending = useRef(new Map<string, Answer>())
@@ -57,6 +59,31 @@ export function useExamSession(attempt: ActiveAttempt, onFinished: (r: ExamResul
     },
     [flush],
   )
+
+  // ตอบแล้วตรวจทันที: ส่งตรงไปตรวจ (ไม่ต้องรอบันทึกแบบหน่วงเวลา)
+  const check = useCallback(
+    async (qid: string, ans: Answer) => {
+      setAnswers((a) => ({ ...a, [qid]: ans }))
+      pending.current.delete(qid)
+      const f = await checkExamAnswer(attempt.attempt_id, qid, ans)
+      setFeedback((m) => ({ ...m, [qid]: f }))
+      return f
+    },
+    [attempt.attempt_id],
+  )
+
+  // กลับมาทำต่อ: โหลดผลตรวจของข้อที่ตอบไปแล้ว
+  useEffect(() => {
+    if (!instant) return
+    let cancelled = false
+    void fetchCheckedFeedback(attempt.attempt_id).then(
+      (m) => !cancelled && setFeedback(m),
+      () => undefined,
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [attempt.attempt_id, instant])
 
   const submit = useCallback(async () => {
     if (finished.current || submitting) return
@@ -117,5 +144,5 @@ export function useExamSession(attempt: ActiveAttempt, onFinished: (r: ExamResul
     }
   }, [flush])
 
-  return { answers, setAnswer, saveState, tabSwitches, left, submit, submitting, submitError }
+  return { answers, setAnswer, check, feedback, saveState, tabSwitches, left, submit, submitting, submitError }
 }

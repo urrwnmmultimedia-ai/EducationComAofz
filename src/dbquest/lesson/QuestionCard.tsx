@@ -8,19 +8,18 @@ import { initialDraft, isDraftComplete, moveId, toggleChoice, type Draft } from 
 
 const LETTERS = ['ก', 'ข', 'ค', 'ง', 'จ', 'ฉ']
 
-const pick = (on: boolean) =>
-  on
-    ? 'bg-dq-600 text-white ring-dq-600'
-    : 'bg-white ring-dq-100 hover:ring-dq-300 dark:bg-dq-950 dark:ring-dq-800 dark:hover:ring-dq-600'
+// สถานะตัวเลือกนูน (.tq-choice): ตรวจแล้วตัวที่เลือกเป็นเขียว/แดง
+type Verdict = 'right' | 'wrong' | null
+const choiceState = (on: boolean, verdict: Verdict) => (on ? (verdict === 'right' ? 'correct' : verdict === 'wrong' ? 'wrong' : 'picked') : verdict ? 'dim' : 'idle')
 
-function Inputs({ q, d, set, disabled }: { q: Question; d: Draft; set: (d: Draft) => void; disabled: boolean }) {
+function Inputs({ q, d, set, disabled, verdict }: { q: Question; d: Draft; set: (d: Draft) => void; disabled: boolean; verdict: Verdict }) {
   switch (q.type) {
     case 'mcq':
     case 'multi': {
       const multi = q.type === 'multi'
       const isOn = (i: number) => ('choices' in d ? d.choices.includes(i) : 'choice' in d && d.choice === i)
       return (
-        <div role={multi ? 'group' : 'radiogroup'} className="flex flex-col gap-2">
+        <div role={multi ? 'group' : 'radiogroup'} className="flex flex-col gap-3">
           {multi && <p className="text-base text-slate-500 dark:text-dq-300">เลือกได้มากกว่า 1 ข้อ</p>}
           {q.choices.map((c, i) => (
             <button
@@ -30,10 +29,13 @@ function Inputs({ q, d, set, disabled }: { q: Question; d: Draft; set: (d: Draft
               aria-checked={isOn(i)}
               disabled={disabled}
               onClick={() => set(multi && 'choices' in d ? { choices: toggleChoice(d.choices, i) } : { choice: i })}
-              className={`flex min-h-12 items-start gap-3 rounded-2xl px-4 py-3 text-left ring-2 transition disabled:cursor-default ${pick(isOn(i))}`}
+              data-state={choiceState(isOn(i), verdict)}
+              className="tq-choice flex min-h-14 items-center gap-3 px-4 py-3 text-left"
             >
-              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-dq-100 font-display text-dq-700">{LETTERS[i]}</span>
-              <span className="pt-0.5">{c}</span>
+              <span className="tq-choice-letter">{LETTERS[i]}</span>
+              <span className="flex-1 leading-snug">{c}</span>
+              {isOn(i) && verdict === 'right' && <span aria-hidden>✓</span>}
+              {isOn(i) && verdict === 'wrong' && <span aria-hidden>✗</span>}
             </button>
           ))}
         </div>
@@ -114,7 +116,8 @@ function Inputs({ q, d, set, disabled }: { q: Question; d: Draft; set: (d: Draft
                     aria-checked={pairs[it.id] === c.id}
                     disabled={disabled}
                     onClick={() => set({ pairs: { ...pairs, [it.id]: c.id } })}
-                    className={`min-h-11 rounded-xl px-4 ring-2 transition ${pick(pairs[it.id] === c.id)}`}
+                    data-state={pairs[it.id] === c.id ? 'picked' : 'idle'}
+                    className="tq-choice min-h-11 px-4"
                   >
                     {c.text}
                   </button>
@@ -135,6 +138,7 @@ interface Props {
 }
 
 // คำถาม 1 ข้อ: ตอบ -> ส่งให้เซิร์ฟเวอร์ตรวจ -> ได้แค่ ถูก/ผิด + คำใบ้ (ตอบใหม่ได้เรื่อย ๆ)
+// ปรนัยตัวเลือกเดียว: แตะตัวเลือก = ตรวจทันที · แบบอื่นกดปุ่มตรวจคำตอบ
 export function QuestionCard({ question, solved, onChecked }: Props) {
   const [draft, setDraft] = useState<Draft>(() => initialDraft(question))
   const [result, setResult] = useState<CheckResult | null>(null)
@@ -142,11 +146,11 @@ export function QuestionCard({ question, solved, onChecked }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   const done = solved || result?.correct === true
-  const onCheck = async () => {
+  const onCheck = async (d: Draft = draft) => {
     setBusy(true)
     setError(null)
     try {
-      const r = await checkAnswer(question.id, draft as Json)
+      const r = await checkAnswer(question.id, d as Json)
       setResult(r)
       onChecked(question.id, r)
     } catch (e) {
@@ -157,8 +161,8 @@ export function QuestionCard({ question, solved, onChecked }: Props) {
   }
 
   return (
-    <div className="space-y-3 rounded-3xl bg-white p-4 ring-1 ring-dq-100 dark:bg-dq-900 dark:ring-dq-800">
-      <div className="font-display text-dq-900 dark:text-white">
+    <div className="space-y-4 rounded-3xl bg-gradient-to-b from-white to-dq-50/70 p-4 shadow-[0_2px_4px_rgb(20_45_100/0.06),0_18px_36px_-20px_rgb(20_45_100/0.4)] ring-1 ring-dq-100 sm:p-5 dark:from-dq-900 dark:to-dq-950 dark:ring-dq-800">
+      <div className="font-display text-lg text-dq-900 dark:text-white">
         <DbqMarkdown text={question.prompt} />
       </div>
       <Inputs
@@ -167,23 +171,33 @@ export function QuestionCard({ question, solved, onChecked }: Props) {
         set={(d) => {
           setDraft(d)
           if (result && !result.correct) setResult(null)
+          if (question.type === 'mcq' && !done && !busy) void onCheck(d)
         }}
         disabled={done || busy}
+        verdict={done ? 'right' : result ? 'wrong' : null}
       />
       <div aria-live="polite">
         {done ? (
-          <p className="rounded-2xl bg-emerald-50 px-4 py-3 font-display text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
-            ✓ ถูกต้อง{result && result.xp > 0 && ` · +${result.xp} XP`}
+          <p className="tq-verdict flex items-center gap-3 rounded-2xl bg-gradient-to-br from-emerald-50 to-mint-400/25 px-4 py-3 font-display text-emerald-800 shadow-sm ring-2 ring-mint-500 dark:from-emerald-950/60 dark:to-emerald-900/40 dark:text-emerald-200">
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-b from-mint-400 to-mint-500 text-white shadow-md" aria-hidden>
+              ✓
+            </span>
+            ถูกต้อง! 🎉{result && result.xp > 0 && ` · +${result.xp} XP`}
           </p>
         ) : result ? (
-          <div className="rounded-2xl bg-amber-50 px-4 py-3 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100">
-            <p className="font-display">ยังไม่ถูก ลองใหม่อีกครั้งนะ</p>
-            {result.hint && <p className="mt-1 flex gap-1.5"><Lightbulb className="inline size-5 shrink-0 align-[-0.2em]" aria-hidden /> {result.hint}</p>}
+          <div className="tq-verdict flex gap-3 rounded-2xl bg-gradient-to-br from-rose-50 to-rose-100 px-4 py-3 text-rose-900 shadow-sm ring-2 ring-coral-400 dark:from-rose-950/60 dark:to-rose-900/40 dark:text-rose-100">
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-b from-coral-400 to-rose-600 text-white shadow-md" aria-hidden>
+              ✗
+            </span>
+            <div className="min-w-0">
+              <p className="font-display">ยังไม่ถูก</p>
+              {result.hint && <p className="mt-1 flex gap-1.5"><Lightbulb className="inline size-5 shrink-0 align-[-0.2em]" aria-hidden /> {result.hint}</p>}
+            </div>
           </div>
         ) : null}
         {error && <p className="text-rose-600 dark:text-rose-300">{error}</p>}
       </div>
-      {!done && (
+      {!done && question.type !== 'mcq' && (
         <button
           type="button"
           onClick={() => void onCheck()}

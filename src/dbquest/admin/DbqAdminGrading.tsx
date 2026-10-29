@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FeedbackChips, ScoreQuickPicks } from '@/components/QuickGrade'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import { course } from '@/content/course'
 import { useAsync } from '@/lib/useAsync'
@@ -38,6 +39,11 @@ export function DbqAdminGrading() {
       </PageHeader>
       {res.status === 'loading' && <LoadingBlock />}
       {res.status === 'error' && <ErrorBlock message={res.error} onRetry={res.reload} />}
+      {res.status === 'success' && status === 'pending' && res.data.length > 0 && (
+        <p className="text-sm text-slate-600">
+          รอตรวจ <span className="font-display text-dq-700">{res.data.length}</span> ชิ้น · กดคะแนนลัดหรือพิมพ์คะแนนแล้วกด Enter ชิ้นที่ตรวจแล้วจะหายจากรายการ
+        </p>
+      )}
       {res.status === 'success' &&
         (res.data.length === 0 ? (
           <p className={`${panel} text-slate-500`}>{status === 'pending' ? 'ไม่มีงานรอตรวจ' : 'ไม่มีงานตามเงื่อนไขนี้'}</p>
@@ -59,7 +65,8 @@ function GradeCard({ sub, onSaved }: { sub: Submission; onSaved: () => void }) {
   const [feedback, setFeedback] = useState(sub.feedback ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showKey, setShowKey] = useState(false)
+  // เกณฑ์และคำตอบตัวอย่างเปิดไว้เลย ไม่ต้องกดหา
+  const [showKey, setShowKey] = useState(true)
   const max = sub.assignment.max_score
 
   const save = async (value: number | null) => {
@@ -74,8 +81,8 @@ function GradeCard({ sub, onSaved }: { sub: Submission; onSaved: () => void }) {
       setBusy(false)
     }
   }
-  const onSave = () => {
-    const parsed = parseScoreInput(score, max)
+  const onSave = (text: string = score) => {
+    const parsed = parseScoreInput(text, max)
     if (!parsed.ok || parsed.value == null) {
       setError(`กรอกคะแนน 0–${max}`)
       return
@@ -120,18 +127,38 @@ function GradeCard({ sub, onSaved }: { sub: Submission; onSaved: () => void }) {
         </div>
       )}
 
+      <div className="space-y-2">
+        <ScoreQuickPicks max={max} value={score} disabled={busy} onPick={(v) => setScore(String(v))} />
+        <FeedbackChips value={feedback} disabled={busy} onChange={setFeedback} />
+      </div>
       <div className="flex flex-wrap items-end gap-2">
         <label className="text-sm">
           <span className="block text-slate-500">คะแนน (เต็ม {max})</span>
-          <input className={`${input} w-24`} inputMode="decimal" value={score} onChange={(e) => setScore(e.target.value)} />
+          <input
+            className={`${input} w-24`}
+            inputMode="decimal"
+            value={score}
+            onChange={(e) => setScore(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                onSave()
+              }
+            }}
+          />
         </label>
         <label className="min-w-48 flex-1 text-sm">
           <span className="block text-slate-500">คอมเมนต์ถึงนักเรียน</span>
           <input className={`${input} w-full`} maxLength={2000} value={feedback} onChange={(e) => setFeedback(e.target.value)} />
         </label>
-        <button type="button" className={btn.primary} disabled={busy} onClick={onSave}>
+        <button type="button" className={btn.primary} disabled={busy} onClick={() => onSave()}>
           {busy ? 'กำลังบันทึก…' : sub.graded_at ? 'แก้คะแนน' : 'บันทึกคะแนน'}
         </button>
+        {!sub.graded_at && (
+          <button type="button" className={btn.secondary} disabled={busy} onClick={() => onSave(String(max))}>
+            ✓ ให้เต็ม {max}
+          </button>
+        )}
         {sub.graded_at && (
           <button type="button" className={btn.danger} disabled={busy} onClick={() => void save(null)} title="นักเรียนจะแก้แล้วส่งใหม่ได้">
             ยกเลิกการตรวจ

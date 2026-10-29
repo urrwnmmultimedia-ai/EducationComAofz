@@ -43,36 +43,34 @@ export function QuizCard({
         </span>
         {left != null && !locked && <span className={`font-display tabular-nums ${left <= 5 ? 'text-rose-600' : ''}`}>⏱ {left}</span>}
       </div>
-      <p className="font-display text-xl text-slate-800">{item.q}</p>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <p className="font-display text-xl text-ink">{item.q}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
         {item.choices.map((c, i) => {
-          const state = !locked ? 'idle' : i === item.answer ? 'right' : i === chosen ? 'wrong' : 'dim'
+          const state = !locked ? 'idle' : i === item.answer ? 'correct' : i === chosen ? 'wrong' : 'dim'
           return (
             <button
               key={c}
               type="button"
               disabled={locked}
               onClick={() => pick(i)}
-              className={`flex items-start gap-3 rounded-2xl px-4 py-3 text-left ring-2 transition ${
-                state === 'right'
-                  ? 'bg-mint-500 text-white ring-mint-500'
-                  : state === 'wrong'
-                    ? 'bg-coral-400 text-white ring-coral-400'
-                    : state === 'dim'
-                      ? 'bg-white opacity-60 ring-brand-100'
-                      : 'bg-white ring-brand-100 hover:-translate-y-0.5 hover:ring-brand-400'
-              }`}
+              data-state={state}
+              className="tq-choice flex min-h-14 items-center gap-3 px-4 py-3 text-left"
             >
-              <span className="font-display">{LETTERS[i]}</span>
-              <span>{c}</span>
+              <span className="tq-choice-letter">{LETTERS[i]}</span>
+              <span className="flex-1">{c}</span>
             </button>
           )
         })}
       </div>
       {locked && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-brand-50 p-3">
+        <div
+          className={`tq-verdict flex flex-wrap items-center justify-between gap-3 rounded-2xl p-3 shadow-sm ring-2 ${
+            chosen === item.answer ? 'bg-gradient-to-br from-emerald-50 to-mint-400/20 ring-mint-500' : 'bg-gradient-to-br from-rose-50 to-rose-100 ring-coral-400'
+          }`}
+        >
           <p className="text-sm text-slate-700">
-            {chosen === item.answer ? '✅ ถูกต้อง!' : chosen == null ? '⏰ หมดเวลา' : '❌ ยังไม่ถูก'} {item.explain && <span className="text-slate-500">— {item.explain}</span>}
+            <span className="font-display text-base">{chosen === item.answer ? '✅ ถูกต้อง!' : chosen == null ? '⏰ หมดเวลา' : '❌ ยังไม่ถูก'}</span>{' '}
+            {item.explain && <span className="text-slate-600">— {item.explain}</span>}
           </p>
           <Button onClick={() => onAnswered(chosen)}>{index + 1 < total ? 'ข้อต่อไป →' : 'ไปต่อ →'}</Button>
         </div>

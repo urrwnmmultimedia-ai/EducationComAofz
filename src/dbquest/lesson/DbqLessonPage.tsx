@@ -28,6 +28,7 @@ import { DbqMarkdown } from './DbqMarkdown'
 import { completeStep, DbqError, fetchSessionState, submitWorksheet, type CheckResult, type SessionState } from './dbqLessonApi'
 import { GameView } from '../games/DbqGamePage'
 import { QuestionCard } from './QuestionCard'
+import { QuizRunner } from './QuizRunner'
 
 const STEP_TITLE = Object.fromEntries(course.steps.map((s) => [s.id, s.title])) as Record<StepKey, string>
 const STEP_ICON: Record<StepKey, LucideIcon> = {
@@ -120,11 +121,15 @@ function LessonFlow({ no, content, initial, after }: { no: number; content: Sess
   const [done, setDone] = useState(() => new Set(Object.keys(initial.done) as StepKey[]))
   const [solved, setSolved] = useState(() => new Set(initial.solved))
   const [attempted, setAttempted] = useState(() => new Set(initial.attempted))
-  const [current, setCurrent] = useState<StepKey>(() => {
+  // ต้องผ่านทีละขั้น: ไปได้ถึงขั้นแรกที่ยังไม่ผ่านเท่านั้น (โหมดครูไปได้ทุกขั้น)
+  const firstOpen = steps.findIndex((s) => !done.has(s))
+  const reachable = (s: StepKey) => initial.preview || firstOpen < 0 || steps.indexOf(s) <= firstOpen
+  const [picked, setCurrent] = useState<StepKey>(() => {
     const i = after ? steps.indexOf(after) : -1
     if (i >= 0) return steps[Math.min(i + 1, steps.length - 1)] ?? 'wrapup'
     return steps.find((s) => !(s in initial.done)) ?? steps[0] ?? 'wrapup'
   })
+  const current = reachable(picked) ? picked : (steps[firstOpen] ?? picked)
   const [toast, setToast] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -189,7 +194,8 @@ function LessonFlow({ no, content, initial, after }: { no: number; content: Sess
         steps={steps.map((s) => ({ key: s, label: STEP_TITLE[s], icon: STEP_ICON[s] }))}
         current={current}
         done={done}
-        onSelect={(k) => setCurrent(k as StepKey)}
+        locked={new Set(steps.filter((s) => !reachable(s)))}
+        onSelect={(k) => reachable(k as StepKey) && setCurrent(k as StepKey)}
       />
 
       {current === 'warmup' && <WarmupStep {...stepProps} guess={guess} onGuess={setGuess} />}
@@ -410,10 +416,8 @@ function PracticeStep({ content, busy, done, finish, onChecked, solved, attempte
   const allTried = content.practice.every((q) => attempted.has(q.id))
   return (
     <section className="space-y-4">
-      <StepHeader step="practice">ทำให้ครบทุกข้อ ตอบผิดแก้ใหม่ได้</StepHeader>
-      {content.practice.map((q) => (
-        <QuestionCard key={q.id} question={q} solved={solved.has(q.id)} onChecked={onChecked} />
-      ))}
+      <StepHeader step="practice">ทำทีละข้อ ตอบแล้วรู้ผลทันที ข้อที่ผิดกดเลขข้อกลับมาแก้ได้</StepHeader>
+      <QuizRunner questions={content.practice} solved={solved} attempted={attempted} onChecked={onChecked} />
       {done ? (
         <DoneNote />
       ) : (
@@ -568,14 +572,7 @@ function WrapupStep({ content, busy, done, finish, onChecked, solved, attempted 
           <BlockView key={i} block={b} />
         ))}
       </div>
-      {closing.questions.map((q, i) => (
-        <div key={q.id}>
-          <p className="mb-1.5 text-sm font-semibold text-ink-2 dark:text-dq-300">
-            ข้อ {i + 1} จาก {total}
-          </p>
-          <QuestionCard question={q} solved={solved.has(q.id)} onChecked={onChecked} />
-        </div>
-      ))}
+      <QuizRunner questions={closing.questions} solved={solved} attempted={attempted} onChecked={onChecked} />
       <div className={`${panel} flex flex-wrap items-center gap-3`}>
         <p className="min-w-0 flex-1">
           ตอบแล้ว{' '}

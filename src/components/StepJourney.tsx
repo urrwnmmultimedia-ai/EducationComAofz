@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Check } from 'lucide-react'
+import { Check, Lock } from 'lucide-react'
 
 // เส้นทาง 6 ขั้นในคาบ (ใช้แบบเดียวกันทั้ง ม.3 และ DB Quest)
 // รางเว้าเชื่อมทุกขั้น ส่วนที่ผ่านแล้วเติมน้ำเงิน→ทอง · ผ่านแล้ว = เหรียญน้ำเงินนูนขอบทอง · ขั้นปัจจุบัน = เหรียญขาวยกสูง
@@ -16,9 +16,10 @@ interface Props {
   done: ReadonlySet<string>
   onSelect: (key: string) => void
   label?: string
+  locked?: ReadonlySet<string> // ขั้นที่ยังไปไม่ได้ (ต้องผ่านขั้นก่อนหน้าก่อน)
 }
 
-export function StepJourney({ steps, current, done, onSelect, label = 'ขั้นในคาบ' }: Props) {
+export function StepJourney({ steps, current, done, onSelect, label = 'ขั้นในคาบ', locked }: Props) {
   const n = steps.length
   const currentIdx = Math.max(
     0,
@@ -57,15 +58,17 @@ export function StepJourney({ steps, current, done, onSelect, label = 'ขั้
           {steps.map((s, i) => {
             const isDone = done.has(s.key)
             const isCurrent = s.key === current
-            const Icon = s.icon
+            const isLocked = !!locked?.has(s.key)
+            const Icon = isLocked ? Lock : s.icon
             return (
               <li key={s.key} className="relative flex flex-col items-center">
                 <button
                   type="button"
                   onClick={() => onSelect(s.key)}
+                  disabled={isLocked}
                   aria-current={isCurrent ? 'step' : undefined}
-                  aria-label={`ขั้นที่ ${i + 1} ${s.label}${isDone ? ' (ผ่านแล้ว)' : ''}`}
-                  className="group flex flex-col items-center gap-1.5 rounded-2xl px-1 pb-1 outline-offset-4"
+                  aria-label={`ขั้นที่ ${i + 1} ${s.label}${isDone ? ' (ผ่านแล้ว)' : isLocked ? ' (ยังล็อก ทำขั้นก่อนหน้าให้ผ่านก่อน)' : ''}`}
+                  className="group flex flex-col items-center gap-1.5 rounded-2xl px-1 pb-1 outline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span
                     className={`relative grid size-[3.25rem] place-items-center rounded-full transition duration-300 sm:size-[3.75rem] ${

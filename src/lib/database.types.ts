@@ -318,6 +318,8 @@ export type Database = {
       admin_import_students: { Args: { p_rows: Json }; Returns: Json }
       start_exam: { Args: { p_exam_id: string }; Returns: Json }
       save_exam_answer: { Args: { p_attempt_id: string; p_question_id: string; p_answer: Json }; Returns: string }
+      check_exam_answer: { Args: { p_attempt_id: string; p_question_id: string; p_answer: Json }; Returns: Json }
+      exam_checked_feedback: { Args: { p_attempt_id: string }; Returns: Json }
       record_tab_switch: { Args: { p_attempt_id: string }; Returns: number }
       submit_exam: { Args: { p_attempt_id: string }; Returns: Json }
       exam_result: { Args: { p_attempt_id: string }; Returns: Json }
@@ -360,6 +362,7 @@ export type Database = {
       dbq_my_scores: { Args: Record<string, never>; Returns: Json }
       dbq_leaderboard: { Args: Record<string, never>; Returns: Json }
       dbq_game_titles: { Args: Record<string, never>; Returns: Json }
+      admin_reset_session_scores: { Args: { p_student_id: string; p_session_no: number }; Returns: Json }
       dbq_admin_reset_session: { Args: { p_student_id: string; p_session: number }; Returns: Json }
       dbq_submit_game_result: { Args: { p_game_key: string; p_score: number; p_duration_sec: number }; Returns: Json }
     }

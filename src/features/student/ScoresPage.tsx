@@ -1,44 +1,33 @@
 import { Link } from 'react-router'
-import { useAuth } from '@/app/AuthContext'
 import { ErrorBlock, LoadingBlock, ProgressBar } from '@/components/StatusViews'
-import type { AssignmentRow } from '@/lib/database.types'
 import { formatGrade } from '@/lib/grade'
-import { CATEGORY_LABELS, computeStudentScore, effectiveScore, isLate, type Category } from '@/lib/scoring'
+import { CATEGORY_LABELS, effectiveScore, isLate, type Category } from '@/lib/scoring'
 import { useAsync } from '@/lib/useAsync'
-import { fetchMyGradebook } from '@/features/assignments/assignmentsApi'
-import { entriesFor, fetchSettings, policyFromSettings, sortAssignments, toScoredItems } from '@/features/assignments/gradebookData'
+import { EvolutionCardM3, type EvoInfo } from './EvolutionCardM3'
+import { fetchMyScore } from './myScore'
 
-export function ScoresPage() {
-  const { identity } = useAuth()
-  const studentId = identity.student?.id ?? ''
-  const state = useAsync(async () => {
-    const [book, settings] = await Promise.all([fetchMyGradebook(studentId), fetchSettings()])
-    return { ...book, policy: policyFromSettings(settings) }
-  }, [studentId])
+// สมุดคะแนนของนักเรียน (แท็บ "คะแนน" ในหน้า ฉัน)
+export function ScoresPanel({ studentId, info }: { studentId: string; info?: EvoInfo }) {
+  const state = useAsync(() => fetchMyScore(studentId), [studentId])
 
   if (state.status === 'loading') return <LoadingBlock />
   if (state.status === 'error') return <ErrorBlock message={state.error} onRetry={state.reload} />
 
-  const { submissions, totalXp, policy } = state.data
-  // RPC คืนเฉพาะคอลัมน์ที่จำเป็น เติมค่าที่เหลือให้ครบชนิด
-  const assignments = sortAssignments(
-    state.data.assignments.map((a) => ({ ...a, unit_id: null, instructions_md: '', rubric: [], config: {}, created_at: '' }) as AssignmentRow),
-  )
-  const entries = entriesFor(studentId, submissions)
-  const score = computeStudentScore(toScoredItems(assignments), entries, policy, totalXp)
+  const { submissions, policy, assignments, entries, score } = state.data
   const subByAssignment = new Map(submissions.map((s) => [s.assignment_id, s]))
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-2xl text-ink">สมุดคะแนนของฉัน</h1>
-
+      <EvolutionCardM3 score={score.total} info={info} />
       <section className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white to-brand-50 p-5 shadow-raise ring-1 ring-brand-100">
+          <span className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-action to-gold-400" aria-hidden />
           <p className="text-sm text-slate-500">คะแนนรวมตอนนี้ (จาก 100)</p>
-          <p className="font-display text-4xl text-brand-700">{score.total}</p>
-          <p className="text-slate-600">เกรดถ้าจบเทอมตอนนี้: {formatGrade(score.grade)}</p>
+          <p className="font-display text-5xl text-brand-700">{score.total}</p>
+          <ProgressBar value={score.total} className="mt-2" />
+          <p className="mt-2 text-slate-600">เกรดถ้าจบเทอมตอนนี้: {formatGrade(score.grade)}</p>
         </div>
-        <div className="rounded-3xl bg-gradient-to-br from-mint-400/20 to-sky2-400/20 p-5 ring-1 ring-mint-400/50">
+        <div className="rounded-3xl bg-gradient-to-br from-mint-400/20 to-sky2-400/20 p-5 shadow-raise ring-1 ring-mint-400/50">
           <p className="text-sm text-slate-600">เกรดคาดการณ์ (ถ้าทำได้แบบนี้ต่อไป)</p>
           <p className="font-display text-4xl text-emerald-800">{score.predictedGrade == null ? '–' : formatGrade(score.predictedGrade)}</p>
           <p className="text-slate-600">
@@ -47,7 +36,7 @@ export function ScoresPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100">
+      <section className="rounded-3xl bg-white p-5 shadow-card ring-1 ring-brand-100">
         <h2 className="mb-3 text-lg text-brand-900">แยกตามประเภท</h2>
         <ul className="flex flex-col gap-3">
           {score.categories.map((c) => (
@@ -68,7 +57,7 @@ export function ScoresPage() {
         const list = assignments.filter((a) => a.category === cat)
         if (list.length === 0) return null
         return (
-          <section key={cat} className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100">
+          <section key={cat} className="rounded-3xl bg-white p-5 shadow-card ring-1 ring-brand-100">
             <h2 className="mb-2 text-lg text-brand-900">{CATEGORY_LABELS[cat]}</h2>
             <ul className="divide-y divide-brand-50">
               {list.map((a) => {

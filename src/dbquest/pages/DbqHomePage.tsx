@@ -7,6 +7,7 @@ import { course } from '@/content/course'
 import { useAsync } from '@/lib/useAsync'
 import { fetchMap, type MapItem } from '../lesson/dbqLessonApi'
 import { StepPreview } from '@/components/StepJourney'
+import { EvolutionSlot } from '@/components/evolution/ScoreEvolutionCard'
 import { EvolutionCard } from '../EvolutionCard'
 import { unitIcon } from '../unitIcons'
 import { fetchMe, fetchMyScores } from './dbqStudentApi'
@@ -14,6 +15,12 @@ import { fetchMe, fetchMyScores } from './dbqStudentApi'
 // คาบที่ควรเรียนต่อ: คาบเนื้อหาที่เปิดแล้วแต่ยังไม่ครบ ตัวแรก (ถ้าครบหมด = คาบเปิดล่าสุด)
 export function nextSession(map: MapItem[]): MapItem | undefined {
   return map.find((m) => m.open && m.kind === 'lesson' && (m.pct ?? 0) < 100) ?? [...map].reverse().find((m) => m.open)
+}
+
+// ความคืบหน้าทั้งวิชา (0–100): เฉลี่ยทุกคาบเนื้อหา รวมคาบที่ยังไม่เปิด (นับเป็น 0)
+function courseProgress(map: MapItem[]): number {
+  const lessons = map.filter((m) => m.kind === 'lesson')
+  return lessons.length ? Math.round(lessons.reduce((s, m) => s + (m.pct ?? 0), 0) / lessons.length) : 0
 }
 
 // 6 ขั้นในทุกคาบ (แสดงในการ์ดเรียนต่อ)
@@ -50,7 +57,6 @@ export function DbqHomePage() {
 
 function Home({ map, xp, badges, scores }: { map: MapItem[]; xp: number; badges: number; scores: Awaited<ReturnType<typeof fetchMyScores>> }) {
   const next = nextSession(map)
-  const sessionsDone = map.filter((m) => m.kind === 'lesson' && m.pct === 100).length
   const pending = scores.preview ? [] : scores.assignments.filter((a) => a.open && a.status === 'missing')
   const byNo = new Map(map.map((m) => [m.session_no, m]))
   const nextUnit = next ? course.units.find((u) => u.no === next.unit_no) : undefined
@@ -58,9 +64,10 @@ function Home({ map, xp, badges, scores }: { map: MapItem[]; xp: number; badges:
 
   return (
     <>
-      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      {/* minmax(0, …): คอลัมน์ไม่ถูกข้อความบรรทัดเดียวในการ์ดวิวัฒนาการดันจนล้นขวา */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         {next ? (
-          <div className="tq-stack mb-4 mt-3 flex flex-col sm:mt-6 lg:mb-6 lg:mt-10">
+          <div className="tq-stack mb-4 mt-3 flex min-w-0 flex-col sm:mt-6 lg:mb-6 lg:mt-10">
             <section className={`${card} tq-arrive relative flex flex-1 flex-col p-5 pr-24 sm:p-8 sm:pr-44`}>
               <NongData
                 mood="cheer"
@@ -108,21 +115,21 @@ function Home({ map, xp, badges, scores }: { map: MapItem[]; xp: number; badges:
           </section>
         )}
 
-        <EvolutionCard
-          xp={xp}
-          sessionsDone={sessionsDone}
-          className="self-start lg:mt-10"
-          footer={
-            <div className="flex items-center justify-between border-t border-line pt-3 text-sm dark:border-dq-800">
-              <span className="text-ink-2 dark:text-dq-300">
-                เหรียญที่ได้ <span className="font-semibold text-ink dark:text-white">{badges}</span>
-              </span>
-              <Link to="/db/me" className="font-semibold text-action-strong hover:underline dark:text-brand-300">
-                ดูเหรียญ
-              </Link>
-            </div>
-          }
-        />
+        <EvolutionSlot fit={!!next}>
+          <EvolutionCard
+            score={scores.preview ? 0 : scores.scores.total}
+            compact
+            info={{
+              xp,
+              badges: String(badges),
+              pending: pending.length,
+              progressPct: courseProgress(map),
+              nextDue: pending[0]
+                ? { title: pending[0].title, to: '/db/assignments', when: pending[0].session_no ? `คาบ ${pending[0].session_no}` : 'ส่งได้เลย' }
+                : null,
+            }}
+          />
+        </EvolutionSlot>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

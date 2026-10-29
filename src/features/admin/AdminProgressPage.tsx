@@ -17,8 +17,6 @@ const dateFmt = new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyl
 const formatDateTime = (iso: string | null | undefined) => (iso ? dateFmt.format(new Date(iso)) : '-')
 const displayName = (s: Parameters<typeof fullName>[0] & { nickname: string }) => (s.nickname ? `${fullName(s)} (${s.nickname})` : fullName(s))
 
-const ATTENDANCE_LABEL = { present: 'มาเรียน', late: 'สาย', absent: 'ขาด', leave: 'ลา' } as const
-
 // ความคืบหน้านักเรียน ม.3 (แบบเดียวกับหน้าครู DB Quest) — แก้รายชื่อ/นำเข้าอยู่ที่ /admin/students
 export function AdminProgressPage() {
   const [params, setParams] = useSearchParams()
@@ -138,9 +136,6 @@ export function AdminStudentProgressPage() {
   if (res.status === 'error') return <ErrorBlock message={res.error} onRetry={res.reload} />
   const d = res.data
   const done = d.sessions.filter((s) => s.done >= s.total).length
-  const attendance = Object.entries(ATTENDANCE_LABEL)
-    .map(([k, label]) => [label, d.attendance.filter((a) => a.status === k).length] as const)
-    .filter(([, n]) => n > 0)
 
   return (
     <div className="flex flex-col gap-5">
@@ -195,18 +190,6 @@ export function AdminStudentProgressPage() {
               {d.badges.map((b) => (
                 <span key={b.id} className="rounded-full bg-sun-300/40 px-3 py-1 text-sm">
                   {b.icon} {b.name}
-                </span>
-              ))}
-            </p>
-          )}
-          <h2 className="mb-2 mt-4 text-lg text-brand-900">การเข้าเรียน</h2>
-          {attendance.length === 0 ? (
-            <p className="text-slate-500">ยังไม่มีการเช็คชื่อ</p>
-          ) : (
-            <p className="flex flex-wrap gap-2 text-sm">
-              {attendance.map(([label, n]) => (
-                <span key={label} className="rounded-full bg-brand-50 px-3 py-1">
-                  {label} {n} คาบ
                 </span>
               ))}
             </p>
@@ -276,7 +259,7 @@ function SessionRow({ s, studentId, studentName, onReset }: { s: SessionProgress
       {confirming && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="min-w-0 flex-1 text-amber-950">
-            รีเซ็ตคาบ {s.session_no} ของ {studentName}? ขั้นที่ทำเสร็จของคาบนี้จะหาย นักเรียนต้องทำใหม่ ส่วน XP งานที่ส่ง คะแนน และการเช็คชื่อยังอยู่
+            รีเซ็ตคาบ {s.session_no} ของ {studentName}? ขั้นที่ทำเสร็จ งานที่ส่ง คะแนนที่ตรวจแล้ว ผลสอบ/Exit ticket ผลเกม และ XP ของคาบนี้จะหายทั้งหมด นักเรียนต้องทำคาบนี้ใหม่ (เหรียญยังอยู่)
           </p>
           <Button variant="secondary" className="min-h-10" disabled={busy} onClick={() => setConfirming(false)}>
             ยกเลิก

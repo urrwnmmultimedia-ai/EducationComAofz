@@ -50,6 +50,16 @@ const reviewItemSchema = z.object({
 })
 export type ReviewItem = z.infer<typeof reviewItemSchema>
 
+// ผลตรวจทันทีของข้อเดียว (ชุดที่ครูเปิดให้ดูเฉลย) — points 0..1
+export const feedbackSchema = z.object({
+  question_id: z.string(),
+  points: z.coerce.number().nullable(),
+  correct: z.unknown().nullable(),
+  explanation: z.string(),
+  answer: z.unknown().nullable(),
+})
+export type Feedback = z.infer<typeof feedbackSchema>
+
 export const examResultSchema = z.object({
   attempt_id: z.string(),
   attempt_no: z.number(),
@@ -162,6 +172,7 @@ export const EXAM_ERROR_TEXT: Record<string, string> = {
   exam_closed: 'หมดเวลาทำข้อสอบชุดนี้แล้ว',
   time_up: 'หมดเวลาแล้ว ระบบกำลังส่งคำตอบให้',
   already_submitted: 'ส่งข้อสอบไปแล้ว',
+  answer_locked: 'ข้อนี้ตรวจแล้ว แก้คำตอบไม่ได้',
 }
 
 export function examErrorText(message: string | undefined): string {

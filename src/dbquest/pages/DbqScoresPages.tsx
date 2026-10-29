@@ -107,13 +107,25 @@ export function DbqMePage() {
   if (res.status === 'loading') return <LoadingBlock />
   if (res.status === 'error') return <ErrorBlock message={res.error} onRetry={res.reload} />
   const [me, scores, board, titles, map] = res.data
-  const sessionsDone = map.filter((m) => m.kind === 'lesson' && m.pct === 100).length
   if (scores.preview) return <Preview />
+  const lessons = map.filter((m) => m.kind === 'lesson')
+  const pending = scores.assignments.filter((a) => a.open && a.status === 'missing')
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl text-dq-900 dark:text-white">ฉัน</h1>
-      <EvolutionCard xp={me.xp} sessionsDone={sessionsDone} />
+      <EvolutionCard
+        score={scores.scores.total}
+        info={{
+          xp: me.xp,
+          badges: String(me.badges.length),
+          pending: pending.length,
+          progressPct: lessons.length ? Math.round(lessons.reduce((s, m) => s + (m.pct ?? 0), 0) / lessons.length) : 0,
+          nextDue: pending[0]
+            ? { title: pending[0].title, to: '/db/assignments', when: pending[0].session_no ? `คาบ ${pending[0].session_no}` : 'ส่งได้เลย' }
+            : null,
+        }}
+      />
       <section className={`${card} flex flex-wrap items-center gap-4`}>
         <p className="font-display text-4xl text-xp-600 dark:text-xp-400">{me.xp} XP</p>
         <div className="flex flex-wrap gap-2">

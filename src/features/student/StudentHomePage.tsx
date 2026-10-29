@@ -1,6 +1,5 @@
 import { Link } from 'react-router'
-import { ArrowRight, Award, BookOpen, ChevronRight, CircleCheck, ClipboardList, Flame, Gamepad2, PencilLine, Star, Ticket } from 'lucide-react'
-import { useAuth } from '@/app/AuthContext'
+import { ArrowRight, BookOpen, ChevronRight, CircleCheck, ClipboardList, Flame, Gamepad2, PencilLine, Star, Ticket } from 'lucide-react'
 import { Doctor } from '@/components/characters/Characters'
 import { EmptyBlock, ErrorBlock, LoadingBlock, ProgressBar } from '@/components/StatusViews'
 import { StepPreview } from '@/components/StepJourney'
@@ -8,8 +7,12 @@ import { levelFromXp } from '@/lib/levels'
 import { useAsync } from '@/lib/useAsync'
 import type { SessionListItem, UnitRow } from '@/lib/database.types'
 import { fetchSessionList, fetchUnits } from '@/features/lessons/lessonsApi'
-import { progressPercent } from '@/features/lessons/sessionSteps'
+import { courseProgressPercent, progressPercent } from '@/features/lessons/sessionSteps'
+import { EvolutionSlot } from '@/components/evolution/ScoreEvolutionCard'
+import { EvolutionCardM3 } from './EvolutionCardM3'
+import { fetchMyScore } from './myScore'
 import { dueCountdown, fetchStudentStats } from './studentApi'
+import { useViewer } from './viewer'
 
 // คาบปัจจุบัน = คาบที่ครูปลดล็อกล่าสุด
 function currentSession(list: SessionListItem[]): SessionListItem | null {
@@ -20,12 +23,11 @@ function currentSession(list: SessionListItem[]): SessionListItem | null {
 }
 
 export function StudentHomePage() {
-  const { identity } = useAuth()
-  const student = identity.student
+  const { student } = useViewer()
   const studentId = student?.id ?? ''
   const state = useAsync(async () => {
-    const [units, sessions, stats] = await Promise.all([fetchUnits(), fetchSessionList(), fetchStudentStats(studentId)])
-    return { units, sessions, stats }
+    const [units, sessions, stats, mine] = await Promise.all([fetchUnits(), fetchSessionList(), fetchStudentStats(studentId), fetchMyScore(studentId)])
+    return { units, sessions, stats, score: mine.score.total }
   }, [studentId])
 
   if (!student) return null
@@ -63,10 +65,12 @@ function Dashboard({
   units,
   sessions,
   stats,
+  score,
 }: {
   units: UnitRow[]
   sessions: SessionListItem[]
   stats: Awaited<ReturnType<typeof fetchStudentStats>>
+  score: number // คะแนนรวม 0–100 จากสมุดคะแนน (ใช้กับวิวัฒนาการ)
 }) {
   const current = currentSession(sessions)
   const level = levelFromXp(stats.totalXp)
@@ -75,10 +79,11 @@ function Dashboard({
 
   return (
     <>
-      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      {/* minmax(0, …): คอลัมน์ไม่ถูกข้อความบรรทัดเดียวในการ์ดวิวัฒนาการดันจนล้นขวา */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         {/* การ์ดหลัก: สิ่งเดียวที่ควรทำต่อ — แผ่นซ้อนด้านหลัง + ตัวละครยื่นออกนอกขอบ */}
-        <div className="tq-stack mb-4 mt-3 flex flex-col sm:mt-6 lg:mb-6 lg:mt-10">
-          <section className="tq-card tq-arrive relative flex flex-1 flex-col p-5 pr-24 sm:p-8 sm:pr-44">
+        <div className="tq-stack mb-4 mt-3 flex min-w-0 flex-col sm:mt-6 lg:mb-6 lg:mt-10">
+          <section className="tq-card tq-arrive relative flex flex-1 flex-col p-5 pr-24 sm:p-8 sm:pr-40">
             <Doctor className="pointer-events-none absolute -right-2 -top-5 size-24 drop-shadow-xl sm:-right-4 sm:-top-9 sm:size-32 lg:-right-6 lg:-top-14 lg:size-44" />
             {current ? (
               <>
@@ -96,7 +101,7 @@ function Dashboard({
                   )}
                   <StepPreview steps={M3_STEPS} />
                 </div>
-                <div className="mt-auto pt-6">
+                <div className="mt-auto flex flex-wrap gap-3 pt-6">
                   <Link
                     to={`/sessions/${current.session_no}`}
                     className="tq-press inline-flex min-h-12 items-center gap-2 rounded-2xl bg-action px-6 text-base font-semibold text-white shadow-action hover:-translate-y-px hover:bg-brand-600"
@@ -104,67 +109,45 @@ function Dashboard({
                     เข้าห้องเรียน
                     <ArrowRight className="size-5" aria-hidden />
                   </Link>
+                  <LessonsButton />
                 </div>
               </>
             ) : (
               <>
                 <h2 className="text-2xl text-ink">ยังไม่มีคาบที่เปิด</h2>
-                <p className="mt-2 text-ink-2">รอครูปลดล็อกในชั่วโมงเรียน ระหว่างนี้ไปเล่นเกมทบทวนได้</p>
-                <Link
-                  to="/games"
-                  className="tq-press mt-5 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-white px-5 font-semibold text-ink ring-1 ring-line"
-                >
-                  <Gamepad2 className="size-5" aria-hidden /> ไปที่เกม
-                </Link>
+                <p className="mt-2 text-ink-2">รอครูปลดล็อกในชั่วโมงเรียน ระหว่างนี้ดูบทเรียนทั้งหมดได้</p>
+                <div className="mt-5">
+                  <LessonsButton />
+                </div>
               </>
             )}
           </section>
         </div>
 
-        {/* เลเวล */}
-        <section className="tq-card flex flex-col gap-4 self-start p-5 sm:p-6 lg:mt-10">
-          <div className="flex items-center gap-3">
-            <span className="grid size-12 place-items-center rounded-2xl bg-xp-300/50 text-xp-600">
-              <Award className="size-6" aria-hidden />
-            </span>
-            <div>
-              <p className="text-sm text-ink-2">เลเวลของฉัน</p>
-              <p className="text-xl font-semibold text-ink">
-                Lv.{level.level} {level.name}
-              </p>
-            </div>
-          </div>
-          <div>
-            <div
-              className="h-3 overflow-hidden rounded-full bg-surface"
-              role="progressbar"
-              aria-valuenow={Math.round(level.progress * 100)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="ความคืบหน้าเลเวล"
-            >
-              <div className="h-full rounded-full bg-xp-500" style={{ width: `${level.progress * 100}%` }} />
-            </div>
-            <p className="mt-2 text-sm text-ink-2">
-              <span className="font-semibold tabular-nums text-ink">{stats.totalXp}</span> XP · อีก {level.xpToNext} XP ขึ้นเลเวล
-            </p>
-          </div>
-          <div className="mt-auto flex items-center justify-between border-t border-line pt-4 text-sm">
-            <span className="text-ink-2">
-              เหรียญที่ได้ <span className="font-semibold text-ink">{stats.badgeCount}</span>
-            </span>
-            <Link to="/profile" className="font-semibold text-action-strong hover:underline">
-              ดูเหรียญ
-            </Link>
-          </div>
-        </section>
+        {/* วิวัฒนาการตามคะแนนรวม (ลิง → คน) + XP/เหรียญ */}
+        <EvolutionSlot fit={!!current}>
+          <EvolutionCardM3
+            score={score}
+            compact
+            info={{
+              level: `Lv.${level.level} ${level.name}`,
+              xp: stats.totalXp,
+              badges: String(stats.badgeCount),
+              pending: stats.pending.length,
+              progressPct: courseProgressPercent(sessions),
+              nextDue: stats.pending[0]
+                ? { title: stats.pending[0].title, to: `/assignments/${stats.pending[0].id}`, when: dueCountdown(stats.pending[0].due_at) }
+                : null,
+            }}
+          />
+        </EvolutionSlot>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="tq-card p-5 sm:p-6">
           <div className="mb-2 flex items-baseline justify-between">
             <h2 className="text-lg text-ink">งานค้าง</h2>
-            <Link to="/scores" className="text-sm font-semibold text-action-strong hover:underline">
+            <Link to="/profile?tab=scores" className="text-sm font-semibold text-action-strong hover:underline">
               สมุดคะแนน
             </Link>
           </div>
@@ -227,5 +210,18 @@ function Dashboard({
         </section>
       </div>
     </>
+  )
+}
+
+// ปุ่มรอง "บทเรียน" (ข้างปุ่มเข้าห้องเรียน): ปุ่มขาวนูน → หน้ารายการคาบทั้งหมด
+function LessonsButton() {
+  return (
+    <Link
+      to="/lessons"
+      className="tq-press inline-flex min-h-12 items-center gap-2 rounded-2xl bg-gradient-to-b from-white to-surface px-5 text-base font-semibold text-action-strong shadow-[inset_0_1px_0_#fff,0_4px_0_#c9d8f2,0_12px_20px_-12px_rgb(20_45_100/0.5)] ring-1 ring-line hover:-translate-y-px"
+    >
+      <BookOpen className="size-5" aria-hidden />
+      บทเรียน
+    </Link>
   )
 }

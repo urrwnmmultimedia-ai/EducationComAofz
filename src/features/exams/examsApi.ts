@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { ExamAttemptRow, ExamRow, Json } from '@/lib/database.types'
-import { examResultSchema, startResponseSchema, type Answer, type ExamResult, type StartResponse } from './examModel'
+import { z } from 'zod'
+import { examResultSchema, feedbackSchema, startResponseSchema, type Answer, type ExamResult, type Feedback, type StartResponse } from './examModel'
 
 export class ExamError extends Error {}
 
@@ -21,6 +22,23 @@ export async function saveAnswer(attemptId: string, questionId: string, answer: 
     p_answer: answer as unknown as Json,
   })
   if (error) fail(error)
+}
+
+// ตอบแล้วตรวจทันที: เซิร์ฟเวอร์บันทึกคำตอบ ล็อกข้อ แล้วบอกถูก/ผิดพร้อมเฉลย
+export async function checkExamAnswer(attemptId: string, questionId: string, answer: Answer): Promise<Feedback> {
+  const { data, error } = await supabase.rpc('check_exam_answer', {
+    p_attempt_id: attemptId,
+    p_question_id: questionId,
+    p_answer: answer as unknown as Json,
+  })
+  if (error) fail(error)
+  return feedbackSchema.parse(data)
+}
+
+export async function fetchCheckedFeedback(attemptId: string): Promise<Record<string, Feedback>> {
+  const { data, error } = await supabase.rpc('exam_checked_feedback', { p_attempt_id: attemptId })
+  if (error) fail(error)
+  return z.record(z.string(), feedbackSchema).parse(data)
 }
 
 export async function recordTabSwitch(attemptId: string): Promise<void> {

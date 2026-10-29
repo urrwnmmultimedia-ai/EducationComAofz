@@ -57,12 +57,6 @@ export async function fetchSessionDetail(no: number): Promise<SessionDetail | nu
   return { session, lessons: lessons.data, assignments: assignments.data, exams: exams.data, unit: unit.data }
 }
 
-export async function checkinSession(no: number): Promise<boolean> {
-  const { data, error } = await supabase.rpc('checkin_session', { p_session_no: no })
-  if (error) throw error
-  return data
-}
-
 export async function markStepDone(no: number, step: string): Promise<string[]> {
   const { data, error } = await supabase.rpc('mark_step_done', { p_session_no: no, p_step: step })
   if (error) throw error
@@ -72,4 +66,23 @@ export async function markStepDone(no: number, step: string): Promise<string[]> 
 export async function fetchMyCompletedSteps(no: number): Promise<string[]> {
   const list = await fetchSessionList()
   return list.find((s) => s.session_no === no)?.completed_steps ?? []
+}
+
+// งานที่ส่งแล้ว (ไม่ใช่ฉบับร่าง) และชุดสอบที่ส่งแล้ว ของนักเรียนในคาบนี้ — ใช้ล็อกขั้นงาน/Exit ticket
+export async function fetchMySessionWork(
+  studentId: string,
+  assignmentIds: string[],
+  examIds: string[],
+): Promise<{ submitted: string[]; examsDone: string[] }> {
+  const [subs, attempts] = await Promise.all([
+    assignmentIds.length
+      ? supabase.from('submissions').select('assignment_id').eq('student_id', studentId).in('assignment_id', assignmentIds).neq('status', 'draft')
+      : Promise.resolve({ data: [], error: null }),
+    examIds.length
+      ? supabase.from('exam_attempts').select('exam_id').eq('student_id', studentId).in('exam_id', examIds).not('submitted_at', 'is', null)
+      : Promise.resolve({ data: [], error: null }),
+  ])
+  if (subs.error) throw subs.error
+  if (attempts.error) throw attempts.error
+  return { submitted: subs.data.map((s) => s.assignment_id), examsDone: attempts.data.map((a) => a.exam_id) }
 }

@@ -6,7 +6,7 @@ import { EmptyBlock } from '@/components/StatusViews'
 import { Markdown } from './Markdown'
 import { splitCards, type Segment } from './lessonFormat'
 
-export function SegmentView({ segment, onSolved }: { segment: Segment; onSolved?: () => void }) {
+export function SegmentView({ segment, onSolved, solved }: { segment: Segment; onSolved?: () => void; solved?: boolean }) {
   switch (segment.kind) {
     case 'markdown':
       return <Markdown text={segment.text} />
@@ -37,7 +37,16 @@ export function SegmentView({ segment, onSolved }: { segment: Segment; onSolved?
     case 'think':
       return <ThinkBox question={segment.question} answer={segment.answer} />
     case 'check':
-      return <CheckBox question={segment.question} choices={segment.choices} correct={segment.correct} explain={segment.explain} onSolved={onSolved} />
+      return (
+        <CheckBox
+          question={segment.question}
+          choices={segment.choices}
+          correct={segment.correct}
+          explain={segment.explain}
+          onSolved={onSolved}
+          initialSolved={solved}
+        />
+      )
     case 'embed':
       return segment.embedUrl ? (
         <div className="my-4 aspect-video overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-brand-100">
@@ -90,89 +99,98 @@ function ThinkBox({ question, answer }: { question: string; answer: string }) {
   )
 }
 
-// เช็กความเข้าใจท้ายการ์ด (แบบ DB Quest): เลือกคำตอบแล้วกดตรวจ ตอบผิดลองใหม่ได้ ไม่เก็บคะแนน
+// เช็กความเข้าใจท้ายการ์ด: แตะตัวเลือก = ตอบเลย รู้ทันทีว่าถูกหรือผิด · ผิดลองใหม่ได้ (ต้องถูกจึงไปการ์ดถัดไป) ไม่เก็บคะแนน
 function CheckBox({
   question,
   choices,
   correct,
   explain,
   onSolved,
+  initialSolved = false,
 }: {
   question: string
   choices: string[]
   correct: number
   explain: string
   onSolved?: () => void
+  initialSolved?: boolean // ตอบถูกไปแล้ว (ย้อนกลับมาดูการ์ดเดิม)
 }) {
-  const [picked, setPicked] = useState<number | null>(null)
-  const [result, setResult] = useState<'right' | 'wrong' | null>(null)
-  const solved = result === 'right'
+  const [picked, setPicked] = useState<number | null>(initialSolved ? correct : null)
+  // นับครั้งที่ตอบ ใช้เล่นท่าสั่นซ้ำเมื่อเลือกผิดอีกครั้ง
+  const [tries, setTries] = useState(0)
+  const solved = picked === correct
 
-  const check = () => {
-    if (picked === null) return
-    const right = picked === correct
-    setResult(right ? 'right' : 'wrong')
-    if (right) onSolved?.()
+  const answer = (i: number) => {
+    if (solved) return
+    setPicked(i)
+    setTries((n) => n + 1)
+    if (i === correct) onSolved?.()
   }
 
   return (
-    <aside className="my-4 rounded-2xl border-t border-brand-100 pt-4">
+    <aside className="my-4 rounded-3xl bg-gradient-to-b from-amber-50/80 to-white p-4 shadow-sm ring-1 ring-amber-200/70 sm:p-5">
       <p className="mb-2 font-display text-amber-700">✅ เช็กความเข้าใจ</p>
-      <Markdown text={question} />
-      <div role="radiogroup" className="mt-3 flex flex-col gap-2">
+      <div className="font-semibold text-ink">
+        <Markdown text={question} />
+      </div>
+      <div role="radiogroup" className="mt-3 flex flex-col gap-3">
         {choices.map((c, i) => {
-          const isPicked = picked === i
-          const tone =
-            solved && i === correct
-              ? 'bg-mint-400/20 ring-2 ring-mint-500'
-              : isPicked && result === 'wrong'
-                ? 'bg-rose-50 ring-2 ring-rose-300'
-                : isPicked
-                  ? 'bg-brand-50 ring-2 ring-brand-500'
-                  : 'bg-white ring-1 ring-brand-200 hover:bg-brand-50'
+          const state = picked === null ? 'idle' : solved ? (i === correct ? 'correct' : 'dim') : picked === i ? 'wrong' : 'idle'
           return (
             <button
-              key={i}
+              key={picked === i ? `${i}-${tries}` : i}
               type="button"
               role="radio"
-              aria-checked={isPicked}
+              aria-checked={picked === i}
               disabled={solved}
-              onClick={() => {
-                setPicked(i)
-                setResult(null)
-              }}
-              className={`flex min-h-11 items-center gap-3 rounded-xl px-4 py-2 text-left transition ${tone}`}
+              data-state={state}
+              onClick={() => answer(i)}
+              className="tq-choice flex min-h-12 items-center gap-3 px-4 py-2.5 text-left"
             >
-              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-100 font-display text-sm text-brand-800">
-                {'กขคงจฉ'[i]}
-              </span>
-              <span>{c}</span>
+              <span className="tq-choice-letter">{'กขคงจฉ'[i]}</span>
+              <span className="flex-1">{c}</span>
+              {state === 'correct' && <span aria-hidden>✓</span>}
+              {state === 'wrong' && <span aria-hidden>✗</span>}
             </button>
           )
         })}
       </div>
-      {result === 'wrong' && <p className="mt-3 text-rose-700">ยังไม่ใช่ ลองอ่านการ์ดอีกครั้งแล้วเลือกใหม่นะ</p>}
-      {solved && (
-        <div className="mt-3 rounded-xl bg-mint-400/15 p-3">
-          <p className="font-display text-emerald-800">ถูกต้อง! 🎉</p>
-          {explain && <Markdown text={explain} />}
-        </div>
-      )}
-      {!solved && (
-        <Button className="mt-3" variant="secondary" disabled={picked === null || result === 'wrong'} onClick={check}>
-          ตรวจคำตอบ
-        </Button>
-      )}
+      <div aria-live="polite">
+        {picked !== null && !solved && (
+          <p className="tq-verdict mt-3 rounded-2xl bg-rose-50 px-4 py-2.5 font-display text-rose-700 ring-1 ring-coral-400/60">
+            ✗ ยังไม่ถูก ลองอ่านการ์ดอีกครั้งแล้วเลือกใหม่นะ
+          </p>
+        )}
+        {solved && (
+          <div className="tq-verdict mt-3 rounded-2xl bg-gradient-to-br from-emerald-50 to-mint-400/20 p-3 shadow-sm ring-2 ring-mint-500">
+            <p className="font-display text-emerald-800">✓ ถูกต้อง! 🎉</p>
+            {explain && <Markdown text={explain} />}
+          </div>
+        )}
+      </div>
     </aside>
   )
 }
 
 // แสดงเนื้อหาเป็นการ์ดทีละใบ (เหมือนสไลด์) พร้อมปุ่มก่อนหน้า/ถัดไป
-export function LessonCards({ title, markdown, onFinished }: { title: string; markdown: string; onFinished?: () => void }) {
+// locked: ต้องตอบเช็กความเข้าใจของการ์ดให้ถูกก่อน จึงไปการ์ดถัดไปหรือกดอ่านครบได้
+export function LessonCards({
+  title,
+  markdown,
+  onFinished,
+  locked = false,
+}: {
+  title: string
+  markdown: string
+  onFinished?: () => void
+  locked?: boolean
+}) {
   const cards = useMemo(() => splitCards(markdown, title), [markdown, title])
   const [index, setIndex] = useState(0)
   const [direction, setDirection] = useState(1)
-  // ตอบเช็กความเข้าใจถูก รอให้เห็นเฉลยสักครู่แล้วไปการ์ดถัดไป (ปุ่มก่อนหน้า/ถัดไปกดได้ตลอด ไม่ล็อกการ์ด)
+  // เช็กความเข้าใจที่ตอบถูกแล้ว เก็บเป็น "การ์ด:ช่อง"
+  const [solved, setSolved] = useState<ReadonlySet<string>>(() => new Set())
+  // ตอบเช็กความเข้าใจถูก รอให้เห็นเฉลยสักครู่แล้วไปการ์ดถัดไป
   const [advanceFrom, setAdvanceFrom] = useState<number | null>(null)
   useEffect(() => {
     if (advanceFrom === null) return
@@ -190,10 +208,19 @@ export function LessonCards({ title, markdown, onFinished }: { title: string; ma
   const card = cards[safeIndex]
   if (!card) return null
   const isLast = safeIndex === cards.length - 1
+  const cardDone = (i: number) => (cards[i]?.segments ?? []).every((seg, j) => seg.kind !== 'check' || solved.has(`${i}:${j}`))
+  // การ์ดที่ไปถึงได้: ทุกการ์ดก่อนหน้าตอบเช็กความเข้าใจถูกครบแล้ว
+  const reachable = (i: number) => !locked || cards.slice(0, i).every((_, j) => cardDone(j))
+  const canLeave = !locked || cardDone(safeIndex)
 
   const go = (next: number) => {
+    if (!reachable(next)) return
     setDirection(next > safeIndex ? 1 : -1)
     setIndex(next)
+  }
+  const onSolved = (seg: number) => {
+    setSolved((s) => new Set(s).add(`${safeIndex}:${seg}`))
+    if (!isLast) setAdvanceFrom(safeIndex)
   }
 
   return (
@@ -204,9 +231,10 @@ export function LessonCards({ title, markdown, onFinished }: { title: string; ma
             key={`${c.title}-${i}`}
             type="button"
             onClick={() => go(i)}
-            aria-label={`การ์ดที่ ${i + 1}: ${c.title}`}
+            disabled={!reachable(i)}
+            aria-label={`การ์ดที่ ${i + 1}: ${c.title}${reachable(i) ? '' : ' (ยังล็อก)'}`}
             aria-current={i === safeIndex ? 'step' : undefined}
-            className={`h-2.5 rounded-full transition-all ${
+            className={`h-2.5 rounded-full transition-all disabled:cursor-not-allowed ${
               i === safeIndex ? 'w-8 bg-brand-600' : i < safeIndex ? 'w-2.5 bg-brand-300' : 'w-2.5 bg-brand-100'
             }`}
           />
@@ -229,20 +257,27 @@ export function LessonCards({ title, markdown, onFinished }: { title: string; ma
             </p>
             <h2 className="mb-2 text-xl text-brand-900 sm:text-2xl">{card.title}</h2>
             {card.segments.map((seg, i) => (
-              <SegmentView key={i} segment={seg} onSolved={isLast ? undefined : () => setAdvanceFrom(safeIndex)} />
+              <SegmentView key={i} segment={seg} solved={solved.has(`${safeIndex}:${i}`)} onSolved={() => onSolved(i)} />
             ))}
           </motion.article>
         </AnimatePresence>
       </div>
 
+      {!canLeave && <p className="text-center text-sm text-amber-700">ตอบเช็กความเข้าใจของการ์ดนี้ให้ถูกก่อน จึงไปต่อได้</p>}
       <div className="flex items-center justify-between gap-2">
         <Button variant="secondary" disabled={safeIndex === 0} onClick={() => go(safeIndex - 1)}>
           ← ก่อนหน้า
         </Button>
         {isLast ? (
-          onFinished && <Button onClick={onFinished}>อ่านครบแล้ว ✓</Button>
+          onFinished && (
+            <Button disabled={!canLeave} onClick={onFinished}>
+              อ่านครบแล้ว ✓
+            </Button>
+          )
         ) : (
-          <Button onClick={() => go(safeIndex + 1)}>ถัดไป →</Button>
+          <Button disabled={!canLeave} onClick={() => go(safeIndex + 1)}>
+            ถัดไป →
+          </Button>
         )}
       </div>
     </div>

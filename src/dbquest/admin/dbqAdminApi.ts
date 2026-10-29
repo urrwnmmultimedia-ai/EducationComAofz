@@ -13,7 +13,7 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   unit_quiz: 'ทดสอบท้ายหน่วย',
   game: 'เกม',
   project: 'โครงงาน',
-  attendance: 'เข้าเรียน/จิตพิสัย',
+  attendance: 'จิตพิสัย',
   midterm: 'สอบกลางภาค',
   final: 'สอบปลายภาค',
 }
@@ -177,7 +177,7 @@ export async function saveSetting(key: keyof DbqSettings, value: unknown): Promi
   await rpc('dbq_admin_set_setting', { p_key: key, p_value: value })
 }
 
-// รีเซ็ตคาบของนักเรียน 1 คน: ลบความคืบหน้า คำตอบ และ XP ของคาบนั้น (ใบงาน/คะแนนเกม/เหรียญยังอยู่)
+// รีเซ็ตคาบของนักเรียน 1 คน: ลบความคืบหน้า คำตอบ ใบงาน คะแนนเกม และ XP ของคาบนั้น (เหรียญยังอยู่)
 export async function resetSession(studentId: string, sessionNo: number): Promise<void> {
   await rpc('dbq_admin_reset_session', { p_student_id: studentId, p_session: sessionNo })
 }

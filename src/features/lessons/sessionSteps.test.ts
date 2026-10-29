@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_STEPS, parseSteps, progressPercent, totalMinutes } from './sessionSteps'
+import { courseProgressPercent, DEFAULT_STEPS, parseSteps, progressPercent, totalMinutes } from './sessionSteps'
 
 describe('parseSteps', () => {
   it('ค่าเริ่มต้นรวม 120 นาที', () => {
@@ -13,6 +13,20 @@ describe('parseSteps', () => {
   it('อ่านข้อมูลถูกต้อง', () => {
     const steps = parseSteps([{ key: 'warmup', label: 'อุ่น', minutes: 10, items: ['ถาม'] }])
     expect(steps).toEqual([{ key: 'warmup', label: 'อุ่น', minutes: 10, items: ['ถาม'] }])
+  })
+})
+
+describe('courseProgressPercent', () => {
+  it('counts every session, including locked ones', () => {
+    expect(
+      courseProgressPercent([
+        { completed_steps: ['a', 'b', 'c', 'd', 'e', 'f'], total_steps: 6 },
+        { completed_steps: [], total_steps: 6 },
+        { completed_steps: [], total_steps: 6 },
+        { completed_steps: [], total_steps: 6 },
+      ]),
+    ).toBe(25)
+    expect(courseProgressPercent([])).toBe(0)
   })
 })
 

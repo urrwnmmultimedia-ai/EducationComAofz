@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { Button } from '@/components/Button'
+import { FeedbackChips, ScoreQuickPicks } from '@/components/QuickGrade'
 import { EmptyBlock, ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import type { StudentRow, SubmissionRow } from '@/lib/database.types'
 import { isLate } from '@/lib/scoring'
@@ -99,6 +100,9 @@ function Grader({ data }: { data: GradingData }) {
           <p className="text-sm text-slate-500">
             คะแนนเต็ม {Number(assignment.max_score)} · รอตรวจ {pendingCount} · ตรวจแล้ว {gradedCount}/{students.length}
           </p>
+          <div className="mt-1.5 h-2 w-64 max-w-full overflow-hidden rounded-full bg-brand-50">
+            <div className="h-full rounded-full bg-gradient-to-r from-mint-400 to-mint-500 transition-[width]" style={{ width: `${students.length ? (gradedCount / students.length) * 100 : 0}%` }} />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <select className="rounded-xl border-2 border-brand-100 bg-white px-3 py-2 text-sm" value={roomId} onChange={(e) => setRoomId(e.target.value)} aria-label="ห้องเรียน">
@@ -201,9 +205,10 @@ function GradePanel({
 
   const late = submission?.submitted_at ? isLate({ dueAt: assignment.due_at }, { submittedAt: submission.submitted_at }) : false
 
-  const save = async (mode: 'graded' | 'returned', thenNext: boolean) => {
+  const save = async (mode: 'graded' | 'returned', thenNext: boolean, override?: number) => {
     if (status === 'saving') return
-    const n = score.trim() === '' ? null : Number(score)
+    const text = override != null ? String(override) : score
+    const n = text.trim() === '' ? null : Number(text)
     if (mode === 'graded' && (n == null || !Number.isFinite(n) || n < 0 || n > max)) {
       setStatus('error')
       setMessage(`คะแนนต้องอยู่ระหว่าง 0–${max}`)
@@ -295,17 +300,33 @@ function GradePanel({
           </div>
         )}
         <label className="flex flex-col gap-1">
-          <span className="text-sm text-slate-600">คะแนน (เต็ม {max})</span>
+          <span className="text-sm text-slate-600">คะแนน (เต็ม {max}) · กด Enter = บันทึกแล้วไปคนถัดไป</span>
           <input
             type="number"
             inputMode="decimal"
             min={0}
             max={max}
             step={0.5}
+            autoFocus
             className="rounded-xl border-2 border-brand-100 bg-white px-3 py-2 font-display text-xl"
             value={score}
             onChange={(e) => {
               setScoreText(e.target.value)
+              setStatus('idle')
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void save('graded', true)
+              }
+            }}
+          />
+          <ScoreQuickPicks
+            max={max}
+            value={score}
+            disabled={status === 'saving'}
+            onPick={(v) => {
+              setScoreText(String(v))
               setStatus('idle')
             }}
           />
@@ -321,12 +342,22 @@ function GradePanel({
               setStatus('idle')
             }}
           />
+          <FeedbackChips
+            value={feedback}
+            onChange={(v) => {
+              setFeedback(v)
+              setStatus('idle')
+            }}
+          />
         </label>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <Button loading={status === 'saving'} onClick={() => void save('graded', true)}>
           บันทึกคะแนน แล้วไปคนถัดไป
+        </Button>
+        <Button variant="secondary" disabled={status === 'saving'} onClick={() => void save('graded', true, max)}>
+          ✓ ให้เต็ม {max} แล้วไปคนถัดไป
         </Button>
         <Button variant="secondary" disabled={status === 'saving'} onClick={() => void save('graded', false)}>
           บันทึกคะแนน

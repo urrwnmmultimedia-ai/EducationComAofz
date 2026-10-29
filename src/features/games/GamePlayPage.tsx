@@ -6,13 +6,14 @@ import { GameShell } from '@/games/shared/GameShell'
 import { parseGameConfig } from '@/games/shared/schemas'
 import { gameComponent } from '@/games/registry'
 import { markStepDone } from '@/features/lessons/lessonsApi'
+import { GAME_PASS_SCORE } from '@/features/lessons/sessionSteps'
 import { fetchGame, submitGameResult } from './gamesApi'
 
 export function GamePlayPage() {
   const slug = useParams().slug ?? ''
   const [params] = useSearchParams()
   const preview = params.get('preview') === '1' // ครูทดลองเล่น: ไม่ส่งผล
-  // เปิดจากขั้น "เกม" ในคาบ: เล่นจบแล้วกลับคาบเดิม และบันทึกขั้นเกมให้เลย
+  // เปิดจากขั้น "เกม" ในคาบ: เล่นผ่านเกณฑ์แล้วกลับคาบเดิม และบันทึกขั้นเกมให้เลย
   const fromSession = Number(params.get('session')) || null
   return (
     <GameView
@@ -41,7 +42,8 @@ export function GameView({ slug, preview, sessionNo, backTo, backLabel, onStepDo
     async (score: number, duration: number) => {
       if (preview) return { xp: 0, first_play: false, plays_today: 0, daily_limit: 3, capped: false, best_score: score, new_badges: [] }
       const result = await submitGameResult(slug, score, duration)
-      if (sessionNo) {
+      // ขั้นเกมของคาบผ่านเมื่อได้คะแนนถึงเกณฑ์เท่านั้น
+      if (sessionNo && score >= GAME_PASS_SCORE) {
         const steps = await markStepDone(sessionNo, 'game').catch(() => null)
         if (steps) onStepDone?.(steps)
       }
@@ -66,6 +68,8 @@ export function GameView({ slug, preview, sessionNo, backTo, backLabel, onStepDo
       backTo={backTo}
       backLabel={backLabel}
       maxXp={state.data.max_xp}
+      passScore={sessionNo || onStepDone ? GAME_PASS_SCORE : undefined}
+      embedded={!!onStepDone}
     />
   )
 }

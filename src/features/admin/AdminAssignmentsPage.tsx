@@ -15,8 +15,10 @@ export function AdminAssignmentsPage() {
 
   if (state.status === 'loading') return <LoadingBlock />
   if (state.status === 'error') return <ErrorBlock message={state.error} onRetry={state.reload} />
-  const { assignments, sessions, weights } = state.data
+  const { assignments, sessions, weights, pending } = state.data
   const sessionTitle = new Map(sessions.map((s) => [s.session_no, s.title]))
+  const waiting = assignments.filter((a) => (pending.get(a.id) ?? 0) > 0)
+  const totalWaiting = waiting.reduce((n, a) => n + (pending.get(a.id) ?? 0), 0)
 
   return (
     <div className="flex flex-col gap-5">
@@ -29,6 +31,31 @@ export function AdminAssignmentsPage() {
           + สร้างงาน
         </Link>
       </div>
+
+      {/* กล่องงานรอตรวจ: กดแล้วเข้าหน้าตรวจของงานนั้นเลย */}
+      <section className="rounded-3xl bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm ring-1 ring-sky-200 sm:p-5">
+        <h2 className="text-lg text-brand-900">
+          งานรอตรวจ {totalWaiting > 0 ? <span className="ml-1 rounded-full bg-sky-600 px-2.5 py-0.5 text-sm text-white">{totalWaiting}</span> : null}
+        </h2>
+        {waiting.length === 0 ? (
+          <p className="mt-1 text-sm text-slate-500">ไม่มีงานรอตรวจ 🎉</p>
+        ) : (
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {waiting.map((a) => (
+              <li key={a.id}>
+                <Link
+                  to={`/admin/assignments/${a.id}/grade`}
+                  className="tq-press inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-sky-200 hover:bg-sky-50"
+                >
+                  {a.session_no && <span className="font-display text-brand-700">คาบ {a.session_no}</span>}
+                  <span className="max-w-56 truncate">{a.title}</span>
+                  <span className="rounded-full bg-sky-600 px-2 font-display text-white">{pending.get(a.id)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {CATEGORIES.map((c) => {
@@ -75,6 +102,7 @@ export function AdminAssignmentsPage() {
                   <div className="flex gap-1">
                     <Link to={`/admin/assignments/${a.id}/grade`} className="rounded-lg px-2 py-1 font-display text-brand-700 hover:bg-brand-100">
                       ตรวจ
+                      {(pending.get(a.id) ?? 0) > 0 && <span className="ml-1 rounded-full bg-sky-600 px-1.5 text-xs text-white">{pending.get(a.id)}</span>}
                     </Link>
                     <Link to={`/admin/assignments/${a.id}`} className="rounded-lg px-2 py-1 text-slate-600 hover:bg-brand-100">
                       แก้ไข

@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import { Doctor } from '@/components/characters/Characters'
 import { matchingChoicesSchema, parseAnswer, type ExamResult, type ReviewItem } from './examModel'
 
-export function ExamResultView({ result, backTo }: { result: ExamResult; backTo: string }) {
+export function ExamResultView({ result, backTo }: { result: ExamResult; backTo?: string }) {
   const score = result.score ?? 0
   const max = result.max_points ?? 0
   const pct = max ? Math.round((score / max) * 100) : 0
@@ -17,9 +17,11 @@ export function ExamResultView({ result, backTo }: { result: ExamResult; backTo:
         </p>
         <p className="text-slate-600">{pct >= 80 ? 'เยี่ยมมาก! 🎉' : pct >= 50 ? 'ทำได้ดี ทบทวนข้อที่ผิดอีกนิดนะ' : 'ไม่เป็นไร ลองทบทวนบทเรียนอีกครั้ง 💪'}</p>
         {result.needs_review && <p className="rounded-full bg-amber-100 px-3 py-1 text-sm text-amber-800">มีข้อเขียนรอครูตรวจ คะแนนอาจเพิ่มขึ้น</p>}
-        <Link to={backTo} className="mt-2 font-display text-brand-700 underline underline-offset-4">
-          กลับ
-        </Link>
+        {backTo && (
+          <Link to={backTo} className="mt-2 font-display text-brand-700 underline underline-offset-4">
+            กลับ
+          </Link>
+        )}
       </section>
 
       {result.show_answers && result.review ? (

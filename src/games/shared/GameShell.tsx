@@ -29,10 +29,12 @@ interface Props {
   backTo: string
   backLabel?: string
   maxXp: number
+  passScore?: number // เล่นในคาบ: ต่ำกว่านี้ยังไม่ผ่าน ต้องเล่นใหม่ก่อนไปขั้นต่อไป
+  embedded?: boolean // ฝังในหน้าคาบ: ไม่มีลิงก์กลับ ผ่านแล้วหน้าคาบพาไปขั้นถัดไปเอง
 }
 
 // โครงเกมกลาง: คำอธิบาย → นับถอยหลัง 3-2-1 → เล่น → สรุปผล (คะแนน XP เฉลยข้อผิด) → เล่นอีกครั้ง
-export function GameShell({ title, description, config, Game, onSubmit, backTo, backLabel = 'กลับบทเรียน', maxXp }: Props) {
+export function GameShell({ title, description, config, Game, onSubmit, backTo, backLabel = 'กลับบทเรียน', maxXp, passScore, embedded = false }: Props) {
   const sfx = useSfx()
   const [phase, setPhase] = useState<Phase>('intro')
   const [round, setRound] = useState(0)
@@ -78,9 +80,13 @@ export function GameShell({ title, description, config, Game, onSubmit, backTo, 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <Link to={backTo} className="text-sm text-slate-500 hover:text-brand-700">
-          ← กลับ
-        </Link>
+        {embedded ? (
+          <span />
+        ) : (
+          <Link to={backTo} className="text-sm text-slate-500 hover:text-brand-700">
+            ← กลับ
+          </Link>
+        )}
         <button type="button" onClick={sfx.toggle} className="rounded-full bg-white px-3 py-1 text-sm ring-1 ring-brand-100" aria-pressed={sfx.enabled}>
           {sfx.enabled ? '🔊 เสียงเปิด' : '🔇 เสียงปิด'}
         </button>
@@ -108,7 +114,15 @@ export function GameShell({ title, description, config, Game, onSubmit, backTo, 
       )}
 
       {phase === 'result' && outcome && (
-        <ResultScreen outcome={outcome} submit={submit} onAgain={again} backTo={backTo} backLabel={backLabel} />
+        <ResultScreen
+          outcome={outcome}
+          submit={submit}
+          onAgain={again}
+          backTo={backTo}
+          backLabel={backLabel}
+          passScore={passScore}
+          embedded={embedded}
+        />
       )}
     </div>
   )
@@ -150,14 +164,19 @@ function ResultScreen({
   onAgain,
   backTo,
   backLabel,
+  passScore,
+  embedded,
 }: {
   outcome: GameOutcome
   submit: { status: 'saving' | 'saved' | 'error'; result?: SubmitResult; message?: string } | null
   onAgain: () => void
   backTo: string
   backLabel: string
+  passScore?: number
+  embedded: boolean
 }) {
   const score = toScore(outcome)
+  const failed = passScore != null && score < passScore
   const r = submit?.result
   return (
     <div className="flex flex-col gap-4">
@@ -171,6 +190,12 @@ function ResultScreen({
         <p className="text-slate-500">
           คะแนน (ถูก {Math.round(outcome.correct * 10) / 10} จาก {outcome.total})
         </p>
+        {failed && (
+          <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            ยังไม่ผ่าน ต้องได้อย่างน้อย {passScore} คะแนนจึงไปขั้นต่อไปได้ ดูเฉลยข้อที่ผิดแล้วเล่นอีกครั้งนะ
+          </p>
+        )}
+        {embedded && passScore != null && !failed && <p className="font-display text-emerald-700">ผ่านขั้นเกมแล้ว! 🎉</p>}
         {submit?.status === 'saving' && <p className="text-sm text-slate-500">กำลังบันทึก…</p>}
         {submit?.status === 'error' && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">{submit.message}</p>}
         {r && (
@@ -199,9 +224,11 @@ function ResultScreen({
           <Button onClick={onAgain} disabled={submit?.status === 'saving'}>
             ↻ เล่นอีกครั้ง
           </Button>
-          <Link to={backTo} className="rounded-2xl px-5 py-2.5 font-display text-brand-700 ring-2 ring-brand-200 hover:bg-brand-100">
-            {backLabel}
-          </Link>
+          {!failed && !embedded && (
+            <Link to={backTo} className="rounded-2xl px-5 py-2.5 font-display text-brand-700 ring-2 ring-brand-200 hover:bg-brand-100">
+              {backLabel}
+            </Link>
+          )}
         </div>
       </motion.section>
 

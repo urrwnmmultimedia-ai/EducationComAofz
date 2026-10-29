@@ -153,9 +153,6 @@ export function AdminSessionsPage() {
           </tbody>
         </table>
       </div>
-      <p className="text-sm text-slate-500">
-        นักเรียนที่เปิดหน้าคาบซึ่ง "ปลดล็อกล่าสุด" ภายใน 12 ชั่วโมง จะถูกเช็คชื่อมาเรียนอัตโนมัติ (+10 XP)
-      </p>
     </div>
   )
 }

@@ -204,8 +204,8 @@ export async function fetchStudentProgress(id: string) {
 }
 export type StudentProgress = Awaited<ReturnType<typeof fetchStudentProgress>>
 
-// ล้างขั้นที่ทำเสร็จของคาบหนึ่ง (XP งาน คะแนน และการเช็คชื่อยังอยู่)
+// รีเซ็ตคาบหนึ่งของนักเรียน: ล้างขั้นที่ทำเสร็จ งานที่ส่ง ผลสอบ/Exit ticket ผลเกม และ XP ของคาบนั้น (เหรียญยังอยู่)
 export async function resetSessionProgress(studentId: string, sessionNo: number) {
-  const { error } = await supabase.from('session_progress').delete().eq('student_id', studentId).eq('session_no', sessionNo)
-  if (error) throw error
+  const { error } = await supabase.rpc('admin_reset_session_scores', { p_student_id: studentId, p_session_no: sessionNo })
+  if (error) throw new Error(error.message.includes('admin_reset_session_scores') ? 'ฐานข้อมูลยังไม่รองรับ — รัน supabase/updates/reset_session_scores.sql ก่อน' : 'รีเซ็ตไม่สำเร็จ')
 }

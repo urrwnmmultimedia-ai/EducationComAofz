@@ -1,6 +1,6 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link, useParams } from 'react-router'
-import { useAuth } from '@/app/AuthContext'
+import { useViewer } from '@/features/student/viewer'
 import { Button } from '@/components/Button'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import type { AssignmentRow, SubmissionRow } from '@/lib/database.types'
@@ -23,19 +23,53 @@ const STATUS_LABEL: Record<SubmissionRow['status'], { text: string; cls: string 
 const INPUT = 'w-full rounded-xl border-2 border-brand-100 bg-white px-3 py-2 outline-none focus:border-brand-500 disabled:bg-slate-50'
 
 export function AssignmentPage() {
-  const id = useParams().id ?? ''
-  const { identity } = useAuth()
-  const studentId = identity.student?.id ?? ''
+  return <AssignmentView id={useParams().id ?? ''} />
+}
+
+// embedded: ฝังในขั้นงานของหน้าคาบ (ไม่มีแถบนำทาง) · onSubmitted แจ้งเมื่อส่งงานแล้ว (ไม่ใช่ฉบับร่าง)
+export function AssignmentView({ id, embedded = false, onSubmitted }: { id: string; embedded?: boolean; onSubmitted?: () => void }) {
+  const { student, isPreview } = useViewer()
+  const studentId = student?.id ?? ''
   const state = useAsync(() => fetchAssignmentForStudent(id, studentId), [id, studentId])
 
   if (state.status === 'loading') return <LoadingBlock />
   if (state.status === 'error') return <ErrorBlock message={state.error} onRetry={state.reload} />
   if (!state.data) return <ErrorBlock message="ไม่พบงานนี้ หรือคาบของงานยังไม่เปิด" />
-  return <AssignmentForm key={state.data.assignment.id} assignment={state.data.assignment} initial={state.data.submission} studentId={studentId} />
+  return (
+    <AssignmentForm
+      key={state.data.assignment.id}
+      assignment={state.data.assignment}
+      initial={state.data.submission}
+      studentId={studentId}
+      embedded={embedded}
+      preview={isPreview}
+      onSubmitted={onSubmitted}
+    />
+  )
 }
 
-function AssignmentForm({ assignment, initial, studentId }: { assignment: AssignmentRow; initial: SubmissionRow | null; studentId: string }) {
+function AssignmentForm({
+  assignment,
+  initial,
+  studentId,
+  embedded,
+  preview,
+  onSubmitted,
+}: {
+  assignment: AssignmentRow
+  initial: SubmissionRow | null
+  studentId: string
+  embedded: boolean
+  preview: boolean // ครูดูตัวอย่าง: เห็นฟอร์มแต่ส่งไม่ได้
+  onSubmitted?: () => void
+}) {
   const f = useAssignmentForm(assignment, studentId, initial)
+  const submittedNow = !!f.submission && f.submission.status !== 'draft'
+  const notify = useRef(onSubmitted)
+  notify.current = onSubmitted
+  useEffect(() => {
+    if (submittedNow) notify.current?.()
+  }, [submittedNow])
   const fileInput = useRef<HTMLInputElement>(null)
   const rubric = parseRubric(assignment.rubric)
   const sub = f.submission
@@ -45,20 +79,22 @@ function AssignmentForm({ assignment, initial, studentId }: { assignment: Assign
 
   return (
     <div className="flex flex-col gap-5">
-      <nav className="text-sm text-slate-500">
-        <Link to="/home" className="hover:text-brand-700">
-          หน้าหลัก
-        </Link>
-        {assignment.session_no && (
-          <>
-            {' / '}
-            <Link to={`/sessions/${assignment.session_no}?step=work`} className="hover:text-brand-700">
-              คาบที่ {assignment.session_no}
-            </Link>
-          </>
-        )}
-        {' / '}งาน
-      </nav>
+      {!embedded && (
+        <nav className="text-sm text-slate-500">
+          <Link to="/home" className="hover:text-brand-700">
+            หน้าหลัก
+          </Link>
+          {assignment.session_no && (
+            <>
+              {' / '}
+              <Link to={`/sessions/${assignment.session_no}?step=work`} className="hover:text-brand-700">
+                คาบที่ {assignment.session_no}
+              </Link>
+            </>
+          )}
+          {' / '}งาน
+        </nav>
+      )}
 
       <header className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100 sm:p-7">
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -222,7 +258,8 @@ function AssignmentForm({ assignment, initial, studentId }: { assignment: Assign
             />
           )}
 
-          {!f.locked && (
+          {preview && <p className="rounded-2xl bg-sun-300/40 px-4 py-2 text-sm text-amber-900">โหมดครู: นักเรียนจะพิมพ์คำตอบและกดส่งงานตรงนี้</p>}
+          {!f.locked && !preview && (
             <div className="flex flex-wrap items-center gap-3">
               <Button loading={f.status === 'saving'} disabled={f.busy} onClick={() => void f.save('submitted')}>
                 {sub?.status === 'submitted' ? 'ส่งงานอีกครั้ง (อัปเดต)' : 'ส่งงาน'}

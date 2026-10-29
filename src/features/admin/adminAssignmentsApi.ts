@@ -2,14 +2,22 @@ import { supabase } from '@/lib/supabase'
 import type { AssignmentRow, ClassSessionRow, ClassroomRow, StudentRow, SubmissionRow } from '@/lib/database.types'
 import { M3, roomsOf, studentsIn } from './courseScope'
 
-export async function fetchAssignmentsAdmin(): Promise<{ assignments: AssignmentRow[]; sessions: ClassSessionRow[] }> {
-  const [a, s] = await Promise.all([
+export async function fetchAssignmentsAdmin(): Promise<{
+  assignments: AssignmentRow[]
+  sessions: ClassSessionRow[]
+  pending: Map<string, number> // งานที่นักเรียนส่งแล้วรอตรวจ ต่อรายการ
+}> {
+  const [a, s, p] = await Promise.all([
     supabase.from('assignments').select('*').order('session_no').order('sort_order'),
     supabase.from('class_sessions').select('*').order('session_no'),
+    supabase.from('submissions').select('assignment_id').eq('status', 'submitted'),
   ])
   if (a.error) throw a.error
   if (s.error) throw s.error
-  return { assignments: a.data, sessions: s.data }
+  if (p.error) throw p.error
+  const pending = new Map<string, number>()
+  for (const r of p.data) pending.set(r.assignment_id, (pending.get(r.assignment_id) ?? 0) + 1)
+  return { assignments: a.data, sessions: s.data, pending }
 }
 
 export type AssignmentInput = Pick<

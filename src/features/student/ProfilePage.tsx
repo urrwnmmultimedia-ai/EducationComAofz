@@ -1,20 +1,36 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router'
+import { Award, ChartColumn, Palette, type LucideIcon } from 'lucide-react'
 import { useAuth } from '@/app/AuthContext'
 import { AVATARS, Avatar, type AvatarKey } from '@/components/characters/Characters'
-import { ErrorBlock, LoadingBlock, ProgressBar } from '@/components/StatusViews'
+import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import { levelFromXp, LEVEL_NAMES, XP_PER_LEVEL } from '@/lib/levels'
 import { useAsync } from '@/lib/useAsync'
 import { fetchMyBadges, setMyAvatar } from '@/features/games/gamesApi'
-import { fetchStudentStats } from './studentApi'
-import { studentGreeting } from './greeting'
+import { fetchSessionList } from '@/features/lessons/lessonsApi'
+import { courseProgressPercent } from '@/features/lessons/sessionSteps'
+import type { EvoInfo } from './EvolutionCardM3'
+import { dueCountdown, fetchStudentStats } from './studentApi'
+import { ScoresPanel } from './ScoresPage'
+import { useViewer } from './viewer'
 
+type Tab = 'scores' | 'badges' | 'avatar'
+const TABS: { key: Tab; label: string; icon: LucideIcon }[] = [
+  { key: 'scores', label: 'คะแนน', icon: ChartColumn },
+  { key: 'badges', label: 'เหรียญ', icon: Award },
+  { key: 'avatar', label: 'อวาตาร์', icon: Palette },
+]
+
+// หน้า "ฉัน": การ์ดโปรไฟล์ (เลเวล XP เหรียญ) + แท็บ คะแนน / เหรียญ / อวาตาร์
 export function ProfilePage() {
-  const { identity, refresh } = useAuth()
-  const student = identity.student
+  const { refresh } = useAuth()
+  const { student, isPreview } = useViewer()
   const studentId = student?.id ?? ''
+  const [params, setParams] = useSearchParams()
+  const tab: Tab = TABS.some((t) => t.key === params.get('tab')) ? (params.get('tab') as Tab) : 'scores'
   const state = useAsync(async () => {
-    const [badges, stats] = await Promise.all([fetchMyBadges(studentId), fetchStudentStats(studentId)])
-    return { badges, stats }
+    const [badges, stats, sessions] = await Promise.all([fetchMyBadges(studentId), fetchStudentStats(studentId), fetchSessionList()])
+    return { badges, stats, sessions }
   }, [studentId])
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -22,11 +38,21 @@ export function ProfilePage() {
   if (!student) return null
   if (state.status === 'loading') return <LoadingBlock />
   if (state.status === 'error') return <ErrorBlock message={state.error} onRetry={state.reload} />
-  const { badges, stats } = state.data
+  const { badges, stats, sessions } = state.data
   const lv = levelFromXp(stats.totalXp)
+  // ข้อมูลประกอบในการ์ดวิวัฒนาการ (แท็บคะแนน)
+  const next = stats.pending[0]
+  const info: EvoInfo = {
+    level: `Lv.${lv.level} ${lv.name}`,
+    xp: stats.totalXp,
+    badges: `${badges.earned.size}/${badges.all.length}`,
+    pending: stats.pending.length,
+    progressPct: courseProgressPercent(sessions),
+    nextDue: next ? { title: next.title, to: `/assignments/${next.id}`, when: dueCountdown(next.due_at) } : null,
+  }
 
   const choose = async (key: AvatarKey) => {
-    if (saving || key === student.avatar) return
+    if (isPreview || saving || key === student.avatar) return
     setSaving(key)
     setError(null)
     try {
@@ -41,72 +67,91 @@ export function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <section className="flex flex-wrap items-center gap-4 rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white shadow-lg">
-        <Avatar name={student.avatar} className="size-24 rounded-full bg-white/20" />
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl">{studentGreeting(student)}</h1>
-          <p className="font-display text-sun-300">
-            Lv.{lv.level} {lv.name}
-          </p>
-          <ProgressBar value={lv.progress * 100} className="mt-2 max-w-xs bg-white/20" />
-          <p className="mt-1 text-sm text-brand-100">
-            {stats.totalXp} XP · อีก {lv.xpToNext} XP ขึ้นเลเวล
-          </p>
-        </div>
-      </section>
+      <div role="tablist" aria-label="ข้อมูลของฉัน" className="flex gap-1 rounded-full bg-surface/80 p-1 shadow-[inset_0_2px_5px_rgb(20_45_100/0.1)] ring-1 ring-line">
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setParams(key === 'scores' ? {} : { tab: key }, { replace: true })}
+            className={`tq-press flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full text-sm font-semibold ${
+              tab === key ? 'bg-white text-action-strong shadow-[inset_0_1px_0_#fff,0_6px_14px_-6px_rgb(20_45_100/0.45)] ring-1 ring-line' : 'text-ink-2 hover:bg-white/60'
+            }`}
+          >
+            <Icon className="size-4" aria-hidden />
+            {label}
+          </button>
+        ))}
+      </div>
 
-      <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100">
-        <h2 className="mb-3 text-lg text-brand-900">เลือกอวาตาร์</h2>
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-          {(Object.keys(AVATARS) as AvatarKey[]).map((k) => (
-            <button
-              key={k}
-              type="button"
-              aria-pressed={student.avatar === k}
-              disabled={saving !== null}
-              onClick={() => void choose(k)}
-              className={`flex flex-col items-center gap-1 rounded-2xl p-2 ring-2 transition ${student.avatar === k ? 'bg-brand-100 ring-brand-500' : 'ring-transparent hover:bg-brand-50'}`}
-            >
-              <Avatar name={k} className="size-16" />
-              <span className="text-xs text-slate-600">{saving === k ? 'กำลังบันทึก…' : AVATARS[k].label}</span>
-            </button>
-          ))}
-        </div>
-        {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
-      </section>
+      {tab === 'scores' && <ScoresPanel studentId={studentId} info={info} />}
 
-      <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100">
-        <h2 className="mb-3 text-lg text-brand-900">
-          เหรียญ ({badges.earned.size}/{badges.all.length})
-        </h2>
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {badges.all.map((b) => {
-            const at = badges.earned.get(b.id)
-            return (
-              <li key={b.id} className={`flex flex-col items-center gap-1 rounded-2xl p-3 text-center ring-1 ${at ? 'bg-sun-300/30 ring-sun-400' : 'bg-slate-50 ring-slate-200'}`}>
-                <span className={`text-4xl ${at ? '' : 'opacity-30 grayscale'}`} aria-hidden>
-                  {b.icon}
-                </span>
-                <span className={`font-display text-sm ${at ? 'text-amber-950' : 'text-slate-500'}`}>{b.name}</span>
-                <span className="text-xs text-slate-500">{at ? `ได้เมื่อ ${new Date(at).toLocaleDateString('th-TH')}` : 'ยังไม่ได้'}</span>
-              </li>
-            )
-          })}
-        </ul>
-      </section>
+      {tab === 'badges' && (
+        <>
+          <section className="tq-card p-5">
+            <h2 className="mb-3 text-lg text-brand-900">
+              เหรียญ ({badges.earned.size}/{badges.all.length})
+            </h2>
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {badges.all.map((b) => {
+                const at = badges.earned.get(b.id)
+                return (
+                  <li
+                    key={b.id}
+                    className={`flex flex-col items-center gap-1 rounded-2xl p-3 text-center ${
+                      at
+                        ? 'bg-gradient-to-b from-sun-300/40 to-sun-300/10 shadow-[0_10px_20px_-14px_rgb(180_130_0/0.7)] ring-2 ring-sun-400'
+                        : 'bg-slate-50 ring-1 ring-slate-200'
+                    }`}
+                  >
+                    <span className={`text-4xl ${at ? 'drop-shadow-md' : 'opacity-30 grayscale'}`} aria-hidden>
+                      {b.icon}
+                    </span>
+                    <span className={`font-display text-sm ${at ? 'text-amber-950' : 'text-slate-500'}`}>{b.name}</span>
+                    <span className="text-xs text-slate-500">{at ? `ได้เมื่อ ${new Date(at).toLocaleDateString('th-TH')}` : 'ยังไม่ได้'}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+          <section className="tq-card p-5 text-sm">
+            <h2 className="mb-2 text-lg text-brand-900">วิธีได้ XP</h2>
+            <ul className="grid gap-1 text-slate-600 sm:grid-cols-2">
+              <li>เล่นเกมในคาบ +10–50 (รอบแรกเต็ม รอบต่อไป 20%)</li>
+              <li>ส่งงานตรงเวลา +30</li>
+              <li>Exit ticket เต็ม +20</li>
+            </ul>
+            <p className="mt-2 text-xs text-slate-500">
+              ทุก {XP_PER_LEVEL} XP ขึ้น 1 เลเวล: {LEVEL_NAMES.join(' → ')}
+            </p>
+          </section>
+        </>
+      )}
 
-      <section className="rounded-3xl bg-white p-5 text-sm shadow-sm ring-1 ring-brand-100">
-        <h2 className="mb-2 text-lg text-brand-900">วิธีได้ XP</h2>
-        <ul className="grid gap-1 text-slate-600 sm:grid-cols-2">
-          <li>เล่นเกม +10–50 (รอบแรกเต็ม รอบต่อไป 20%)</li>
-          <li>ส่งงานตรงเวลา +30</li>
-          <li>Exit ticket เต็ม +20</li>
-          <li>เข้าเรียน +10</li>
-        </ul>
-        <p className="mt-2 text-xs text-slate-500">
-          ทุก {XP_PER_LEVEL} XP ขึ้น 1 เลเวล: {LEVEL_NAMES.join(' → ')}
-        </p>
-      </section>
+      {tab === 'avatar' && (
+        <section className="tq-card p-5">
+          <h2 className="mb-3 text-lg text-brand-900">เลือกอวาตาร์</h2>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+            {(Object.keys(AVATARS) as AvatarKey[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={student.avatar === k}
+                disabled={saving !== null || isPreview}
+                onClick={() => void choose(k)}
+                data-state={student.avatar === k ? 'picked' : 'idle'}
+                className="tq-choice flex flex-col items-center gap-1 p-2"
+              >
+                <Avatar name={k} className="size-16" />
+                <span className="text-xs text-slate-600">{saving === k ? 'กำลังบันทึก…' : AVATARS[k].label}</span>
+              </button>
+            ))}
+          </div>
+          {isPreview && <p className="mt-2 text-sm text-amber-800">โหมดครู: นักเรียนเลือกอวาตาร์ได้ตรงนี้</p>}
+          {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
+        </section>
+      )}
     </div>
   )
 }

@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAsync } from '@/lib/useAsync'
-import { checkinSession, fetchMyCompletedSteps, fetchSessionDetail, markStepDone } from './lessonsApi'
+import { fetchMyCompletedSteps, fetchMySessionWork, fetchSessionDetail, markStepDone } from './lessonsApi'
 import { parseSteps, type StepKey } from './sessionSteps'
 
-// logic ทั้งหมดของหน้าคาบเรียน: โหลดข้อมูล เช็คชื่อ และบันทึกขั้นตอนที่ทำเสร็จ
-export function useSessionPage(sessionNo: number, isStudent: boolean) {
+// logic ทั้งหมดของหน้าคาบเรียน: โหลดข้อมูล และบันทึกขั้นตอนที่ทำเสร็จ (ไม่มีระบบเช็คชื่อ)
+export function useSessionPage(sessionNo: number, isStudent: boolean, studentId: string | null) {
   const detail = useAsync(() => fetchSessionDetail(sessionNo), [sessionNo])
   const [completed, setCompleted] = useState<string[]>([])
-  const [checkedIn, setCheckedIn] = useState(false)
   const [savingStep, setSavingStep] = useState<StepKey | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // งาน/ชุดสอบของคาบที่ส่งแล้ว (null = ยังโหลดไม่เสร็จ)
+  const [work, setWork] = useState<{ submitted: string[]; examsDone: string[] } | null>(null)
 
   const unlocked = detail.status === 'success' && detail.data !== null
 
@@ -20,14 +21,24 @@ export function useSessionPage(sessionNo: number, isStudent: boolean) {
       (steps) => !cancelled && setCompleted(steps),
       () => undefined,
     )
-    void checkinSession(sessionNo).then(
-      (ok) => !cancelled && setCheckedIn(ok),
-      () => undefined,
-    )
     return () => {
       cancelled = true
     }
   }, [sessionNo, unlocked, isStudent])
+
+  const assignmentIds = detail.data?.assignments.map((a) => a.id).join(',') ?? ''
+  const examIds = detail.data?.exams.map((e) => e.id).join(',') ?? ''
+  useEffect(() => {
+    if (!unlocked || !isStudent || !studentId) return
+    let cancelled = false
+    void fetchMySessionWork(studentId, assignmentIds ? assignmentIds.split(',') : [], examIds ? examIds.split(',') : []).then(
+      (w) => !cancelled && setWork(w),
+      () => !cancelled && setWork({ submitted: [], examsDone: [] }),
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [unlocked, isStudent, studentId, assignmentIds, examIds])
 
   const completeStep = useCallback(
     async (step: StepKey) => {
@@ -47,5 +58,14 @@ export function useSessionPage(sessionNo: number, isStudent: boolean) {
 
   const steps = detail.data ? parseSteps(detail.data.session.steps) : []
 
-  return { detail, steps, completed, setCompleted, checkedIn, savingStep, saveError, completeStep }
+  // ส่งงาน/ข้อสอบที่ฝังในหน้าคาบแล้ว: อัปเดตสถานะทันทีไม่ต้องโหลดใหม่
+  const markSent = useCallback((kind: 'assignment' | 'exam', id: string) => {
+    setWork((w) => {
+      const cur = w ?? { submitted: [], examsDone: [] }
+      if (kind === 'assignment') return cur.submitted.includes(id) ? cur : { ...cur, submitted: [...cur.submitted, id] }
+      return cur.examsDone.includes(id) ? cur : { ...cur, examsDone: [...cur.examsDone, id] }
+    })
+  }, [])
+
+  return { detail, steps, completed, setCompleted, savingStep, saveError, completeStep, work, markSent }
 }

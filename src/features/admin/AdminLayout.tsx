@@ -8,7 +8,6 @@ import {
   School,
   Settings,
   SquarePen,
-  UserCheck,
   UserCog,
   Users,
 } from 'lucide-react'
@@ -18,7 +17,6 @@ import type { NavItem } from '@/components/shell/Shell'
 const NAV: NavItem[] = [
   { to: '/admin', label: 'แดชบอร์ด', icon: LayoutDashboard, end: true },
   { to: '/admin/sessions', label: 'บทเรียน / คาบเรียน', icon: BookOpen },
-  { to: '/admin/attendance', label: 'เช็คชื่อ', icon: UserCheck },
   { to: '/admin/assignments', label: 'งาน / ตรวจงาน', icon: ClipboardCheck },
   { to: '/admin/exams', label: 'ชุดสอบ / ผลสอบ', icon: SquarePen },
   { to: '/admin/questions', label: 'คลังข้อสอบ', icon: FileQuestion },

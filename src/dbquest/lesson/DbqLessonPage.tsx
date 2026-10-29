@@ -89,8 +89,7 @@ export function DbqLessonPage() {
       {res.status === 'error' && <ErrorBlock message={res.error} onRetry={res.reload} />}
       {res.data?.kind === 'locked' && (
         <NongDataSays mood="think">
-          <Lock className="inline size-4 shrink-0 align-[-0.2em]" aria-hidden /> คาบนี้ยังล็อกอยู่ ทำคาบก่อนหน้าให้ได้อย่างน้อยตามเกณฑ์
-          หรือรอครูปลดล็อกให้นะ
+          <Lock className="inline size-4 shrink-0 align-[-0.2em]" aria-hidden /> คาบนี้ยังล็อกอยู่ รอครูปลดล็อกในชั่วโมงเรียนนะ
         </NongDataSays>
       )}
       {res.data?.kind === 'no-content' && <NongDataSays mood="think">เนื้อหาคาบนี้กำลังเตรียมอยู่ อีกไม่นานเปิดให้เรียนแน่นอน</NongDataSays>}

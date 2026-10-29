@@ -17,7 +17,6 @@ function SettingsForm({ initial }: { initial: DbqSettings }) {
   const [weights, setWeights] = useState<Record<string, string>>(() =>
     Object.fromEntries(CATEGORIES.map((c) => [c, String(initial.score_weights[c] ?? 0)])),
   )
-  const [threshold, setThreshold] = useState(String(initial.unlock_threshold_pct))
   const [leaderboard, setLeaderboard] = useState(initial.leaderboard_enabled)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -25,15 +24,12 @@ function SettingsForm({ initial }: { initial: DbqSettings }) {
   const nums = Object.fromEntries(CATEGORIES.map((c) => [c, Number(weights[c])]))
   const sum = weightsTotal(nums)
   const weightsOk = CATEGORIES.every((c) => Number.isFinite(nums[c]) && (nums[c] ?? -1) >= 0) && sum === 100
-  const th = Number(threshold)
-  const thOk = Number.isFinite(th) && th >= 0 && th <= 100
 
   const save = async () => {
     setBusy(true)
     setMsg(null)
     try {
       await saveSetting('score_weights', nums)
-      await saveSetting('unlock_threshold_pct', th)
       await saveSetting('leaderboard_enabled', leaderboard)
       setMsg({ ok: true, text: 'บันทึกแล้ว' })
     } catch (e) {
@@ -72,11 +68,7 @@ function SettingsForm({ initial }: { initial: DbqSettings }) {
 
       <section className={`${panel} space-y-3`}>
         <h2 className="text-lg text-dq-900">การเรียน</h2>
-        <label className="flex flex-wrap items-center gap-2">
-          <span>เปิดคาบถัดไปเมื่อทำคาบก่อนหน้าได้อย่างน้อย</span>
-          <input className={`${input} w-20 text-right`} inputMode="numeric" value={threshold} onChange={(e) => setThreshold(e.target.value)} aria-invalid={!thOk} />
-          <span>%</span>
-        </label>
+        <p className="text-sm text-slate-600">คาบเปิดเฉพาะที่ครูเปิดในหน้า “ปลดล็อกคาบ” เท่านั้น</p>
         <label className="flex items-center gap-2">
           <input type="checkbox" className="size-5" checked={leaderboard} onChange={(e) => setLeaderboard(e.target.checked)} />
           <span>แสดงอันดับ XP ในห้องให้นักเรียนเห็น</span>
@@ -84,7 +76,7 @@ function SettingsForm({ initial }: { initial: DbqSettings }) {
       </section>
 
       <div className="flex items-center gap-3">
-        <button type="button" className={btn.primary} disabled={busy || !weightsOk || !thOk} onClick={() => void save()}>
+        <button type="button" className={btn.primary} disabled={busy || !weightsOk} onClick={() => void save()}>
           {busy ? 'กำลังบันทึก…' : 'บันทึก'}
         </button>
         {msg && <p className={msg.ok ? 'text-emerald-700' : 'text-rose-600'}>{msg.text}</p>}

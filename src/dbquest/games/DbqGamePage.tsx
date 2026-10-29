@@ -51,7 +51,7 @@ export function GameView({ gameKey, embedded }: { gameKey: string; embedded?: Em
     return (
       <NongDataSays mood="think">
         <p>
-          <Lock className="inline size-4 shrink-0 align-[-0.2em]" aria-hidden /> คาบของเกมนี้ยังไม่เปิด ทำคาบก่อนหน้าให้ครบตามเกณฑ์ หรือรอครูปลดล็อก
+          <Lock className="inline size-4 shrink-0 align-[-0.2em]" aria-hidden /> คาบของเกมนี้ยังไม่เปิด รอครูปลดล็อกในชั่วโมงเรียนนะ
         </p>
         <Link to="/db/map" className={`${secondaryBtn} mt-3`}>
           ไปที่บทเรียน

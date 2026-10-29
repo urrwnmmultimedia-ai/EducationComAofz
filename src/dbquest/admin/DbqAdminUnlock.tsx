@@ -5,7 +5,7 @@ import { course } from '@/content/course'
 import { btn, PageHeader, panel, useRooms } from './adminUi'
 import { setUnlock } from './dbqAdminApi'
 
-// ปลดล็อกคาบให้ห้อง (นอกเหนือจากการปลดล็อกอัตโนมัติเมื่อทำคาบก่อนหน้าครบตามเกณฑ์)
+// ปลดล็อกคาบให้ห้อง — คาบเปิดเฉพาะที่ครูเปิดตรงนี้เท่านั้น (ไม่มีเปิดเองอัตโนมัติ)
 export function DbqAdminUnlock() {
   const rooms = useRooms()
   const [busy, setBusy] = useState<string | null>(null)
@@ -31,7 +31,7 @@ export function DbqAdminUnlock() {
     <div className="space-y-4">
       <PageHeader title="ปลดล็อกคาบ" />
       <p className="text-slate-600">
-        คาบ 1 เปิดเสมอ คาบถัดไปเปิดเองเมื่อนักเรียนทำคาบก่อนหน้าครบตามเกณฑ์ (ตั้งได้ที่หน้าตั้งค่า) กดเปิดตรงนี้เพื่อเปิดให้ทั้งห้องทันที
+        นักเรียนเข้าได้เฉพาะคาบที่ครูเปิดให้ห้องตรงนี้ คาบที่ล็อกไว้ นักเรียนเปิดไม่ได้แม้ทำคาบก่อนหน้าครบแล้ว
       </p>
       {error && <p className="text-rose-600">{error}</p>}
       {rooms.data.length === 0 && <p className={`${panel} text-slate-500`}>ยังไม่มีห้อง DB Quest</p>}

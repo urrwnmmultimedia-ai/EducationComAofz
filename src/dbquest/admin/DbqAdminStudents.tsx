@@ -241,7 +241,6 @@ function SessionRow({
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="min-w-0 flex-1 text-amber-950">
             รีเซ็ตคาบ {s.session_no} ของ {studentName}? ความคืบหน้าทุกขั้น คำตอบ ใบงานที่ส่ง (รวมคะแนนที่ตรวจแล้ว) คะแนนเกม และ XP ของคาบนี้จะหายทั้งหมด (เหรียญยังอยู่)
-            ถ้าคาบถัดไปเปิดเพราะทำคาบนี้ครบตามเกณฑ์ จะถูกล็อกกลับจนกว่าจะทำใหม่
           </p>
           <button type="button" className={btn.secondary} disabled={busy} onClick={() => setConfirming(false)}>
             ยกเลิก

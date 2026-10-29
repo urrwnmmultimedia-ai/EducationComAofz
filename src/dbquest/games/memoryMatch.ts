@@ -68,11 +68,23 @@ export function isComplete(s: MatchState): boolean {
   return s.matched.length * 2 === s.cards.length
 }
 
-// คะแนน 0-100: ครบทุกคู่ = 100 หักครั้งละ 4 เมื่อเปิดผิดเกิน 2 ครั้ง (ขั้นต่ำ 40)
-// หมดเวลาก่อนครบ = ได้ตามสัดส่วนคู่ที่จับได้ เต็ม 60
-export function matchScore(s: MatchState): number {
-  const total = s.cards.length / 2
-  if (total === 0) return 0
-  if (isComplete(s)) return Math.max(40, 100 - 4 * Math.max(0, s.misses - 2))
-  return Math.round((60 * s.matched.length) / total)
+// คะแนน 0-100 จากเวลาที่ใช้เท่านั้น (ไม่นับครั้งที่เปิดผิด และไม่มีหมดเวลา)
+// จบภายในเวลาเป้าหมาย = 100 จากนั้นลดลงเรื่อย ๆ จนเหลือ 40 ที่ 3 เท่าของเวลาเป้าหมาย (ต่ำสุด 40)
+export function timeScore(durationSec: number, targetSec: number): number {
+  if (durationSec <= targetSec) return 100
+  return Math.max(40, Math.floor(100 - (60 * (durationSec - targetSec)) / (2 * targetSec)))
+}
+
+export function matchScore(s: MatchState, durationSec: number, targetSec: number): number {
+  return s.cards.length > 0 && isComplete(s) ? timeScore(durationSec, targetSec) : 0
+}
+
+// เกณฑ์ดาวตรงกับ public.dbq_game_stars: >= 90 = 3, >= 70 = 2, >= 40 = 1
+export function starsForScore(score: number): number {
+  return score >= 90 ? 3 : score >= 70 ? 2 : score >= 40 ? 1 : 0
+}
+
+// เวลานานสุด (วินาที) ที่ยังได้ 3 ดาว และ 2 ดาว
+export function starDeadlines(targetSec: number): { three: number; two: number } {
+  return { three: Math.floor(targetSec + targetSec / 3), two: targetSec * 2 }
 }

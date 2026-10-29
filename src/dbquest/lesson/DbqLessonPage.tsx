@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import {
   ArrowLeft,
@@ -26,6 +26,7 @@ import { useAsync } from '@/lib/useAsync'
 import { BlockView } from './Blocks'
 import { DbqMarkdown } from './DbqMarkdown'
 import { completeStep, DbqError, fetchSessionState, submitWorksheet, type CheckResult, type SessionState } from './dbqLessonApi'
+import { GameView } from '../games/DbqGamePage'
 import { QuestionCard } from './QuestionCard'
 
 const STEP_TITLE = Object.fromEntries(course.steps.map((s) => [s.id, s.title])) as Record<StepKey, string>
@@ -40,6 +41,8 @@ const STEP_ICON: Record<StepKey, LucideIcon> = {
 
 const primaryBtn =
   'min-h-12 rounded-2xl tq-press bg-action px-6 font-semibold text-white shadow-action hover:-translate-y-px hover:bg-brand-600 disabled:opacity-50 disabled:shadow-none'
+const navBtn =
+  'min-h-12 rounded-2xl px-4 font-display text-dq-700 ring-2 ring-dq-200 hover:bg-dq-50 disabled:opacity-50 dark:text-dq-200 dark:ring-dq-700 dark:hover:bg-dq-800'
 const panel = 'space-y-4 rounded-3xl bg-white p-5 ring-1 ring-dq-100 dark:bg-dq-900 dark:ring-dq-800'
 const textArea =
   'min-h-28 w-full rounded-2xl border-2 border-dq-200 bg-white px-4 py-3 outline-none focus:border-dq-500 dark:border-dq-700 dark:bg-dq-950'
@@ -137,16 +140,23 @@ function LessonFlow({ no, content, initial, after }: { no: number; content: Sess
     gainXp(r.xp)
   }
 
+  const markDone = (step: StepKey, xp: number) => {
+    setDone((s) => new Set(s).add(step))
+    gainXp(xp)
+  }
+  const goNext = (step: StepKey) => {
+    const next = steps[steps.indexOf(step) + 1]
+    if (next) setCurrent(next)
+    scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const finish = async (step: StepKey, data: Json = {}) => {
     setBusy(true)
     setError(null)
     try {
       const r = await completeStep(no, step, data)
-      setDone((s) => new Set(s).add(step))
-      gainXp(r.xp)
-      const next = steps[steps.indexOf(step) + 1]
-      if (next) setCurrent(next)
-      scrollTo({ top: 0, behavior: 'smooth' })
+      markDone(step, r.xp)
+      goNext(step)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
     } finally {
@@ -161,6 +171,7 @@ function LessonFlow({ no, content, initial, after }: { no: number; content: Sess
     const w = initial.done.warmup as { guess?: unknown } | undefined
     return typeof w?.guess === 'string' ? w.guess : ''
   })
+  const nextStep = steps[steps.indexOf(current) + 1]
   const stepProps = {
     content,
     busy,
@@ -184,7 +195,9 @@ function LessonFlow({ no, content, initial, after }: { no: number; content: Sess
       {current === 'warmup' && <WarmupStep {...stepProps} guess={guess} onGuess={setGuess} />}
       {current === 'lesson' && <LessonStep {...stepProps} />}
       {current === 'practice' && <PracticeStep {...stepProps} />}
-      {current === 'game' && <GameStep {...stepProps} />}
+      {current === 'game' && (
+        <GameStep {...stepProps} markDone={markDone} goNext={goNext} nextTitle={nextStep && STEP_TITLE[nextStep]} />
+      )}
       {current === 'worksheet' && <WorksheetStep {...stepProps} initialSubmission={initial.submissions[content.worksheet?.item_id ?? '']} />}
       {current === 'wrapup' && <WrapupStep {...stepProps} />}
 
@@ -320,30 +333,68 @@ function WarmupStep({ content, busy, done, finish, guess, onGuess }: StepProps &
 }
 
 function LessonStep({ content, busy, done, finish, onChecked, solved }: StepProps) {
-  // การ์ดถัดไปเปิดเมื่อตอบคำถามท้ายการ์ดก่อนหน้าถูก
-  const unlocked = content.cards.findIndex((c) => !solved.has(c.check.id))
-  const visible = unlocked === -1 ? content.cards : content.cards.slice(0, unlocked + 1)
-  const allSolved = unlocked === -1
+  // แสดงทีละการ์ด: ตอบคำถามท้ายการ์ดถูก การ์ดถัดไปจะมาแทนที่
+  const cards = content.cards
+  const firstUnsolved = cards.findIndex((c) => !solved.has(c.check.id))
+  const allSolved = firstUnsolved === -1
+  const [idx, setIdx] = useState(() => Math.max(firstUnsolved, 0))
+  const [advanceFrom, setAdvanceFrom] = useState<number | null>(null)
+  const top = useRef<HTMLElement>(null)
+  const card = cards[idx]!
+  const isLast = idx === cards.length - 1
+  const canNext = !isLast && solved.has(card.check.id)
+
+  const go = useCallback((i: number) => {
+    setIdx(i)
+    top.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  // ตอบถูกแล้วรอให้เห็นผลสักครู่ก่อนเปลี่ยนการ์ด
+  useEffect(() => {
+    if (advanceFrom === null) return
+    const t = setTimeout(() => {
+      setAdvanceFrom(null)
+      go(advanceFrom + 1)
+    }, 1200)
+    return () => clearTimeout(t)
+  }, [advanceFrom, go])
+
+  const onCardChecked = (id: string, r: CheckResult) => {
+    onChecked(id, r)
+    if (r.correct && !isLast) setAdvanceFrom(idx)
+  }
+
   return (
-    <section className="space-y-6">
+    <section ref={top} className="scroll-mt-4 space-y-6">
       <StepHeader step="lesson">
-        ตอบคำถามท้ายการ์ดถูก การ์ดถัดไปจะเปิด ({Math.min(visible.length, content.cards.length)}/{content.cards.length})
+        ตอบคำถามท้ายการ์ดถูก จะไปการ์ดถัดไป (การ์ด {idx + 1}/{cards.length})
       </StepHeader>
-      {visible.map((card, i) => (
-        <article key={card.id} className={panel}>
-          <h3 className="text-lg text-dq-900 dark:text-white">
-            การ์ด {i + 1}: {card.title}
-          </h3>
-          {card.blocks.map((b, j) => (
-            <BlockView key={j} block={b} />
-          ))}
-          <div className="border-t border-dq-100 pt-4 dark:border-dq-800">
-            <p className="mb-2 font-display text-xp-600 dark:text-xp-400">เช็กความเข้าใจ</p>
-            <QuestionCard question={card.check} solved={solved.has(card.check.id)} onChecked={onChecked} />
-          </div>
-        </article>
-      ))}
+      <article key={card.id} className={panel}>
+        <h3 className="text-lg text-dq-900 dark:text-white">
+          การ์ด {idx + 1}: {card.title}
+        </h3>
+        {card.blocks.map((b, j) => (
+          <BlockView key={j} block={b} />
+        ))}
+        <div className="border-t border-dq-100 pt-4 dark:border-dq-800">
+          <p className="mb-2 font-display text-xp-600 dark:text-xp-400">เช็กความเข้าใจ</p>
+          <QuestionCard question={card.check} solved={solved.has(card.check.id)} onChecked={onCardChecked} />
+        </div>
+      </article>
+      <div className="flex flex-wrap items-center gap-3">
+        {idx > 0 && (
+          <button type="button" className={navBtn} disabled={advanceFrom !== null} onClick={() => go(idx - 1)}>
+            ← การ์ดก่อนหน้า
+          </button>
+        )}
+        {canNext && (
+          <button type="button" className={navBtn} disabled={advanceFrom !== null} onClick={() => go(idx + 1)}>
+            การ์ดถัดไป →
+          </button>
+        )}
+      </div>
       {allSolved &&
+        isLast &&
         (done ? (
           <DoneNote />
         ) : (
@@ -374,31 +425,34 @@ function PracticeStep({ content, busy, done, finish, onChecked, solved, attempte
   )
 }
 
-function GameStep({ content, busy, done, finish }: StepProps) {
+function GameStep({
+  content,
+  busy,
+  done,
+  finish,
+  markDone,
+  goNext,
+  nextTitle,
+}: StepProps & { markDone: (step: StepKey, xp: number) => void; goNext: (step: StepKey) => void; nextTitle?: string }) {
   const game = content.game
   if (!game) return null
   return (
-    <section className={panel}>
-      <StepHeader step="game" />
-      <p className="font-display text-xl">{game.title}</p>
-      <p>{game.description}</p>
-      <Link to={`/db/games/${game.slug}`} className={`${primaryBtn} inline-flex items-center`}>
-        เปิดเกม
-      </Link>
-      {done ? (
-        <DoneNote>เล่นเกมแล้ว</DoneNote>
-      ) : (
-        <div>
-          <p className="text-base text-slate-600 dark:text-dq-300">เล่นจบแล้วกลับมากดปุ่มนี้</p>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void finish('game')}
-            className="mt-2 min-h-12 rounded-2xl px-4 font-display text-dq-700 ring-2 ring-dq-200 hover:bg-dq-50 dark:text-dq-200 dark:ring-dq-700 dark:hover:bg-dq-800"
-          >
-            เล่นจบแล้ว ไปขั้นถัดไป
-          </button>
-        </div>
+    <section className="space-y-4">
+      <StepHeader step="game">{game.description}</StepHeader>
+      {done && <DoneNote>เล่นเกมแล้ว เล่นซ้ำเพื่อเก็บดาวเพิ่มได้</DoneNote>}
+      <GameView
+        gameKey={game.slug}
+        embedded={{
+          onStepDone: (xp) => markDone('game', xp),
+          nextLabel: nextTitle ? `เล่นจบแล้ว ไปขั้น${nextTitle}` : 'เล่นจบแล้ว',
+          // โหมดครูไม่บันทึกขั้นเกมตอนเล่นจบ จึงให้ปุ่มนี้บันทึกแทน
+          onNext: () => (done ? goNext('game') : void finish('game')),
+        }}
+      />
+      {done && (
+        <button type="button" className={primaryBtn} disabled={busy} onClick={() => goNext('game')}>
+          {nextTitle ? `ไปขั้น${nextTitle}` : 'ไปขั้นถัดไป'}
+        </button>
       )}
     </section>
   )

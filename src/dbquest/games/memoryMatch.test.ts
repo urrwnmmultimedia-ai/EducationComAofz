@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canFlip, flip, hide, isComplete, matchScore, newGame, type MatchState, type Pair } from './memoryMatch'
+import { canFlip, flip, isComplete, hide, matchScore, newGame, starDeadlines, starsForScore, timeScore, type MatchState, type Pair } from './memoryMatch'
 
 const pairs: Pair[] = [
   { id: 'a', term: 'A', meaning: 'a' },
@@ -40,16 +40,27 @@ describe('Memory Match', () => {
     expect(flip(s, 0)).toBe(s)
   })
 
-  it('คะแนน', () => {
+  it('คะแนนจากเวลาเท่านั้น ไม่นับเปิดผิด', () => {
     let s = fresh()
-    expect(matchScore(s)).toBe(0)
+    expect(matchScore(s, 30, 60)).toBe(0)
     s = flip(flip(s, 0), 1)
-    expect(matchScore(s)).toBe(30) // หมดเวลา จับได้ 1 ใน 2 คู่
+    expect(matchScore(s, 30, 60)).toBe(0) // ยังไม่ครบ
     s = flip(flip(s, 2), 3)
     expect(isComplete(s)).toBe(true)
-    expect(matchScore(s)).toBe(100)
-    expect(matchScore({ ...s, misses: 2 })).toBe(100)
-    expect(matchScore({ ...s, misses: 5 })).toBe(88)
-    expect(matchScore({ ...s, misses: 50 })).toBe(40)
+    expect(matchScore(s, 30, 60)).toBe(100)
+    expect(matchScore({ ...s, misses: 50 }, 30, 60)).toBe(100)
+    expect(timeScore(60, 60)).toBe(100)
+    expect(timeScore(120, 60)).toBe(70)
+    expect(timeScore(180, 60)).toBe(40)
+    expect(timeScore(9999, 60)).toBe(40)
+  })
+
+  it('เส้นตายของดาวตรงกับคะแนน', () => {
+    const t = 180
+    const d = starDeadlines(t)
+    expect(starsForScore(timeScore(d.three, t))).toBe(3)
+    expect(starsForScore(timeScore(d.three + 1, t))).toBe(2)
+    expect(starsForScore(timeScore(d.two, t))).toBe(2)
+    expect(starsForScore(timeScore(d.two + 1, t))).toBe(1)
   })
 })

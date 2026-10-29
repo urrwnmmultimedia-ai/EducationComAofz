@@ -522,7 +522,7 @@ check('dbq010: ม.3 student cannot check answers', r === 'forbidden')
 // ขั้นในคาบ
 r = await as(D5, `select public.dbq_session_state(1) as r`)
 check('dbq010: s01 steps', r[0].r.steps.join() === 'warmup,lesson,practice,game,worksheet,wrapup' && r[0].r.solved.join() === 's01-c1-q' && r[0].r.pct === 0)
-check('dbq010: session_state has no answer data', !/explanation|teacher_notes|"answer"|o-x/.test(JSON.stringify(r[0].r)))
+check('dbq010: session_state has no answer data', !/explanation|teacher_notes|"answer"|d-2":"server/.test(JSON.stringify(r[0].r)))
 r = await as(D5, `select public.dbq_my_map() as r`)
 check('dbq010: map s1 open, s2 locked', r[0].r[0].open === true && r[0].r[1].open === false && r[0].r.length === 20)
 r = await as(D5, `select public.dbq_session_state(2) as r`).catch(err)
@@ -543,8 +543,8 @@ check('dbq010: repeat step -> 0 xp', r[0].r.xp === 0)
 r = await as(D5, `select public.dbq_complete_step(1, 'lesson', '{}') as r`).catch(err)
 check('dbq010: lesson needs all card checks correct', r === 'incomplete')
 for (const [id, resp] of [
-  ['s01-c2-q', { pairs: { 'i-1': 'hw', 'i-2': 'sw', 'i-3': 'data' } }],
-  ['s01-c3-q', { order: ['o-x', 'o-m', 'o-k'] }],
+  ['s01-c2-q', { pairs: { 'i-1': 'hw', 'i-2': 'data', 'i-3': 'sw', 'i-4': 'people', 'i-5': 'data' } }],
+  ['s01-c3-q', { pairs: { 'd-1': 'client', 'd-2': 'server', 'd-3': 'client', 'd-4': 'client' } }],
 ]) {
   r = await as(D5, `select public.dbq_check_answer('${id}', '${JSON.stringify(resp)}') as r`)
   check(`dbq010: ${id} first-try correct -> 5 xp`, r[0].r.correct && r[0].r.xp === 5)

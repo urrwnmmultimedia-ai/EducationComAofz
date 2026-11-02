@@ -8,7 +8,8 @@ import { COURSES } from '@/app/brand'
 import { Avatar, Non } from '@/components/characters/Characters'
 import { NongData } from '@/components/illustrations/NongData'
 import { Backdrop, BrandLockup, CourseChip } from '@/components/shell/Shell'
-import { homePathFor, type Identity } from './authApi'
+import { markLoginCelebration } from '@/components/evolution/EvolutionCelebration'
+import { homePathFor, registerLogin, type Identity } from './authApi'
 import { checkCodeFormat, loginErrorMessage, sanitizeStudentInput, type CodeMode } from './code'
 import { useStudentCodeLength } from './useStudentCodeLength'
 
@@ -23,6 +24,7 @@ export function LoginPage() {
   // นักเรียนต้องกด "ใช่ฉัน" ก่อนเข้า (กันพิมพ์รหัสเพื่อนผิด)
   const [confirming, setConfirming] = useState<Identity | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const [entering, setEntering] = useState(false)
 
   if (status === 'unconfigured') {
     return (
@@ -61,6 +63,12 @@ export function LoginPage() {
       setConfirming(null)
       setCode('')
     }
+    // เข้าเรียน: ไม่ใช่ครั้งแรกของบัญชี = หน้าแรกทักทายด้วยวิวัฒนาการของตัวเอง
+    const enter = async () => {
+      setEntering(true)
+      if ((await registerLogin(st.id)) > 0) markLoginCelebration(st.id)
+      navigate(homePathFor(confirming), { replace: true })
+    }
     return (
       <main className="grid min-h-dvh place-items-center px-4 py-10">
         <Backdrop variant="hero" />
@@ -77,7 +85,7 @@ export function LoginPage() {
             {st.number != null && ` · เลขที่ ${st.number}`}
           </p>
           <div className="mt-6 flex flex-col gap-3">
-            <Button className="w-full text-lg" disabled={cancelling} onClick={() => navigate(homePathFor(confirming), { replace: true })}>
+            <Button className="w-full text-lg" disabled={cancelling} loading={entering} loadingText="กำลังเข้าเรียน…" onClick={() => void enter()}>
               ใช่ ฉันเอง เข้าเรียนเลย
             </Button>
             <Button variant="secondary" className="w-full" loading={cancelling} loadingText="กำลังยกเลิก…" onClick={() => void notMe()}>

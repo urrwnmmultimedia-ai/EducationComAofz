@@ -54,6 +54,7 @@ export interface ScoredItem {
   category: Category
   maxScore: number
   dueAt: string | null
+  sessionNo?: number | null // คาบของงาน — งานในคาบเดียวกันรวมเป็น 1 ช่อง (ไม่มีคาบ = ช่องของตัวเอง)
 }
 
 export interface ScoreEntry {
@@ -82,7 +83,34 @@ export interface CategoryResult {
   raw: number // คะแนนดิบรวม (หลังหักส่งช้า)
   max: number // คะแนนเต็มรวมของทุกรายการ
   gradedMax: number // คะแนนเต็มรวมเฉพาะรายการที่มีคะแนนแล้ว
-  scaled: number // แปลงเป็นสัดส่วนตาม weight (คิดจากทุกรายการ)
+  slots: number // จำนวนคาบที่มีงานในหมวดนี้ (แต่ละคาบได้ส่วนแบ่งเท่ากัน)
+  scaled: number // แปลงเป็นสัดส่วนตาม weight (คิดจากทุกคาบ ยังไม่ได้คะแนน = 0)
+  gradedPct: number | null // % เฉลี่ยของคาบที่มีคะแนนแล้ว (ใช้คาดการณ์)
+}
+
+// แบ่งงานในหมวดเป็นช่องรายคาบ: คะแนนคาบ = คะแนนรวม / คะแนนเต็มของงานในคาบนั้น
+// หมวดได้ = ค่าเฉลี่ยทุกคาบ × น้ำหนัก → ทำครบ 1 คาบได้แค่ส่วนแบ่งของคาบนั้น ไม่ว่าคาบนั้นจะมีคะแนนเต็มเท่าไร
+function sessionSlots(inCat: ScoredItem[], entries: Map<string, ScoreEntry>, policy: ScoringPolicy) {
+  const slots = new Map<string, { raw: number; max: number; gradedMax: number }>()
+  for (const item of inCat) {
+    if (item.maxScore <= 0) continue // งานไม่มีคะแนน (เช่น ใบงานฝึก) ไม่นับเป็นช่อง
+    const key = item.sessionNo != null ? `s${item.sessionNo}` : `i${item.id}`
+    const slot = slots.get(key) ?? { raw: 0, max: 0, gradedMax: 0 }
+    slot.max += item.maxScore
+    const eff = effectiveScore(item, entries.get(item.id), policy)
+    if (eff != null) {
+      slot.raw += eff
+      slot.gradedMax += item.maxScore
+    }
+    slots.set(key, slot)
+  }
+  const list = [...slots.values()]
+  const graded = list.filter((s) => s.gradedMax > 0)
+  return {
+    count: list.length,
+    ratio: list.length ? list.reduce((s, x) => s + x.raw / x.max, 0) / list.length : 0,
+    gradedRatio: graded.length ? graded.reduce((s, x) => s + x.raw / x.gradedMax, 0) / graded.length : null,
+  }
 }
 
 export interface StudentScore {
@@ -94,7 +122,7 @@ export interface StudentScore {
 }
 
 // คำนวณคะแนนรวมของนักเรียน 1 คน
-// ผลรวมคะแนนงานจริงแปลงเป็นสเกลตามสัดส่วนในตั้งค่าอัตโนมัติ (ครูเพิ่ม/ลดงานได้ไม่ต้องคิดเลขเอง)
+// แต่ละหมวด: เฉลี่ยคะแนนรายคาบ (คาบละส่วนเท่ากัน) แล้วแปลงเป็นสเกลตามน้ำหนักในตั้งค่า
 export function computeStudentScore(
   items: ScoredItem[],
   entries: Map<string, ScoreEntry>,
@@ -115,7 +143,17 @@ export function computeStudentScore(
       }
     }
     const weight = policy.weights[category]
-    return { category, weight, raw: round2(raw), max, gradedMax, scaled: max > 0 ? round2((raw / max) * weight) : 0 }
+    const s = sessionSlots(inCat, entries, policy)
+    return {
+      category,
+      weight,
+      raw: round2(raw),
+      max,
+      gradedMax,
+      slots: s.count,
+      scaled: round2(s.ratio * weight),
+      gradedPct: s.gradedRatio == null ? null : s.gradedRatio * 100,
+    }
   })
 
   if (policy.weights.affective > 0) {
@@ -127,18 +165,20 @@ export function computeStudentScore(
       raw: Math.max(0, totalXp),
       max: full,
       gradedMax: full,
+      slots: 1,
       scaled: round2(ratio * policy.weights.affective),
+      gradedPct: ratio * 100,
     })
   }
 
   const total = round2(categories.reduce((s, c) => s + c.scaled, 0))
 
-  // คาดการณ์: ใช้สัดส่วนที่ทำได้ในรายการที่ตรวจแล้ว แล้วเฉลี่ยตามน้ำหนักของหมวดที่มีคะแนน
+  // คาดการณ์: ใช้สัดส่วนที่ทำได้ในคาบที่ตรวจแล้ว แล้วเฉลี่ยตามน้ำหนักของหมวดที่มีคะแนน
   let earned = 0
   let weightSeen = 0
   for (const c of categories) {
-    if (c.gradedMax > 0 && c.weight > 0) {
-      earned += (c.raw / c.gradedMax) * c.weight
+    if (c.gradedPct != null && c.weight > 0) {
+      earned += (c.gradedPct / 100) * c.weight
       weightSeen += c.weight
     }
   }

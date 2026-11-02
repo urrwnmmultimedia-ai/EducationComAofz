@@ -36,7 +36,6 @@ export function buildGradebookSheet(gb: Gradebook): unknown[][] {
     ...CATEGORIES.map((c) => `${CATEGORY_LABEL[c]} (${gb.weights[c] ?? 0})`),
     'รวม (100)',
     'เกรด',
-    'XP',
   ]
   const rows = gb.rows.map((r) => [
     r.classroom_name ?? '',
@@ -51,7 +50,6 @@ export function buildGradebookSheet(gb: Gradebook): unknown[][] {
     ...CATEGORIES.map((c) => r.scores.categories[c]?.points ?? ''),
     r.scores.total,
     gradeOf(r.scores),
-    r.xp,
   ])
   return [header, ...rows]
 }

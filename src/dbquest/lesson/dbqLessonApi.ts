@@ -15,6 +15,8 @@ const mapSchema = z.array(
     title: z.string(),
     open: z.boolean(),
     pct: z.number().nullable(),
+    // เวลาที่ครูปลดล็อกให้ห้องนี้ (ฐานข้อมูลที่ยังไม่รันอัปเดต 021 = ไม่มี)
+    unlocked_at: z.string().nullable().optional(),
   }),
 )
 export type MapItem = z.infer<typeof mapSchema>[number]

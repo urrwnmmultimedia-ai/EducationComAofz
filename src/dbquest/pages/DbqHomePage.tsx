@@ -10,11 +10,16 @@ import { StepPreview } from '@/components/StepJourney'
 import { EvolutionSlot } from '@/components/evolution/ScoreEvolutionCard'
 import { EvolutionCard } from '../EvolutionCard'
 import { unitIcon } from '../unitIcons'
-import { fetchMe, fetchMyScores } from './dbqStudentApi'
+import { countMedals } from '@/components/medals/Medals'
+import { fetchMyScores } from './dbqStudentApi'
 
-// คาบที่ควรเรียนต่อ: คาบเนื้อหาที่เปิดแล้วแต่ยังไม่ครบ ตัวแรก (ถ้าครบหมด = คาบเปิดล่าสุด)
+// คาบปัจจุบัน = คาบที่ครูปลดล็อกให้ห้องของนักเรียนล่าสุด (เหมือนหน้าแรก ม.3)
+// ไม่มีเวลาปลดล็อก (ครูดูตัวอย่าง / ฐานข้อมูลเก่า): คาบเนื้อหาที่เปิดแล้วแต่ยังไม่ครบตัวแรก ถ้าครบหมด = คาบเปิดเลขสูงสุด
 export function nextSession(map: MapItem[]): MapItem | undefined {
-  return map.find((m) => m.open && m.kind === 'lesson' && (m.pct ?? 0) < 100) ?? [...map].reverse().find((m) => m.open)
+  const latest = map
+    .filter((m) => m.open && m.unlocked_at)
+    .sort((a, b) => Date.parse(b.unlocked_at!) - Date.parse(a.unlocked_at!) || b.session_no - a.session_no)[0]
+  return latest ?? map.find((m) => m.open && m.kind === 'lesson' && (m.pct ?? 0) < 100) ?? [...map].reverse().find((m) => m.open)
 }
 
 // ความคืบหน้าทั้งวิชา (0–100): เฉลี่ยทุกคาบเนื้อหา รวมคาบที่ยังไม่เปิด (นับเป็น 0)
@@ -40,7 +45,7 @@ const card = 'tq-card dark:bg-dq-900 dark:ring-dq-800'
 export function DbqHomePage() {
   const { identity } = useAuth()
   const name = identity.student?.nickname || identity.student?.first_name
-  const res = useAsync(() => Promise.all([fetchMap(), fetchMe(), fetchMyScores()]), [])
+  const res = useAsync(() => Promise.all([fetchMap(), fetchMyScores()]), [])
 
   return (
     <div className="flex flex-col gap-8">
@@ -50,12 +55,12 @@ export function DbqHomePage() {
       </header>
       {res.status === 'loading' && <LoadingBlock />}
       {res.status === 'error' && <ErrorBlock message={res.error} onRetry={res.reload} />}
-      {res.status === 'success' && <Home map={res.data[0]} xp={res.data[1].xp} badges={res.data[1].badges.length} scores={res.data[2]} />}
+      {res.status === 'success' && <Home map={res.data[0]} scores={res.data[1]} />}
     </div>
   )
 }
 
-function Home({ map, xp, badges, scores }: { map: MapItem[]; xp: number; badges: number; scores: Awaited<ReturnType<typeof fetchMyScores>> }) {
+function Home({ map, scores }: { map: MapItem[]; scores: Awaited<ReturnType<typeof fetchMyScores>> }) {
   const next = nextSession(map)
   const pending = scores.preview ? [] : scores.assignments.filter((a) => a.open && a.status === 'missing')
   const byNo = new Map(map.map((m) => [m.session_no, m]))
@@ -120,8 +125,7 @@ function Home({ map, xp, badges, scores }: { map: MapItem[]; xp: number; badges:
             score={scores.preview ? 0 : scores.scores.total}
             compact
             info={{
-              xp,
-              badges: String(badges),
+              medals: countMedals(scores.preview ? [] : scores.medals),
               pending: pending.length,
               progressPct: courseProgress(map),
               nextDue: pending[0]

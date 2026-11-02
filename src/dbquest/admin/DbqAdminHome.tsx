@@ -44,7 +44,6 @@ export function DbqAdminHome() {
                   <th className="py-2">ห้อง</th>
                   <th>นักเรียน</th>
                   <th>เข้าเรียน 7 วัน</th>
-                  <th>XP เฉลี่ย</th>
                   <th>รอตรวจ</th>
                   <th />
                 </tr>
@@ -55,7 +54,6 @@ export function DbqAdminHome() {
                     <td className="py-2 font-display">{c.name}</td>
                     <td>{c.students}</td>
                     <td>{c.active_7d}</td>
-                    <td>{c.avg_xp}</td>
                     <td className={c.pending_grading > 0 ? 'font-display text-rose-600' : ''}>{c.pending_grading}</td>
                     <td className="text-right">
                       <Link to={`/db/admin/students?room=${c.id}`} className="text-dq-700 underline-offset-2 hover:underline">

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowRight, Layers, Lock, Medal, Play, RotateCcw, Star, Timer } from 'lucide-react'
+import { ArrowRight, Layers, Lock, Play, RotateCcw, Star, Timer } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { NongDataSays } from '@/components/illustrations/NongData'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
@@ -165,7 +165,7 @@ function Intro({ deck, onStart }: { deck: GameDeck; onStart: () => void }) {
           <li className={chip}>
             <Star className="size-4 fill-xp-400 text-xp-400" aria-hidden /> จบภายใน {clock(d.three)} ได้ 3 ดาว · {clock(d.two)} ได้ 2 ดาว
           </li>
-          <li className={chip}>ดาวใหม่ดาวละ 5 XP</li>
+          <li className={chip}>คะแนนดีที่สุดนับเป็นเหรียญของคาบ</li>
         </ul>
         <button type="button" onClick={onStart} className={goldBtn}>
           <Play className="size-5 fill-current" aria-hidden /> เริ่มเล่น
@@ -332,15 +332,12 @@ function Result({
               <p className="text-base">โหมดครู: ไม่บันทึกคะแนน</p>
             ) : (
               <>
-                <p className="font-display text-xl text-xp-300">{r.xp > 0 ? `+${r.xp} XP` : 'ได้ดาวเท่าเดิม ลองทำให้ได้ดาวมากขึ้นสิ'}</p>
+                <p className="font-display text-xl text-xp-300">
+                  {r.score >= r.best_score ? 'สถิติใหม่! คะแนนนี้นับเป็นเหรียญของคาบ' : 'ลองอีกรอบเพื่อทำคะแนนให้สูงขึ้นสิ'}
+                </p>
                 <p className="text-base text-dq-100">
                   สถิติดีที่สุด {r.best_score} คะแนน · {r.best_stars} ดาว
                 </p>
-                {r.badges.includes('three-stars') && (
-                  <p className="flex items-center justify-center gap-1.5 font-display">
-                    <Medal className="inline size-5 shrink-0 align-[-0.2em]" aria-hidden /> ได้เหรียญ "สามดาวแรก"
-                  </p>
-                )}
               </>
             )}
           </>

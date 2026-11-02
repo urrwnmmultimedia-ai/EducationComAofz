@@ -13,7 +13,7 @@ export function EvolutionCard(props: { score: number; info?: EvoInfo; compact?: 
       stages={EVO_STAGES}
       art={EvolutionArt}
       pathLabel="ควายสู่คน"
-      celebrateKey={sid ? `tq-evo-dbq-${sid}` : null}
+      celebrateKey={sid ? `tq-evo8-dbq-${sid}` : null}
     />
   )
 }

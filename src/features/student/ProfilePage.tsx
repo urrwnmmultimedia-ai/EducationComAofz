@@ -4,13 +4,13 @@ import { Award, ChartColumn, Palette, type LucideIcon } from 'lucide-react'
 import { useAuth } from '@/app/AuthContext'
 import { AVATARS, Avatar, type AvatarKey } from '@/components/characters/Characters'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
-import { levelFromXp, LEVEL_NAMES, XP_PER_LEVEL } from '@/lib/levels'
+import { countMedals, MedalShelf } from '@/components/medals/Medals'
 import { useAsync } from '@/lib/useAsync'
-import { fetchMyBadges, setMyAvatar } from '@/features/games/gamesApi'
+import { setMyAvatar } from '@/features/games/gamesApi'
 import { fetchSessionList } from '@/features/lessons/lessonsApi'
 import { courseProgressPercent } from '@/features/lessons/sessionSteps'
 import type { EvoInfo } from './EvolutionCardM3'
-import { dueCountdown, fetchStudentStats } from './studentApi'
+import { dueCountdown, fetchMyMedals, fetchStudentStats } from './studentApi'
 import { ScoresPanel } from './ScoresPage'
 import { useViewer } from './viewer'
 
@@ -21,7 +21,7 @@ const TABS: { key: Tab; label: string; icon: LucideIcon }[] = [
   { key: 'avatar', label: 'อวาตาร์', icon: Palette },
 ]
 
-// หน้า "ฉัน": การ์ดโปรไฟล์ (เลเวล XP เหรียญ) + แท็บ คะแนน / เหรียญ / อวาตาร์
+// หน้า "ฉัน": การ์ดวิวัฒนาการ + แท็บ คะแนน / เหรียญรายคาบ / อวาตาร์
 export function ProfilePage() {
   const { refresh } = useAuth()
   const { student, isPreview } = useViewer()
@@ -29,8 +29,8 @@ export function ProfilePage() {
   const [params, setParams] = useSearchParams()
   const tab: Tab = TABS.some((t) => t.key === params.get('tab')) ? (params.get('tab') as Tab) : 'scores'
   const state = useAsync(async () => {
-    const [badges, stats, sessions] = await Promise.all([fetchMyBadges(studentId), fetchStudentStats(studentId), fetchSessionList()])
-    return { badges, stats, sessions }
+    const [medals, stats, sessions] = await Promise.all([fetchMyMedals(), fetchStudentStats(studentId), fetchSessionList()])
+    return { medals, stats, sessions }
   }, [studentId])
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -38,14 +38,11 @@ export function ProfilePage() {
   if (!student) return null
   if (state.status === 'loading') return <LoadingBlock />
   if (state.status === 'error') return <ErrorBlock message={state.error} onRetry={state.reload} />
-  const { badges, stats, sessions } = state.data
-  const lv = levelFromXp(stats.totalXp)
+  const { medals, stats, sessions } = state.data
   // ข้อมูลประกอบในการ์ดวิวัฒนาการ (แท็บคะแนน)
   const next = stats.pending[0]
   const info: EvoInfo = {
-    level: `Lv.${lv.level} ${lv.name}`,
-    xp: stats.totalXp,
-    badges: `${badges.earned.size}/${badges.all.length}`,
+    medals: countMedals(medals),
     pending: stats.pending.length,
     progressPct: courseProgressPercent(sessions),
     nextDue: next ? { title: next.title, to: `/assignments/${next.id}`, when: dueCountdown(next.due_at) } : null,
@@ -88,45 +85,10 @@ export function ProfilePage() {
       {tab === 'scores' && <ScoresPanel studentId={studentId} info={info} />}
 
       {tab === 'badges' && (
-        <>
-          <section className="tq-card p-5">
-            <h2 className="mb-3 text-lg text-brand-900">
-              เหรียญ ({badges.earned.size}/{badges.all.length})
-            </h2>
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {badges.all.map((b) => {
-                const at = badges.earned.get(b.id)
-                return (
-                  <li
-                    key={b.id}
-                    className={`flex flex-col items-center gap-1 rounded-2xl p-3 text-center ${
-                      at
-                        ? 'bg-gradient-to-b from-sun-300/40 to-sun-300/10 shadow-[0_10px_20px_-14px_rgb(180_130_0/0.7)] ring-2 ring-sun-400'
-                        : 'bg-slate-50 ring-1 ring-slate-200'
-                    }`}
-                  >
-                    <span className={`text-4xl ${at ? 'drop-shadow-md' : 'opacity-30 grayscale'}`} aria-hidden>
-                      {b.icon}
-                    </span>
-                    <span className={`font-display text-sm ${at ? 'text-amber-950' : 'text-slate-500'}`}>{b.name}</span>
-                    <span className="text-xs text-slate-500">{at ? `ได้เมื่อ ${new Date(at).toLocaleDateString('th-TH')}` : 'ยังไม่ได้'}</span>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-          <section className="tq-card p-5 text-sm">
-            <h2 className="mb-2 text-lg text-brand-900">วิธีได้ XP</h2>
-            <ul className="grid gap-1 text-slate-600 sm:grid-cols-2">
-              <li>เล่นเกมในคาบ +10–50 (รอบแรกเต็ม รอบต่อไป 20%)</li>
-              <li>ส่งงานตรงเวลา +30</li>
-              <li>Exit ticket เต็ม +20</li>
-            </ul>
-            <p className="mt-2 text-xs text-slate-500">
-              ทุก {XP_PER_LEVEL} XP ขึ้น 1 เลเวล: {LEVEL_NAMES.join(' → ')}
-            </p>
-          </section>
-        </>
+        <section className="tq-card p-5">
+          <h2 className="mb-3 text-lg text-brand-900">เหรียญรายคาบ</h2>
+          <MedalShelf medals={medals} sessionTitle={(no) => sessions.find((x) => x.session_no === no)?.title} />
+        </section>
       )}
 
       {tab === 'avatar' && (

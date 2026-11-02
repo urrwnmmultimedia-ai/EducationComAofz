@@ -1,4 +1,4 @@
-// ภาพวิวัฒนาการ 6 ขั้น (SVG ในโค้ด สไตล์เดียวกัน): เจ้าทุยน้อย → … → มนุษย์ฐานข้อมูล
+// ภาพวิวัฒนาการ 8 ขั้น (SVG ในโค้ด สไตล์เดียวกัน): เจ้าทุยน้อย → … → มนุษย์ฐานข้อมูล
 
 const C = {
   hide: '#7b8aa3',
@@ -113,6 +113,30 @@ function Stage2() {
   )
 }
 
+function StageNote() {
+  // ทุยนักจดบันทึก: นั่งจดข้อมูลลงตารางบนคลิปบอร์ด ถือดินสอ
+  return (
+    <>
+      <ellipse cx="60" cy="104" rx="30" ry="5" fill="#0f1f3d" opacity=".08" />
+      <ellipse cx="60" cy="84" rx="26" ry="20" fill={C.hide} />
+      <ellipse cx="42" cy="100" rx="9" ry="5" fill={C.hideDark} />
+      <ellipse cx="78" cy="100" rx="9" ry="5" fill={C.hideDark} />
+      <BuffaloFace cy={46} glasses />
+      <rect x="40" y="72" width="34" height="28" rx="3" fill="#b07a45" />
+      <rect x="43" y="76" width="28" height="22" rx="1.5" fill="#fff" />
+      <rect x="51" y="70" width="12" height="5" rx="1.5" fill="#8d9cb6" />
+      <path d="M43 82h28M43 88h28M43 93h28M52 76v22M62 76v22" stroke={C.book} strokeWidth="1" opacity=".75" />
+      <rect x="43" y="76" width="28" height="6" fill={C.book} opacity=".25" />
+      <ellipse cx="38" cy="88" rx="5" ry="6" fill={C.hideDark} />
+      <g transform="rotate(-35 82 82)">
+        <rect x="79" y="70" width="5" height="20" rx="1" fill={C.gold} stroke={C.goldDark} strokeWidth=".8" />
+        <path d="M79 90h5l-2.5 5z" fill="#f3e6c8" />
+      </g>
+      <ellipse cx="80" cy="88" rx="5" ry="6" fill={C.hideDark} />
+    </>
+  )
+}
+
 function Shirt({ y = 62, h = 30 }: { y?: number; h?: number }) {
   return (
     <>
@@ -135,6 +159,32 @@ function Stage3() {
       <rect x="30" y="62" width="9" height="22" rx="4" fill={C.hide} />
       <rect x="81" y="62" width="9" height="22" rx="4" fill={C.hide} />
       <rect x="84" y="70" width="14" height="18" rx="2" fill={C.book} />
+      <BuffaloFace cy={36} glasses />
+    </>
+  )
+}
+
+function StageKey() {
+  // ทุยถือกุญแจ: ยืนสองขา ชูกุญแจทอง (คีย์หลัก)
+  return (
+    <>
+      <ellipse cx="60" cy="108" rx="24" ry="4" fill="#0f1f3d" opacity=".08" />
+      <rect x="47" y="90" width="10" height="16" rx="3" fill={C.hideDark} />
+      <rect x="63" y="90" width="10" height="16" rx="3" fill={C.hideDark} />
+      <rect x="42" y="86" width="36" height="10" rx="3" fill={C.shorts} />
+      <Shirt y={56} h={30} />
+      <rect x="30" y="62" width="9" height="22" rx="4" fill={C.hide} />
+      <path d="M81 66 C88 60 90 52 90 46" stroke={C.hide} strokeWidth="9" strokeLinecap="round" fill="none" />
+      <g transform="translate(92 26) rotate(20)">
+        <circle r="8" fill={C.gold} stroke={C.goldDark} strokeWidth="1.4" />
+        <circle r="3.2" fill="#fff7dc" stroke={C.goldDark} strokeWidth="1" />
+        <rect x="-2" y="7" width="4" height="18" rx="1" fill={C.gold} stroke={C.goldDark} strokeWidth="1" />
+        <rect x="2" y="17" width="5" height="3" rx="1" fill={C.gold} stroke={C.goldDark} strokeWidth=".8" />
+        <rect x="2" y="21" width="4" height="3" rx="1" fill={C.gold} stroke={C.goldDark} strokeWidth=".8" />
+      </g>
+      <text x="100" y="58" textAnchor="middle" fontSize="8" fontWeight="800" fill={C.goldDark}>
+        PK
+      </text>
       <BuffaloFace cy={36} glasses />
     </>
   )
@@ -210,7 +260,7 @@ function Stage5() {
   )
 }
 
-const STAGES = [Stage0, Stage1, Stage2, Stage3, Stage4, Stage5]
+const STAGES = [Stage0, Stage1, Stage2, StageNote, Stage3, StageKey, Stage4, Stage5]
 
 export function EvolutionArt({ stage, className = 'size-24', title }: { stage: number; className?: string; title?: string }) {
   const Art = STAGES[Math.max(0, Math.min(STAGES.length - 1, stage))] ?? Stage0

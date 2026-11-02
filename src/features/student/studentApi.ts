@@ -1,3 +1,5 @@
+import { z } from 'zod'
+import { medalSchema, type Medal } from '@/components/medals/Medals'
 import { supabase } from '@/lib/supabase'
 import type { AssignmentRow } from '@/lib/database.types'
 
@@ -34,6 +36,13 @@ export async function fetchStudentStats(studentId: string): Promise<StudentStats
 }
 
 // XP รวมอย่างเดียว (ใช้ในแถบบน)
+// เหรียญรายคาบของฉัน (เซิร์ฟเวอร์คำนวณ) — ฐานข้อมูลที่ยังไม่รันอัปเดต 023 = ไม่มีเหรียญ
+export async function fetchMyMedals(): Promise<Medal[]> {
+  const { data, error } = await supabase.rpc('my_medals')
+  if (error) return []
+  return z.array(medalSchema).parse(data)
+}
+
 export async function fetchTotalXp(studentId: string): Promise<number> {
   const { data, error } = await supabase.from('xp_events').select('xp').eq('student_id', studentId)
   if (error) throw error

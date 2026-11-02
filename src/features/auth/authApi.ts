@@ -91,6 +91,21 @@ export async function loginWithCode(code: string): Promise<LoginResult> {
   return { ok: false, error: parsed.error, retryAfterSec: parsed.retry_after_sec }
 }
 
+// นักเรียนยืนยันตัวตนแล้ว: นับการเข้าสู่ระบบ คืนจำนวนครั้งก่อนหน้า (0 = ครั้งแรก)
+// ฐานข้อมูลยังไม่มี register_login (ยังไม่รันอัปเดต session_medals.sql): ใช้เครื่องหมายในเครื่องนี้แทน
+export async function registerLogin(studentId: string): Promise<number> {
+  const key = `tq-logged-in-${studentId}`
+  let local = 0
+  try {
+    local = localStorage.getItem(key) ? 1 : 0
+    localStorage.setItem(key, '1')
+  } catch {
+    // เก็บไม่ได้ = ถือว่าครั้งแรก
+  }
+  const { data, error } = await supabase.rpc('register_login')
+  return error || typeof data !== 'number' ? local : Math.max(data, local)
+}
+
 // ออกจากระบบ: ตัดการผูกรหัสกับเครื่องนี้ แต่ใช้ anonymous user เดิมต่อ
 // (เดิม signOut + signInAnonymously ทุกครั้ง → นักเรียนสลับกันใช้เครื่อง/ทั้งห้องเปลี่ยนคน ชนเพดานสร้าง user ต่อ IP แล้วต่อระบบไม่ได้)
 export async function logoutAndReset(): Promise<void> {

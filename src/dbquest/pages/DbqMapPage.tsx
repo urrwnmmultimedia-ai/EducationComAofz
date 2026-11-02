@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { ArrowRight, ChevronRight, CircleCheck, Lock } from 'lucide-react'
+import { ArrowRight, CircleCheck, Lock } from 'lucide-react'
 import { ErrorBlock, LoadingBlock, ProgressBar } from '@/components/StatusViews'
 import { course, type CourseSession } from '@/content/course'
 import { useAsync } from '@/lib/useAsync'
@@ -7,17 +7,12 @@ import { fetchMap, type MapItem } from '../lesson/dbqLessonApi'
 import { sessionIcon } from '../unitIcons'
 import { nextSession } from './DbqHomePage'
 
-function Status({ item, isNext }: { item?: MapItem; isNext: boolean }) {
+// ครูปลดล็อกแล้ว = มีปุ่มเริ่ม/เรียนต่อทุกคาบ · ล็อก = ไม่มีปุ่ม กดไม่ได้
+function Status({ item }: { item?: MapItem }) {
   if (!item || !item.open)
     return (
-      <span className="shrink-0 text-slate-400" aria-label="ยังล็อก">
-        <Lock className="size-5" aria-hidden />
-      </span>
-    )
-  if (isNext)
-    return (
-      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-action px-3 py-1 text-sm font-semibold text-white shadow-action">
-        {item.pct ? 'เรียนต่อ' : 'เริ่ม'} <ArrowRight className="size-4" aria-hidden />
+      <span className="inline-flex shrink-0 items-center gap-1 text-sm text-slate-500 dark:text-dq-300">
+        <Lock className="size-5" aria-hidden /> ครูยังไม่เปิด
       </span>
     )
   if (item.pct === 100)
@@ -26,7 +21,11 @@ function Status({ item, isNext }: { item?: MapItem; isNext: boolean }) {
         <CircleCheck className="size-5" aria-hidden /> ครบแล้ว
       </span>
     )
-  return <ChevronRight className="size-5 shrink-0 text-slate-400" aria-hidden />
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-action px-3 py-1 text-sm font-semibold text-white shadow-action">
+      {item.pct ? 'เรียนต่อ' : 'เริ่ม'} <ArrowRight className="size-4" aria-hidden />
+    </span>
+  )
 }
 
 function Row({ s, item, isNext }: { s: CourseSession; item?: MapItem; isNext: boolean }) {
@@ -50,7 +49,7 @@ function Row({ s, item, isNext }: { s: CourseSession; item?: MapItem; isNext: bo
         </span>
         {open && item?.pct != null && item.pct > 0 && item.pct < 100 && <ProgressBar value={item.pct} className="mt-2 h-1.5 max-w-48" />}
       </span>
-      <Status item={item} isNext={isNext} />
+      <Status item={item} />
     </>
   )
   return open ? (

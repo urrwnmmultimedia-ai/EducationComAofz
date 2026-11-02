@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Avatar } from '@/components/characters/Characters'
 import { EmptyBlock, ErrorBlock, LoadingBlock } from '@/components/StatusViews'
-import { levelFromXp } from '@/lib/levels'
 import { useAsync } from '@/lib/useAsync'
 import { fetchLeaderboard, onLeaderboardChange } from '@/features/games/gamesApi'
 
@@ -15,7 +14,7 @@ export function LeaderboardPage() {
   reloadRef.current = state.reload
   const [live, setLive] = useState(false)
 
-  // Realtime: XP ใครเปลี่ยน → โหลดอันดับใหม่ (หน่วง 1.5 วินาทีกันโหลดถี่)
+  // Realtime: ครูตรวจงาน/เหรียญใครเปลี่ยน → โหลดอันดับใหม่ (หน่วง 1.5 วินาทีกันโหลดถี่)
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null
     const stop = onLeaderboardChange(() => {
@@ -34,7 +33,7 @@ export function LeaderboardPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl text-brand-900">🏆 ลีดเดอร์บอร์ด</h1>
-          <p className="text-sm text-slate-500">อันดับตาม XP · {live ? '🟢 อัปเดตสด' : 'อัปเดตอัตโนมัติเมื่อมีคนได้ XP'}</p>
+          <p className="text-sm text-slate-500">อันดับตามเหรียญรายคาบ (ทอง → เงิน → ทองแดง) · {live ? '🟢 อัปเดตสด' : 'อัปเดตอัตโนมัติเมื่อครูตรวจงาน'}</p>
         </div>
         <div className="flex rounded-2xl bg-white p-1 ring-1 ring-brand-100" role="tablist">
           {(
@@ -61,11 +60,10 @@ export function LeaderboardPage() {
       {state.status === 'error' && <ErrorBlock message={state.error} onRetry={state.reload} />}
       {state.status === 'success' &&
         (state.data.length === 0 ? (
-          <EmptyBlock>ครูปิดการแสดงลีดเดอร์บอร์ดไว้ หรือยังไม่มีใครได้ XP</EmptyBlock>
+          <EmptyBlock>ครูปิดการแสดงลีดเดอร์บอร์ดไว้ หรือยังไม่มีใครได้เหรียญ</EmptyBlock>
         ) : (
           <ol className="flex flex-col gap-2">
             {state.data.map((r, i) => {
-              const lv = levelFromXp(r.xp)
               const gap = i > 0 && r.rank - (state.data[i - 1]?.rank ?? r.rank) > 1
               return (
                 <motion.li key={`${r.rank}-${r.nickname}-${i}`} layout initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
@@ -81,11 +79,14 @@ export function LeaderboardPage() {
                       <span className="block truncate font-display text-slate-800">
                         {r.nickname} {r.is_me && <span className="text-sm text-amber-800">(ฉัน)</span>}
                       </span>
-                      <span className="text-xs text-slate-500">
-                        {scope === 'all' && r.classroom_name ? `${r.classroom_name} · ` : ''}Lv.{lv.level} {lv.name}
-                      </span>
+                      {scope === 'all' && r.classroom_name && <span className="text-xs text-slate-500">{r.classroom_name}</span>}
                     </span>
-                    <span className="font-display text-lg text-brand-700">{r.xp} XP</span>
+                    <span
+                      className="whitespace-nowrap font-display text-base tabular-nums text-brand-700"
+                      aria-label={`ทอง ${r.gold} เงิน ${r.silver} ทองแดง ${r.bronze}`}
+                    >
+                      🥇{r.gold} 🥈{r.silver} 🥉{r.bronze}
+                    </span>
                   </div>
                 </motion.li>
               )

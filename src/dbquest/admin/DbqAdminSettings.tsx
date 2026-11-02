@@ -71,7 +71,7 @@ function SettingsForm({ initial }: { initial: DbqSettings }) {
         <p className="text-sm text-slate-600">คาบเปิดเฉพาะที่ครูเปิดในหน้า “ปลดล็อกคาบ” เท่านั้น</p>
         <label className="flex items-center gap-2">
           <input type="checkbox" className="size-5" checked={leaderboard} onChange={(e) => setLeaderboard(e.target.checked)} />
-          <span>แสดงอันดับ XP ในห้องให้นักเรียนเห็น</span>
+          <span>แสดงอันดับเหรียญในห้องให้นักเรียนเห็น</span>
         </label>
       </section>
 

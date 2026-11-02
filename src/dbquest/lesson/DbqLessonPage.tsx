@@ -29,6 +29,8 @@ import { completeStep, DbqError, fetchSessionState, submitWorksheet, type CheckR
 import { GameView } from '../games/DbqGamePage'
 import { QuestionCard } from './QuestionCard'
 import { QuizRunner } from './QuizRunner'
+import { TableWorksheetEditor } from './TableWorksheet'
+import { loadSheet, missingParts, serializeSheet } from './tableSheetModel'
 
 const STEP_TITLE = Object.fromEntries(course.steps.map((s) => [s.id, s.title])) as Record<StepKey, string>
 const STEP_ICON: Record<StepKey, LucideIcon> = {
@@ -100,21 +102,6 @@ export function DbqLessonPage() {
   )
 }
 
-function XpToast({ xp, onDone }: { xp: number; onDone: () => void }) {
-  useEffect(() => {
-    const t = setTimeout(onDone, 2500)
-    return () => clearTimeout(t)
-  }, [xp, onDone])
-  return (
-    <div
-      role="status"
-      className="fixed inset-x-0 bottom-24 z-20 mx-auto w-fit rounded-full bg-xp-500 px-5 py-2 font-display text-white shadow-lg md:bottom-8"
-    >
-      +{xp} XP
-    </div>
-  )
-}
-
 function LessonFlow({ no, content, initial, after }: { no: number; content: SessionContent; initial: SessionState; after: StepKey | null }) {
   const steps = initial.steps
   const [done, setDone] = useState(() => new Set(Object.keys(initial.done) as StepKey[]))
@@ -129,24 +116,16 @@ function LessonFlow({ no, content, initial, after }: { no: number; content: Sess
     return steps.find((s) => !(s in initial.done)) ?? steps[0] ?? 'wrapup'
   })
   const current = reachable(picked) ? picked : (steps[firstOpen] ?? picked)
-  const [toast, setToast] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const gainXp = (xp: number) => {
-    if (xp > 0) setToast((t) => (t ?? 0) + xp)
-  }
-  const clearToast = useCallback(() => setToast(null), [])
 
   const onChecked = (id: string, r: CheckResult) => {
     setAttempted((s) => new Set(s).add(id))
     if (r.correct) setSolved((s) => new Set(s).add(id))
-    gainXp(r.xp)
   }
 
-  const markDone = (step: StepKey, xp: number) => {
+  const markDone = (step: StepKey) => {
     setDone((s) => new Set(s).add(step))
-    gainXp(xp)
   }
   const goNext = (step: StepKey) => {
     const next = steps[steps.indexOf(step) + 1]
@@ -158,8 +137,8 @@ function LessonFlow({ no, content, initial, after }: { no: number; content: Sess
     setBusy(true)
     setError(null)
     try {
-      const r = await completeStep(no, step, data)
-      markDone(step, r.xp)
+      await completeStep(no, step, data)
+      markDone(step)
       goNext(step)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
@@ -212,7 +191,6 @@ function LessonFlow({ no, content, initial, after }: { no: number; content: Sess
         </p>
       )}
       {allDone && <SessionDone no={no} />}
-      {toast !== null && <XpToast xp={toast} onDone={clearToast} />}
     </>
   )
 }
@@ -436,7 +414,7 @@ function GameStep({
   markDone,
   goNext,
   nextTitle,
-}: StepProps & { markDone: (step: StepKey, xp: number) => void; goNext: (step: StepKey) => void; nextTitle?: string }) {
+}: StepProps & { markDone: (step: StepKey) => void; goNext: (step: StepKey) => void; nextTitle?: string }) {
   const game = content.game
   if (!game) return null
   return (
@@ -446,7 +424,7 @@ function GameStep({
       <GameView
         gameKey={game.slug}
         embedded={{
-          onStepDone: (xp) => markDone('game', xp),
+          onStepDone: () => markDone('game'),
           nextLabel: nextTitle ? `เล่นจบแล้ว ไปขั้น${nextTitle}` : 'เล่นจบแล้ว',
           // โหมดครูไม่บันทึกขั้นเกมตอนเล่นจบ จึงให้ปุ่มนี้บันทึกแทน
           onNext: () => (done ? goNext('game') : void finish('game')),
@@ -470,18 +448,22 @@ function WorksheetStep({
   initialSubmission,
 }: StepProps & { initialSubmission?: SessionState['submissions'][string] }) {
   const ws = content.worksheet
+  const tableCfg = ws?.table
   const [text, setText] = useState(initialSubmission?.content.text ?? '')
+  const [sheet, setSheet] = useState(() => (tableCfg ? loadSheet(initialSubmission?.content.text, tableCfg) : null))
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   if (!ws) return null
   const graded = initialSubmission?.graded_at != null
+  const missing = sheet && tableCfg ? missingParts(sheet, tableCfg) : []
+  const canSubmit = sheet ? missing.length === 0 : text.trim().length > 0
 
   const onSubmit = async () => {
     setSending(true)
     setError(null)
     try {
       // ครูดูตัวอย่าง: ไม่ส่งจริง (เซิร์ฟเวอร์รับใบงานจากนักเรียนเท่านั้น)
-      if (!preview) await submitWorksheet(ws.item_id, text)
+      if (!preview) await submitWorksheet(ws.item_id, sheet ? serializeSheet(sheet) : text)
       await finish('worksheet')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'ส่งไม่สำเร็จ')
@@ -509,18 +491,25 @@ function WorksheetStep({
           )}
         </div>
       ) : null}
-      <textarea
-        className={`${textArea} min-h-48`}
-        aria-label="คำตอบใบงาน"
-        maxLength={10000}
-        disabled={graded}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
+      {sheet && tableCfg ? (
+        <TableWorksheetEditor sheet={sheet} cfg={tableCfg} disabled={graded} onChange={setSheet} />
+      ) : (
+        <textarea
+          className={`${textArea} min-h-48`}
+          aria-label="คำตอบใบงาน"
+          maxLength={10000}
+          disabled={graded}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+      )}
+      {!graded && missing.length > 0 && (
+        <p className="text-slate-600 dark:text-dq-300">ยังขาด: {missing.join(' · ')}</p>
+      )}
       {error && <p className="text-rose-600 dark:text-rose-300">{error}</p>}
       {done && <DoneNote>ส่งใบงานแล้ว แก้แล้วส่งใหม่ได้จนกว่าครูจะตรวจ</DoneNote>}
       {!graded && (
-        <button type="button" className={primaryBtn} disabled={busy || sending || !text.trim()} onClick={() => void onSubmit()}>
+        <button type="button" className={primaryBtn} disabled={busy || sending || !canSubmit} onClick={() => void onSubmit()}>
           {sending ? 'กำลังส่ง…' : done ? 'ส่งฉบับแก้ไข' : 'ส่งใบงาน'}
         </button>
       )}

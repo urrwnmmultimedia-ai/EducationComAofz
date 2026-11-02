@@ -12,7 +12,7 @@ describe('EvolutionArtM3', () => {
   })
 
   it('card shows current stage and next target', () => {
-    const html = renderToString(<ScoreEvolutionCard score={40} stages={M3_STAGES} art={EvolutionArtM3} pathLabel="ลิงสู่คน" />).replace(/<!-- -->/g, '')
+    const html = renderToString(<ScoreEvolutionCard score={57} stages={M3_STAGES} art={EvolutionArtM3} pathLabel="ลิงสู่คน" />).replace(/<!-- -->/g, '')
     expect(html).toContain('วานรยืนสองขา')
     expect(html).toContain('มนุษย์ถ้ำ')
   })

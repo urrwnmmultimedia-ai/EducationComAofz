@@ -5,6 +5,7 @@ import { useAuth } from '@/app/AuthContext'
 import { AVATARS, Avatar, type AvatarKey } from '@/components/characters/Characters'
 import { NongDataSays } from '@/components/illustrations/NongData'
 import { ErrorBlock, LoadingBlock, ProgressBar } from '@/components/StatusViews'
+import { countMedals, MedalShelf } from '@/components/medals/Medals'
 import { setMyAvatar } from '@/features/games/gamesApi'
 import { computeGrade, formatGrade } from '@/lib/grade'
 import { useAsync } from '@/lib/useAsync'
@@ -12,7 +13,7 @@ import { CATEGORIES, CATEGORY_LABEL, type Scores } from '../admin/dbqAdminApi'
 import { fetchGameTitles, gameTitle } from '../gameTitles'
 import { EvolutionCard } from '../EvolutionCard'
 import { fetchMap } from '../lesson/dbqLessonApi'
-import { fetchLeaderboard, fetchMe, fetchMyScores, type MyScores } from './dbqStudentApi'
+import { fetchLeaderboard, fetchMyScores, type MyScores } from './dbqStudentApi'
 
 const card = 'rounded-3xl bg-white p-5 ring-1 ring-dq-100 dark:bg-dq-900 dark:ring-dq-800'
 
@@ -153,16 +154,6 @@ const TABS: { key: MeTab; label: string; icon: LucideIcon }[] = [
   { key: 'avatar', label: 'อวาตาร์', icon: Palette },
 ]
 
-// เหรียญทั้งหมดของ DB Quest (ตรงกับ dbq_badges — นักเรียนอ่านตารางนี้ตรง ๆ ไม่ได้ จึงเก็บรายการไว้ฝั่งเว็บ)
-const DBQ_BADGES: { key: string; name: string; description: string; icon: string }[] = [
-  { key: 'unit-complete', name: 'จบหน่วยแรก', description: 'เรียนครบทุกขั้นของหน่วยใดหน่วยหนึ่ง', icon: '🎓' },
-  { key: 'all-units', name: 'นักผจญภัยครบ 7 หน่วย', description: 'เรียนครบทุกหน่วย', icon: '🗺️' },
-  { key: 'three-stars', name: 'สามดาวแรก', description: 'ทำเกมใดเกมหนึ่งได้ 3 ดาว', icon: '⭐' },
-  { key: 'on-time-5', name: 'ส่งตรงเวลา 5 ครั้งติด', description: 'ส่งใบงานก่อนกำหนด 5 ครั้งติดต่อกัน', icon: '⏰' },
-  { key: 'sql-no-hint', name: 'SQL ไร้คำใบ้', description: 'ผ่านด่าน SQL Quest โดยไม่ใช้คำใบ้', icon: '🧙' },
-  { key: 'streak-5', name: 'มาเรียนต่อเนื่อง 5 คาบ', description: 'เข้าเรียนต่อเนื่อง 5 คาบไม่ขาด', icon: '🔥' },
-]
-
 // ครูดูตัวอย่าง: หน้าตาเหมือนนักเรียนที่ยังไม่มีคะแนน (เซิร์ฟเวอร์ไม่ส่งคะแนนของใครให้ครูในหน้านี้)
 const EMPTY_SCORES: MyScoresData = {
   preview: false,
@@ -174,6 +165,7 @@ const EMPTY_SCORES: MyScoresData = {
     available: 0,
     current_pct: null,
   },
+  medals: [],
   assignments: [],
   games: [],
 }
@@ -184,22 +176,17 @@ export function DbqMePage() {
   const isPreview = identity.role === 'admin'
   const [params, setParams] = useSearchParams()
   const tab: MeTab = TABS.some((t) => t.key === params.get('tab')) ? (params.get('tab') as MeTab) : 'scores'
-  const res = useAsync(() => Promise.all([fetchMe(), fetchMyScores(), fetchLeaderboard(), fetchGameTitles(), fetchMap()]), [])
+  const res = useAsync(() => Promise.all([fetchMyScores(), fetchLeaderboard(), fetchGameTitles(), fetchMap()]), [])
   const [saving, setSaving] = useState<string | null>(null)
   const [avatarError, setAvatarError] = useState<string | null>(null)
 
   if (res.status === 'loading') return <LoadingBlock />
   if (res.status === 'error') return <ErrorBlock message={res.error} onRetry={res.reload} />
-  const [me, rawScores, board, titles, map] = res.data
+  const [rawScores, board, titles, map] = res.data
   const scores = rawScores.preview ? EMPTY_SCORES : rawScores
   const lessons = map.filter((m) => m.kind === 'lesson')
   const pending = scores.assignments.filter((a) => a.open && a.status === 'missing')
-  const earned = new Map(me.badges.map((b) => [b.key, b.earned_at]))
-  // เหรียญที่ได้แต่ไม่อยู่ในรายการ (เพิ่มใหม่ใน DB) ก็แสดงด้วย
-  const allBadges = [
-    ...DBQ_BADGES,
-    ...me.badges.filter((b) => !DBQ_BADGES.some((d) => d.key === b.key)).map((b) => ({ ...b, description: '' })),
-  ]
+  const sessionTitle = (no: number) => map.find((m) => m.session_no === no)?.title
   const avatar = identity.student?.avatar ?? 'doctor'
 
   const choose = async (key: AvatarKey) => {
@@ -251,8 +238,7 @@ export function DbqMePage() {
           <EvolutionCard
             score={scores.scores.total}
             info={{
-              xp: me.xp,
-              badges: `${earned.size}/${allBadges.length}`,
+              medals: countMedals(scores.medals),
               pending: pending.length,
               progressPct: lessons.length ? Math.round(lessons.reduce((s, m) => s + (m.pct ?? 0), 0) / lessons.length) : 0,
               nextDue: pending[0]
@@ -280,7 +266,7 @@ export function DbqMePage() {
 
           {board.enabled && board.rows.length > 0 && (
             <section className={card}>
-              <h2 className="mb-3 text-xl text-dq-900 dark:text-white">อันดับ XP ในห้อง</h2>
+              <h2 className="mb-3 text-xl text-dq-900 dark:text-white">อันดับเหรียญในห้อง</h2>
               <ol className="space-y-1">
                 {board.rows.map((r, i) => (
                   <li key={i} className={`flex items-center gap-3 rounded-2xl px-3 py-2 ${r.is_me ? 'bg-xp-300/40 font-display' : ''}`}>
@@ -290,7 +276,9 @@ export function DbqMePage() {
                       {r.nickname}
                       {r.is_me && ' (ฉัน)'}
                     </span>
-                    <span>{r.xp} XP</span>
+                    <span className="whitespace-nowrap tabular-nums" aria-label={`ทอง ${r.gold} เงิน ${r.silver} ทองแดง ${r.bronze}`}>
+                      🥇{r.gold} 🥈{r.silver} 🥉{r.bronze}
+                    </span>
                   </li>
                 ))}
               </ol>
@@ -300,49 +288,10 @@ export function DbqMePage() {
       )}
 
       {tab === 'badges' && (
-        <>
-          <section className={card}>
-            <h2 className="mb-3 text-xl text-dq-900 dark:text-white">
-              เหรียญ ({earned.size}/{allBadges.length})
-            </h2>
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {allBadges.map((b) => {
-                const at = earned.get(b.key)
-                return (
-                  <li
-                    key={b.key}
-                    className={`flex flex-col items-center gap-1 rounded-2xl p-3 text-center ${
-                      at
-                        ? 'bg-gradient-to-b from-sun-300/40 to-sun-300/10 shadow-[0_10px_20px_-14px_rgb(180_130_0/0.7)] ring-2 ring-sun-400'
-                        : 'bg-slate-50 ring-1 ring-slate-200 dark:bg-dq-950 dark:ring-dq-800'
-                    }`}
-                  >
-                    <span className={`text-4xl ${at ? 'drop-shadow-md' : 'opacity-30 grayscale'}`} aria-hidden>
-                      {b.icon}
-                    </span>
-                    <span className={`font-display text-base ${at ? 'text-amber-950 dark:text-amber-100' : 'text-slate-500 dark:text-dq-300'}`}>
-                      {b.name}
-                    </span>
-                    {b.description && <span className="text-sm text-slate-500 dark:text-dq-300">{b.description}</span>}
-                    <span className="text-sm text-slate-500 dark:text-dq-400">
-                      {at ? `ได้เมื่อ ${new Date(at).toLocaleDateString('th-TH')}` : 'ยังไม่ได้'}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-          <section className={`${card} text-base`}>
-            <h2 className="mb-2 text-xl text-dq-900 dark:text-white">วิธีได้ XP</h2>
-            <ul className="grid gap-1 text-slate-600 sm:grid-cols-2 dark:text-dq-300">
-              <li>ผ่านแต่ละขั้นของคาบ +5–20</li>
-              <li>เรียนครบทุกขั้นของคาบ +20</li>
-              <li>ตอบคำถามครั้งแรก +5 (ตอบใหม่ +2)</li>
-              <li>ส่งใบงาน +15</li>
-              <li>เกมได้ดาว ดาวละ +5</li>
-            </ul>
-          </section>
-        </>
+        <section className={card}>
+          <h2 className="mb-3 text-xl text-dq-900 dark:text-white">เหรียญรายคาบ</h2>
+          <MedalShelf medals={scores.medals} sessionTitle={sessionTitle} />
+        </section>
       )}
 
       {tab === 'avatar' && (

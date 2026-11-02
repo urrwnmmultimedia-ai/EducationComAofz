@@ -21,7 +21,7 @@ export function GamesPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl text-brand-900">🎮 เกม</h1>
-        <p className="text-sm text-slate-500">เล่นครั้งแรกได้ XP เต็ม · รอบต่อไป 20% · ได้ XP วันละ 3 รอบต่อเกม · เกมเปิดเมื่อครูปลดล็อกคาบ</p>
+        <p className="text-sm text-slate-500">เล่นซ้ำได้ ระบบเก็บคะแนนดีที่สุด · เกมเปิดเมื่อครูปลดล็อกคาบ</p>
       </div>
       {games.length === 0 && <EmptyBlock>ยังไม่มีเกม</EmptyBlock>}
       {GROUPS.map((grp) => {
@@ -51,7 +51,6 @@ function GameCard({ g }: { g: MyGameItem }) {
       </div>
       <p className="text-sm text-slate-600">{g.description}</p>
       <div className="mt-auto flex flex-wrap gap-2 pt-2 text-xs">
-        <span className="rounded-full bg-sun-300/60 px-2 py-0.5 text-amber-900">สูงสุด {g.max_xp} XP</span>
         {g.session_nos.length > 0 && <span className="rounded-full bg-brand-100 px-2 py-0.5 text-brand-700">คาบ {g.session_nos.join(', ')}</span>}
         {g.plays > 0 && (
           <span className="rounded-full bg-mint-400/30 px-2 py-0.5 text-emerald-900">

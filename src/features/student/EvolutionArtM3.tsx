@@ -1,6 +1,6 @@
 import { useId } from 'react'
 
-// ภาพวิวัฒนาการ ม.3 6 ขั้น (SVG ในโค้ด สไตล์เดียวกัน): ลิงน้อย → … → มนุษย์นักเทคโนโลยี
+// ภาพวิวัฒนาการ ม.3 8 ขั้น (SVG ในโค้ด สไตล์เดียวกัน): ลิงน้อย → … → มนุษย์นักเทคโนโลยี
 // ทุกขั้นยืนบนเงาพื้นเดียวกัน ตัวละครไล่เฉดให้ดูนูน
 
 const C = {
@@ -22,6 +22,13 @@ const C = {
   gold: '#e7b62a',
   goldDark: '#a67a00',
   line: '#d6e2f7',
+  leaf: '#3cb371',
+  leafDark: '#22804e',
+  pot: '#c8643b',
+  potDark: '#8e3f22',
+  apron: '#5b8c3a',
+  violet: '#7c5cd6',
+  violetDark: '#5a3fb0',
 }
 
 type G = { fur: string; skin: string; glow: string }
@@ -185,6 +192,33 @@ function Stage3({ g }: { g: G }) {
   )
 }
 
+// 4 มนุษย์นักเพาะปลูก: เสื้อผ้าเรียบ ผ้ากันเปื้อน ถือกระถางต้นกล้า
+function StageFarmer({ g }: { g: G }) {
+  return (
+    <>
+      <Ground />
+      <Limb d="M54 92 L53 107" color={C.skin} w={7} />
+      <Limb d="M66 92 L67 107" color={C.skin} w={7} />
+      <ellipse cx="51" cy="108" rx="6.5" ry="3.5" fill={C.wood} />
+      <ellipse cx="69" cy="108" rx="6.5" ry="3.5" fill={C.wood} />
+      <Limb d="M46 67 C40 77 41 86 45 90" color={C.tunic} w={7} />
+      <circle cx="45" cy="91" r="3.8" fill={C.skin} />
+      <path d="M45 62 Q60 58 75 62 L78 94 Q60 98 42 94 Z" fill={C.tunic} />
+      <path d="M50 70 L70 70 L72 94 Q60 97 48 94 Z" fill={C.apron} />
+      <rect x="55" y="78" width="10" height="6" rx="1.5" fill="#fff" opacity="0.35" />
+      <Limb d="M74 66 C82 70 84 78 80 84" color={C.tunic} w={7} />
+      {/* กระถางต้นกล้า */}
+      <path d="M73 84 L93 84 L90 99 L76 99 Z" fill={C.pot} stroke={C.potDark} strokeWidth="1.4" strokeLinejoin="round" />
+      <rect x="71" y="81" width="24" height="5" rx="2" fill={C.pot} stroke={C.potDark} strokeWidth="1.4" />
+      <path d="M83 81 C83 72 83 66 83 60" stroke={C.leafDark} strokeWidth="2.2" fill="none" strokeLinecap="round" />
+      <path d="M83 68 C76 66 72 60 74 55 C80 56 83 62 83 68 Z" fill={C.leaf} />
+      <path d="M83 63 C90 61 94 55 92 50 C86 51 83 57 83 63 Z" fill={C.leaf} />
+      <circle cx="80" cy="85" r="3.8" fill={C.skin} />
+      <HumanHead cx={60} cy={45} r={15} g={g} hair="neat" />
+    </>
+  )
+}
+
 function Gear({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   return (
     <g>
@@ -206,7 +240,7 @@ function Gear({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   )
 }
 
-// 4 มนุษย์นักประดิษฐ์: เสื้อช่าง แว่นกันลมบนหน้าผาก ชูเฟือง
+// 5 มนุษย์นักประดิษฐ์: เสื้อช่าง แว่นกันลมบนหน้าผาก ชูเฟือง
 function Stage4({ g }: { g: G }) {
   return (
     <>
@@ -235,11 +269,45 @@ function Stage4({ g }: { g: G }) {
   )
 }
 
+// 6 มนุษย์นักออกแบบ: เสื้อสีม่วง ชูดินสอ มีหลอดไฟไอเดียเหนือหัว
+function StageDesigner({ g }: { g: G }) {
+  return (
+    <>
+      <Ground />
+      <Limb d="M54 90 L53 106" color={C.navy} w={8} />
+      <Limb d="M66 90 L67 106" color={C.navy} w={8} />
+      <ellipse cx="51" cy="108" rx="7" ry="3.5" fill="#1b1f33" />
+      <ellipse cx="69" cy="108" rx="7" ry="3.5" fill="#1b1f33" />
+      <Limb d="M46 67 C40 77 41 86 45 90" color={C.violet} w={7} />
+      <rect x="44" y="61" width="32" height="32" rx="9" fill={C.violet} />
+      <rect x="44" y="61" width="32" height="8" rx="4" fill="#fff" opacity="0.2" />
+      {/* สมุดร่างแบบ */}
+      <rect x="36" y="80" width="18" height="14" rx="2" fill="#fff" stroke={C.violetDark} strokeWidth="1.4" />
+      <path d="M39 90 L44 84 L48 88 L51 84" fill="none" stroke={C.sky} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="45" cy="91" r="3.8" fill={C.skin} />
+      <Limb d="M74 66 C83 62 88 54 89 47" color={C.violet} w={7} />
+      {/* ดินสอ */}
+      <g transform="rotate(25 90 36)">
+        <rect x="87" y="22" width="6" height="22" rx="1" fill={C.gold} stroke={C.goldDark} strokeWidth="1" />
+        <path d="M87 44 L93 44 L90 50 Z" fill={C.face} stroke={C.goldDark} strokeWidth="1" strokeLinejoin="round" />
+        <rect x="87" y="19" width="6" height="4" rx="1" fill="#f0686a" />
+      </g>
+      <circle cx="89" cy="45" r="4" fill={C.skin} />
+      {/* หลอดไฟไอเดีย */}
+      <circle cx="30" cy="22" r="9" fill="#fff3b0" stroke={C.goldDark} strokeWidth="1.4" />
+      <rect x="26.5" y="30" width="7" height="5" rx="1.5" fill={C.stone} />
+      <path d="M27 22 Q30 17 33 22" fill="none" stroke={C.goldDark} strokeWidth="1.3" />
+      <path d="M17 14 L20 16 M30 7 L30 10 M43 14 L40 16" stroke={C.gold} strokeWidth="2" strokeLinecap="round" />
+      <HumanHead cx={60} cy={45} r={15} g={g} hair="neat" />
+    </>
+  )
+}
+
 function Sparkle({ x, y, s }: { x: number; y: number; s: number }) {
   return <path d={`M${x} ${y - s} L${x + s * 0.3} ${y - s * 0.3} L${x + s} ${y} L${x + s * 0.3} ${y + s * 0.3} L${x} ${y + s} L${x - s * 0.3} ${y + s * 0.3} L${x - s} ${y} L${x - s * 0.3} ${y - s * 0.3} Z`} fill={C.gold} />
 }
 
-// 5 มนุษย์นักเทคโนโลยี: ชุดนักเรียน เหรียญทอง ถือแท็บเล็ตที่จอเรืองแสง
+// 7 มนุษย์นักเทคโนโลยี: ชุดนักเรียน เหรียญทอง ถือแท็บเล็ตที่จอเรืองแสง
 function Stage5({ g }: { g: G }) {
   return (
     <>
@@ -271,7 +339,7 @@ function Stage5({ g }: { g: G }) {
   )
 }
 
-const STAGES = [Stage0, Stage1, Stage2, Stage3, Stage4, Stage5]
+const STAGES = [Stage0, Stage1, Stage2, Stage3, StageFarmer, Stage4, StageDesigner, Stage5]
 
 export function EvolutionArtM3({ stage, className = '', title }: { stage: number; className?: string; title?: string }) {
   const id = useId().replace(/:/g, '')

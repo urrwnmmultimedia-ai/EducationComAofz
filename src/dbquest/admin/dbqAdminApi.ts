@@ -21,7 +21,8 @@ export const CATEGORY_LABEL: Record<Category, string> = {
 const num = z.coerce.number()
 const numOrNull = z.coerce.number().nullable()
 
-const categoryScore = z.object({ weight: num, earned: numOrNull, max: numOrNull, pct: numOrNull, points: numOrNull })
+// unit = 'session': earned/max นับเป็นคาบ (ใบงาน/เกม แบ่งคาบละส่วนเท่ากัน)
+const categoryScore = z.object({ weight: num, earned: numOrNull, max: numOrNull, unit: z.string().nullish(), pct: numOrNull, points: numOrNull })
 export const scoresSchema = z.object({
   categories: z.record(z.enum(CATEGORIES), categoryScore),
   total: num,

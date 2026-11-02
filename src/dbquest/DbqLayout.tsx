@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { BookOpen, BookText, ClipboardList, House, LogOut, Moon, SquareTerminal, Sun, UserRound } from 'lucide-react'
 import { useAuth } from '@/app/AuthContext'
-import { Backdrop, BottomNav, BrandMark, PreviewBanner, TopBar, TopNav, XpPill, type NavItem } from '@/components/shell/Shell'
-import { useAsync } from '@/lib/useAsync'
-import { fetchMe } from './pages/dbqStudentApi'
+import { Backdrop, BottomNav, BrandMark, PreviewBanner, TopBar, TopNav, type NavItem } from '@/components/shell/Shell'
 import { useTheme } from './useTheme'
 
 const NAV: NavItem[] = [
@@ -22,10 +20,8 @@ export function DbqLayout() {
   const navigate = useNavigate()
   const { theme, toggle } = useTheme()
   const [leaving, setLeaving] = useState(false)
-  const student = identity.student
   const isAdminPreview = identity.role === 'admin'
   const { pathname } = useLocation()
-  const me = useAsync(() => (student ? fetchMe() : Promise.resolve(null)), [student?.id])
 
   useEffect(() => {
     const prev = document.title
@@ -54,7 +50,6 @@ export function DbqLayout() {
       )}
       <TopBar left={<BrandMark course="db" to={isAdminPreview ? '/db/admin' : '/db/home'} />}>
         <TopNav items={NAV} />
-        {me.data && <XpPill xp={me.data.xp} />}
         <button
           type="button"
           onClick={toggle}

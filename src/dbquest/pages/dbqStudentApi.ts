@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
+import { medalSchema } from '@/components/medals/Medals'
 import { scoresSchema } from '../admin/dbqAdminApi'
 
 // คะแนน/งาน/อันดับของนักเรียนเอง (เซิร์ฟเวอร์คำนวณ)
@@ -11,6 +12,8 @@ const myScoresSchema = z.discriminatedUnion('preview', [
   z.object({
     preview: z.literal(false),
     scores: scoresSchema,
+    // เหรียญรายคาบ (ฐานข้อมูลที่ยังไม่รันอัปเดต 023 = ไม่มี)
+    medals: z.array(medalSchema).default([]),
     assignments: z.array(
       z.object({
         item_id: z.string(),
@@ -39,7 +42,9 @@ const meSchema = z.object({
 
 const leaderboardSchema = z.object({
   enabled: z.boolean(),
-  rows: z.array(z.object({ rank: num, nickname: z.string(), avatar: z.string(), xp: num, is_me: z.boolean() })),
+  rows: z.array(
+    z.object({ rank: num, nickname: z.string(), avatar: z.string(), gold: num.default(0), silver: num.default(0), bronze: num.default(0), is_me: z.boolean() }),
+  ),
 })
 export type Leaderboard = z.infer<typeof leaderboardSchema>
 

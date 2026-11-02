@@ -6,7 +6,6 @@ import { useAsync } from '@/lib/useAsync'
 import { btn, displayName, formatDateTime, PageHeader, panel, RoomSelect } from './adminUi'
 import { CATEGORIES, CATEGORY_LABEL, fetchStudentDetail, fetchStudents, resetSession, type Scores, type StudentDetail } from './dbqAdminApi'
 import { gradeOf } from './gradebookModel'
-import { xpLabel } from './xpLabel'
 import { evolutionOf } from '../evolution'
 import { fetchGameTitles, gameTitle } from '../gameTitles'
 
@@ -37,7 +36,6 @@ export function DbqAdminStudents() {
                   <th>เลขที่</th>
                   <th>รหัส</th>
                   <th>ชื่อ</th>
-                  <th className="text-right">XP</th>
                   <th className="text-right">คาบที่ครบ</th>
                   <th className="text-right">คาบล่าสุด</th>
                   <th className="text-right">เหรียญ</th>
@@ -56,7 +54,6 @@ export function DbqAdminStudents() {
                       </Link>
                       {!s.is_active && <span className="ml-1 text-xs text-slate-500">(ปิดใช้งาน)</span>}
                     </td>
-                    <td className="text-right font-display">{s.xp}</td>
                     <td className="text-right">{s.sessions_done}</td>
                     <td className="text-right">{s.current_session ?? '-'}</td>
                     <td className="text-right">{s.badges}</td>
@@ -87,6 +84,7 @@ export function ScoreBreakdown({ scores }: { scores: Scores }) {
               {s?.max != null && (
                 <p className="text-xs text-slate-500">
                   {s.earned} / {s.max}
+                  {s.unit === 'session' && ' คาบ'}
                 </p>
               )}
             </li>
@@ -120,7 +118,7 @@ export function DbqAdminStudentDetail() {
       </Link>
       <PageHeader title={displayName(d.student)}>
         <span className="text-slate-500">
-          {d.student.classroom_name} · เลขที่ {d.student.number ?? '-'} · รหัส {d.student.student_code} · {d.xp} XP · วิวัฒนาการขั้น {evo.index + 1} {evo.stage.name}
+          {d.student.classroom_name} · เลขที่ {d.student.number ?? '-'} · รหัส {d.student.student_code} · วิวัฒนาการขั้น {evo.index + 1} {evo.stage.name}
         </span>
       </PageHeader>
 
@@ -138,7 +136,7 @@ export function DbqAdminStudentDetail() {
         </ul>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div>
         <section className={panel}>
           <h2 className="mb-3 text-lg text-dq-900">เกม</h2>
           {d.games.length === 0 ? (
@@ -155,32 +153,6 @@ export function DbqAdminStudentDetail() {
               ))}
             </ul>
           )}
-          <h2 className="mb-2 mt-4 text-lg text-dq-900">เหรียญ</h2>
-          {d.badges.length === 0 ? (
-            <p className="text-slate-500">ยังไม่มี</p>
-          ) : (
-            <p className="flex flex-wrap gap-2">
-              {d.badges.map((b) => (
-                <span key={b.key} className="rounded-full bg-xp-300/40 px-3 py-1 text-sm">
-                  {b.icon} {b.name}
-                </span>
-              ))}
-            </p>
-          )}
-        </section>
-        <section className={panel}>
-          <h2 className="mb-3 text-lg text-dq-900">XP ล่าสุด</h2>
-          <ul className="space-y-1 text-sm">
-            {d.recent_xp.map((x, i) => (
-              <li key={i} className="grid grid-cols-[1fr_3rem_auto] items-baseline gap-2">
-                <span className="text-slate-700" title={x.source}>
-                  {xpLabel(x.source, titles)}
-                </span>
-                <span className="text-right font-display text-xp-600">+{x.amount}</span>
-                <span className="text-slate-400">{formatDateTime(x.created_at)}</span>
-              </li>
-            ))}
-          </ul>
         </section>
       </div>
     </div>

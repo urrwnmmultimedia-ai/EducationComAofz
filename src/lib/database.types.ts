@@ -253,7 +253,9 @@ export type LeaderboardRow = {
   nickname: string
   avatar: string
   classroom_name: string | null
-  xp: number
+  gold: number
+  silver: number
+  bronze: number
   is_me: boolean
 }
 
@@ -328,6 +330,8 @@ export type Database = {
       submit_game_result: { Args: { p_slug: string; p_score: number; p_duration_sec: number }; Returns: Json }
       my_games: { Args: Record<string, never>; Returns: MyGameItem[] }
       leaderboard: { Args: { p_scope?: string; p_classroom_id?: string | null }; Returns: LeaderboardRow[] }
+      my_medals: { Args: Record<string, never>; Returns: Json }
+      register_login: { Args: Record<string, never>; Returns: number }
       set_my_avatar: { Args: { p_avatar: string }; Returns: undefined }
       my_session_list: { Args: Record<string, never>; Returns: SessionListItem[] }
       checkin_session: { Args: { p_session_no: number }; Returns: boolean }

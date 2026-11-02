@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import { ArrowRight, BookOpen, ChevronRight, CircleCheck, ClipboardList, Flame, Gamepad2, PencilLine, Star, Ticket } from 'lucide-react'
 import { EmptyBlock, ErrorBlock, LoadingBlock, ProgressBar } from '@/components/StatusViews'
 import { StepPreview } from '@/components/StepJourney'
-import { levelFromXp } from '@/lib/levels'
+import { countMedals, type Medal } from '@/components/medals/Medals'
 import { useAsync } from '@/lib/useAsync'
 import type { SessionListItem, UnitRow } from '@/lib/database.types'
 import { fetchSessionList, fetchUnits } from '@/features/lessons/lessonsApi'
@@ -10,7 +10,7 @@ import { courseProgressPercent, progressPercent } from '@/features/lessons/sessi
 import { EvolutionSlot } from '@/components/evolution/ScoreEvolutionCard'
 import { EvolutionCardM3 } from './EvolutionCardM3'
 import { fetchMyScore } from './myScore'
-import { dueCountdown, fetchStudentStats } from './studentApi'
+import { dueCountdown, fetchMyMedals, fetchStudentStats } from './studentApi'
 import { useViewer } from './viewer'
 
 // คาบปัจจุบัน = คาบที่ครูปลดล็อกล่าสุด
@@ -25,8 +25,14 @@ export function StudentHomePage() {
   const { student } = useViewer()
   const studentId = student?.id ?? ''
   const state = useAsync(async () => {
-    const [units, sessions, stats, mine] = await Promise.all([fetchUnits(), fetchSessionList(), fetchStudentStats(studentId), fetchMyScore(studentId)])
-    return { units, sessions, stats, score: mine.score.total }
+    const [units, sessions, stats, mine, medals] = await Promise.all([
+      fetchUnits(),
+      fetchSessionList(),
+      fetchStudentStats(studentId),
+      fetchMyScore(studentId),
+      fetchMyMedals(),
+    ])
+    return { units, sessions, stats, score: mine.score.total, medals }
   }, [studentId])
 
   if (!student) return null
@@ -65,14 +71,15 @@ function Dashboard({
   sessions,
   stats,
   score,
+  medals,
 }: {
   units: UnitRow[]
   sessions: SessionListItem[]
   stats: Awaited<ReturnType<typeof fetchStudentStats>>
   score: number // คะแนนรวม 0–100 จากสมุดคะแนน (ใช้กับวิวัฒนาการ)
+  medals: Medal[]
 }) {
   const current = currentSession(sessions)
-  const level = levelFromXp(stats.totalXp)
   const pct = current ? progressPercent([current]) : 0
   const currentUnit = current ? units.find((u) => u.id === current.unit_id) : undefined
 
@@ -122,15 +129,13 @@ function Dashboard({
           </section>
         </div>
 
-        {/* วิวัฒนาการตามคะแนนรวม (ลิง → คน) + XP/เหรียญ */}
+        {/* วิวัฒนาการตามคะแนนรวม (ลิง → คน) + เหรียญรายคาบ */}
         <EvolutionSlot fit={!!current}>
           <EvolutionCardM3
             score={score}
             compact
             info={{
-              level: `Lv.${level.level} ${level.name}`,
-              xp: stats.totalXp,
-              badges: String(stats.badgeCount),
+              medals: countMedals(medals),
               pending: stats.pending.length,
               progressPct: courseProgressPercent(sessions),
               nextDue: stats.pending[0]

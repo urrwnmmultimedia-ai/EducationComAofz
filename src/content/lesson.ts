@@ -78,6 +78,15 @@ export const sessionContentSchema = z.object({
       instructions: z.string(),
       type: z.enum(['text', 'file', 'er', 'sql']),
       max_score: z.number().positive(),
+      // ใบงานแบบตาราง (ส่งเป็นข้อความ JSON ผ่านช่อง text เดิม) — ไม่มี = ช่องพิมพ์ข้อความธรรมดา
+      table: z
+        .object({
+          minFields: z.number().int().min(1).max(8),
+          maxFields: z.number().int().min(1).max(10),
+          rows: z.number().int().min(1).max(10),
+        })
+        .refine((t) => t.maxFields >= t.minFields)
+        .optional(),
     })
     .optional(),
   // ปิดคาบ: ภารกิจคิดรวบยอด (สถานการณ์ + คำถามหลายแบบ ตรวจที่เซิร์ฟเวอร์ — เฉลยอยู่ใน answer_keys item_type 'wrapup')

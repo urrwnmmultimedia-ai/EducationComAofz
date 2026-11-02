@@ -6,6 +6,8 @@ import { useAsync } from '@/lib/useAsync'
 import { btn, displayName, formatDateTime, input, PageHeader, panel, RoomSelect } from './adminUi'
 import { fetchSubmissions, gradeSubmission, type Submission } from './dbqAdminApi'
 import { parseScoreInput } from './gradebookModel'
+import { TableWorksheetView } from '../lesson/TableWorksheet'
+import { parseSheet } from '../lesson/tableSheetModel'
 
 type Status = 'pending' | 'graded' | 'all'
 
@@ -68,6 +70,8 @@ function GradeCard({ sub, onSaved }: { sub: Submission; onSaved: () => void }) {
   // เกณฑ์และคำตอบตัวอย่างเปิดไว้เลย ไม่ต้องกดหา
   const [showKey, setShowKey] = useState(true)
   const max = sub.assignment.max_score
+  // ใบงานแบบตาราง (เช่น คาบ 2) ส่งมาเป็น JSON — แสดงเป็นตาราง
+  const sheet = parseSheet(sub.content.text)
 
   const save = async (value: number | null) => {
     setBusy(true)
@@ -103,7 +107,9 @@ function GradeCard({ sub, onSaved }: { sub: Submission; onSaved: () => void }) {
         </div>
         {sub.graded_at && <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm text-emerald-800">ตรวจแล้ว {sub.score}/{max}</span>}
       </header>
-      <div className="whitespace-pre-wrap rounded-xl bg-dq-50 p-3">{sub.content.text || <span className="text-slate-400">(ไม่มีข้อความ)</span>}</div>
+      <div className="whitespace-pre-wrap rounded-xl bg-dq-50 p-3">
+        {sheet ? <TableWorksheetView sheet={sheet} /> : sub.content.text || <span className="text-slate-400">(ไม่มีข้อความ)</span>}
+      </div>
 
       {(sub.rubric || sub.sample) && (
         <div>

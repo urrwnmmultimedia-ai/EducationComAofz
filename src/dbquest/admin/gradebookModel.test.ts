@@ -68,6 +68,6 @@ describe('สมุดคะแนน DB Quest', () => {
     const [header, row] = buildGradebookSheet(gb)
     expect(header).toContain('ใบงานที่ 1 (5)')
     expect(header).toContain('สอบปลายภาค (20)')
-    expect(row).toEqual(['ม.5/1', 1, '55555', 'นายทดลอง ม.ห้า', 'ห้า', 4, 'รอตรวจ', 10, '', 5, '', '', 7.5, '', 22.5, '0', 120])
+    expect(row).toEqual(['ม.5/1', 1, '55555', 'นายทดลอง ม.ห้า', 'ห้า', 4, 'รอตรวจ', 10, '', 5, '', '', 7.5, '', 22.5, '0'])
   })
 })

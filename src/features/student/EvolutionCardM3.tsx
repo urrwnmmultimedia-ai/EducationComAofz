@@ -14,7 +14,7 @@ export function EvolutionCardM3(props: { score: number; info?: EvoInfo; compact?
       stages={M3_STAGES}
       art={EvolutionArtM3}
       pathLabel="ลิงสู่คน"
-      celebrateKey={student && !isPreview ? `tq-evo-m3-${student.id}` : null}
+      celebrateKey={student && !isPreview ? `tq-evo8-m3-${student.id}` : null}
     />
   )
 }

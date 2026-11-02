@@ -7,7 +7,7 @@ import { fullName } from '@/features/assignments/gradebookData'
 import { formatGrade } from '@/lib/grade'
 import { CATEGORY_LABELS, type StudentScore } from '@/lib/scoring'
 import { useAsync } from '@/lib/useAsync'
-import { fetchProgressList, fetchStudentProgress, resetSessionProgress, XP_SOURCE_LABEL, type SessionProgress } from './studentProgress'
+import { fetchProgressList, fetchStudentProgress, resetSessionProgress, type SessionProgress } from './studentProgress'
 
 const panel = 'rounded-3xl bg-white p-4 shadow-sm ring-1 ring-brand-100 sm:p-5'
 const secondaryLink =
@@ -63,7 +63,6 @@ export function AdminProgressPage() {
                   <th>เลขที่</th>
                   <th>รหัส</th>
                   <th>ชื่อ</th>
-                  <th className="text-right">XP</th>
                   <th className="text-right">คาบที่ครบ</th>
                   <th className="text-right">คาบล่าสุด</th>
                   <th className="text-right">เหรียญ</th>
@@ -82,7 +81,6 @@ export function AdminProgressPage() {
                       </Link>
                       {!r.student.is_active && <span className="ml-1 text-xs text-slate-500">(ปิดใช้งาน)</span>}
                     </td>
-                    <td className="text-right font-display">{r.xp}</td>
                     <td className="text-right">{r.sessionsDone}</td>
                     <td className="text-right">{r.currentSession ?? '-'}</td>
                     <td className="text-right">{r.badges}</td>
@@ -145,7 +143,7 @@ export function AdminStudentProgressPage() {
       <div>
         <h1 className="text-2xl text-ink">{displayName(d.student)}</h1>
         <p className="text-slate-500">
-          {d.room?.name ?? 'ไม่มีห้อง'} · เลขที่ {d.student.number ?? '-'} · รหัส {d.student.student_code} · {d.xp} XP · ครบ {done}/{d.sessions.length} คาบ
+          {d.room?.name ?? 'ไม่มีห้อง'} · เลขที่ {d.student.number ?? '-'} · รหัส {d.student.student_code} · ครบ {done}/{d.sessions.length} คาบ
         </p>
       </div>
 
@@ -165,7 +163,7 @@ export function AdminStudentProgressPage() {
         </ul>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div>
         <section className={panel}>
           <h2 className="mb-3 text-lg text-brand-900">เกม</h2>
           {d.games.length === 0 ? (
@@ -178,34 +176,6 @@ export function AdminStudentProgressPage() {
                   <span>
                     ดีสุด {g.bestScore}/{g.maxScore} · เล่น {g.plays} ครั้ง
                   </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <h2 className="mb-2 mt-4 text-lg text-brand-900">เหรียญ</h2>
-          {d.badges.length === 0 ? (
-            <p className="text-slate-500">ยังไม่มี</p>
-          ) : (
-            <p className="flex flex-wrap gap-2">
-              {d.badges.map((b) => (
-                <span key={b.id} className="rounded-full bg-sun-300/40 px-3 py-1 text-sm">
-                  {b.icon} {b.name}
-                </span>
-              ))}
-            </p>
-          )}
-        </section>
-        <section className={panel}>
-          <h2 className="mb-3 text-lg text-brand-900">XP ล่าสุด</h2>
-          {d.recentXp.length === 0 ? (
-            <p className="text-slate-500">ยังไม่มี</p>
-          ) : (
-            <ul className="space-y-1 text-sm">
-              {d.recentXp.map((x) => (
-                <li key={x.id} className="grid grid-cols-[1fr_3rem_auto] items-baseline gap-2">
-                  <span className="text-slate-700">{XP_SOURCE_LABEL[x.source]}</span>
-                  <span className="text-right font-display text-brand-700">+{x.xp}</span>
-                  <span className="text-slate-400">{formatDateTime(x.created_at)}</span>
                 </li>
               ))}
             </ul>

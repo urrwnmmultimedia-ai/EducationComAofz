@@ -94,6 +94,23 @@ describe('computeStudentScore', () => {
     expect(s.total).toBe(30)
   })
 
+  it('แต่ละคาบได้ส่วนแบ่งเท่ากัน ไม่ว่าคาบนั้นคะแนนเต็มเท่าไร', () => {
+    const work = [
+      { ...item('a', 'work', 10), sessionNo: 1 },
+      { ...item('b', 'work', 2), sessionNo: 2 },
+      { ...item('c', 'work', 2), sessionNo: 2 },
+      { ...item('d', 'work', 3), sessionNo: 3 },
+      { ...item('z', 'work', 0), sessionNo: 4 }, // ไม่มีคะแนน ไม่นับเป็นคาบ
+    ]
+    // ทำคาบ 1 (เต็ม 10) ครบ = 1 ใน 3 คาบ = 10/30 (เดิมได้ 10/17 ของ 30)
+    const s = computeStudentScore(work, entries([['a', 10]]), policy)
+    const w = s.categories.find((c) => c.category === 'work')
+    expect(w?.slots).toBe(3)
+    expect(w?.scaled).toBe(10)
+    // คาบ 2 ได้ครึ่งเดียว (2 จาก 4) = 0.5 คาบ
+    expect(computeStudentScore(work, entries([['b', 2]]), policy).total).toBe(5)
+  })
+
   it('จิตพิสัยจาก XP', () => {
     const p = { ...policy, weights: { ...DEFAULT_WEIGHTS, work: 25, affective: 5 } }
     const s = computeStudentScore(items, new Map(), p, 500)

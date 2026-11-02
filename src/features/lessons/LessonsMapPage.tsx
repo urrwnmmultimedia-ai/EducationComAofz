@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { ArrowRight, BookOpen, ChevronRight, CircleCheck, Lock } from 'lucide-react'
+import { ArrowRight, BookOpen, CircleCheck, Lock } from 'lucide-react'
 import { ErrorBlock, LoadingBlock, ProgressBar } from '@/components/StatusViews'
 import type { SessionListItem, UnitRow } from '@/lib/database.types'
 import { useAsync } from '@/lib/useAsync'
@@ -12,17 +12,12 @@ function nextSession(list: SessionListItem[]): SessionListItem | undefined {
   return list.find((s) => s.is_unlocked && pctOf(s) < 100)
 }
 
-function Status({ s, isNext }: { s: SessionListItem; isNext: boolean }) {
+// ครูปลดล็อกแล้ว = มีปุ่มเริ่ม/เรียนต่อทุกคาบ · ล็อก = ไม่มีปุ่ม กดไม่ได้
+function Status({ s }: { s: SessionListItem }) {
   if (!s.is_unlocked)
     return (
-      <span className="shrink-0 text-slate-400" aria-label="ยังล็อก">
-        <Lock className="size-5" aria-hidden />
-      </span>
-    )
-  if (isNext)
-    return (
-      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-action px-3 py-1 text-sm font-semibold text-white shadow-action">
-        {pctOf(s) ? 'เรียนต่อ' : 'เริ่ม'} <ArrowRight className="size-4" aria-hidden />
+      <span className="inline-flex shrink-0 items-center gap-1 text-sm text-slate-500">
+        <Lock className="size-5" aria-hidden /> ครูยังไม่เปิด
       </span>
     )
   if (pctOf(s) === 100)
@@ -31,7 +26,11 @@ function Status({ s, isNext }: { s: SessionListItem; isNext: boolean }) {
         <CircleCheck className="size-5" aria-hidden /> ครบแล้ว
       </span>
     )
-  return <ChevronRight className="size-5 shrink-0 text-slate-400" aria-hidden />
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-action px-3 py-1 text-sm font-semibold text-white shadow-action">
+      {pctOf(s) ? 'เรียนต่อ' : 'เริ่ม'} <ArrowRight className="size-4" aria-hidden />
+    </span>
+  )
 }
 
 function Row({ s, unit, isNext }: { s: SessionListItem; unit?: UnitRow; isNext: boolean }) {
@@ -54,7 +53,7 @@ function Row({ s, unit, isNext }: { s: SessionListItem; unit?: UnitRow; isNext: 
         </span>
         {open && pct > 0 && pct < 100 && <ProgressBar value={pct} className="mt-2 h-1.5 max-w-48" />}
       </span>
-      <Status s={s} isNext={isNext} />
+      <Status s={s} />
     </>
   )
   return open ? (

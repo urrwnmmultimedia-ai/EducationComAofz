@@ -4386,6 +4386,410 @@ create trigger dbq_default_unlocks_lesson
 
 revoke execute on function public.dbq_default_unlocks_for_room(), public.dbq_default_unlocks_for_lesson() from public, anon, authenticated;
 
+-- >>>>>>>>>> migrations/20261028000021_dbquest_map_unlocked_at.sql
+-- =============================================================
+-- 021 DB Quest (ม.5): แผนที่คาบส่งเวลาที่ครูปลดล็อกให้ห้องของนักเรียน (unlocked_at)
+--   หน้าแรกใช้เลือก "คาบปัจจุบัน" = คาบที่ครูเปิดล่าสุด (เหมือนหน้าแรก ม.3)
+--   ครู/ดูตัวอย่าง: unlocked_at = null (เห็นทุกคาบเปิด)
+-- =============================================================
+
+create or replace function public.dbq_my_map()
+returns jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_sid   uuid := public.dbq_student_id();
+  v_admin boolean := public.is_admin();
+begin
+  perform public.dbq_require_member();
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'session_no', l.session_no,
+      'unit_no', l.unit_no,
+      'kind', l.kind,
+      'title', l.title,
+      'open', v_admin or public.dbq_is_session_open(v_sid, l.session_no),
+      'pct', case when v_sid is null then null else public.dbq_session_pct(v_sid, l.session_no) end,
+      'unlocked_at', u.unlocked_at
+    ) order by l.session_no)
+    from public.dbq_lessons l
+    left join public.students st on st.id = v_sid
+    left join public.dbq_classroom_unlocks u on u.classroom_id = st.classroom_id and u.session_no = l.session_no
+  ), '[]'::jsonb);
+end;
+$$;
+
+-- >>>>>>>>>> migrations/20261028000022_dbquest_per_session_scores.sql
+-- =============================================================
+-- 022 DB Quest (ม.5): คะแนนใบงานและเกมแบ่งเป็นรายคาบ
+--   เดิม: ใบงาน = คะแนนที่ได้ / คะแนนเต็มของใบงานที่ "มีอยู่ตอนนี้" (2 ใบ)
+--         เกม   = คะแนนดีที่สุด / เกมที่ "มีอยู่ตอนนี้" (2 เกม)
+--         => เรียนคาบเดียวได้ ~17 จาก 100
+--   ใหม่: แบ่งเป็นช่องตามคาบเนื้อหาทั้งหมด (kind = 'lesson', 17 คาบ) คาบละส่วนเท่ากัน
+--         ใบงาน: คาบละ (คะแนนที่ตรวจแล้ว / คะแนนเต็มใบงานของคาบนั้น) — คาบที่ยังไม่มีใบงาน = 0
+--         เกม:   คาบละ (คะแนนดีที่สุดของเกมคาบนั้น / 100)          — คาบที่ยังไม่มีเกม = 0
+--         หมวด % = ผลรวมทุกคาบ / จำนวนคาบ  => ทำครบ 1 คาบ ≈ (25 + 10) / 17 ≈ 2 คะแนน
+--   earned / max ของสองหมวดนี้ = จำนวนคาบ (เช่น 1.5 / 17 คาบ)
+--   หมวดที่ครูกรอกเอง (unit_quiz, project, attendance, midterm, final) เหมือนเดิม
+-- =============================================================
+
+create or replace function public.dbq_student_scores(p_sid uuid)
+returns jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_w      jsonb := coalesce((select value from public.dbq_settings where key = 'score_weights'), '{}'::jsonb);
+  v_cat    text;
+  v_earned numeric;
+  v_max    numeric;
+  v_pct    numeric;
+  v_weight numeric;
+  v_cats   jsonb := '{}'::jsonb;
+  v_total  numeric := 0;
+  v_avail  numeric := 0;
+begin
+  foreach v_cat in array array['worksheet', 'unit_quiz', 'game', 'project', 'attendance', 'midterm', 'final'] loop
+    v_weight := coalesce((v_w ->> v_cat)::numeric, 0);
+    if v_cat = 'worksheet' then
+      -- ช่อง = คาบเนื้อหาทุกคาบ + คาบอื่นที่มีใบงาน (ใบงานไม่ผูกคาบ = ช่องของตัวเอง)
+      with slots as (
+        select 's' || l.session_no as k from public.dbq_lessons l where l.kind = 'lesson'
+        union
+        select coalesce('s' || a.session_no, 'a' || a.id) from public.dbq_assignments a where a.max_score > 0
+      ),
+      per_slot as (
+        select coalesce('s' || a.session_no, 'a' || a.id) as k,
+               coalesce(sum(s.score) filter (where s.graded_at is not null), 0) / sum(a.max_score) as ratio
+        from public.dbq_assignments a
+        left join public.dbq_submissions s on s.assignment_id = a.id and s.student_id = p_sid
+        where a.max_score > 0
+        group by 1
+      )
+      select coalesce(sum(p.ratio), 0), count(*)
+        into v_earned, v_max
+      from slots sl left join per_slot p on p.k = sl.k;
+    elsif v_cat = 'game' then
+      with slots as (
+        select l.session_no, l.game_key from public.dbq_lessons l where l.kind = 'lesson' or l.game_key is not null
+      )
+      , best as (
+        select gs.game_key, max(gs.score) as best from public.dbq_game_scores gs
+        where gs.student_id = p_sid group by gs.game_key
+      )
+      -- least() ข้าม null จึงต้อง coalesce ก่อน (ยังไม่เล่น = 0)
+      select coalesce(sum(least(coalesce(b.best, 0), 100)), 0) / 100.0, count(*)
+        into v_earned, v_max
+      from slots sl
+      left join best b on b.game_key = sl.game_key;
+    else
+      select m.score, m.max_score into v_earned, v_max
+      from public.dbq_manual_scores m where m.student_id = p_sid and m.category = v_cat;
+      if not found then
+        v_earned := null;
+        v_max := null;
+      end if;
+    end if;
+
+    v_earned := round(v_earned, 2);
+    v_pct := case when coalesce(v_max, 0) > 0 then round(100 * v_earned / v_max, 2) end;
+    v_cats := v_cats || jsonb_build_object(v_cat, jsonb_build_object(
+      'weight', v_weight,
+      'earned', v_earned,
+      'max', v_max,
+      'unit', case when v_cat in ('worksheet', 'game') then 'session' end,
+      'pct', v_pct,
+      'points', case when v_pct is null then null else round(v_pct * v_weight / 100, 2) end
+    ));
+    if v_pct is not null then
+      v_total := v_total + v_pct * v_weight / 100;
+      v_avail := v_avail + v_weight;
+    end if;
+  end loop;
+
+  return jsonb_build_object(
+    'categories', v_cats,
+    'total', round(v_total, 2),           -- คะแนนสะสมเต็ม 100 (หมวดที่ยังไม่มีคะแนน = 0)
+    'available', v_avail,                 -- น้ำหนักรวมของหมวดที่มีคะแนนแล้ว
+    'current_pct', case when v_avail > 0 then round(100 * v_total / v_avail, 2) end
+  );
+end;
+$$;
+
+-- >>>>>>>>>> migrations/20261028000023_session_medals.sql
+-- =============================================================
+-- 023 เหรียญรายคาบ (ทั้ง ม.3 และ DB Quest ม.5) + อันดับตามเหรียญ + นับการเข้าสู่ระบบ
+--   * เหรียญ: ทุกคาบที่มีงานคิดคะแนน นักเรียนได้เหรียญตามคะแนนของตัวเองในคาบนั้น
+--       ทอง ≥ 90% · เงิน ≥ 75% · ทองแดง ≥ 50% (ยังไม่ตรวจ/ยังไม่เล่น = 0 เหรียญจะขึ้นเมื่อครูตรวจ)
+--       ม.3:      คะแนนงานที่ตรวจแล้วในคาบ / คะแนนเต็มของงานในคาบ (หักส่งช้าตามตั้งค่า)
+--       DB Quest: เฉลี่ย (ใบงานที่ตรวจแล้ว / เต็ม) กับ (คะแนนเกมดีที่สุด / 100) ของคาบนั้น
+--     คำนวณสดทุกครั้ง ไม่เก็บลงตาราง (ครูแก้คะแนนแล้วเหรียญเปลี่ยนตามทันที)
+--   * อันดับในห้อง: เรียงตามเหรียญ ทอง → เงิน → ทองแดง (เลิกใช้ XP — ข้อมูล XP เดิมยังเก็บไว้)
+--   * students.login_count + register_login(): หน้าเว็บใช้แสดงความยินดีกับวิวัฒนาการทุกครั้งที่เข้าสู่ระบบ ยกเว้นครั้งแรก
+-- =============================================================
+
+create or replace function public.medal_tier(p_pct numeric)
+returns text
+language sql immutable
+set search_path = ''
+as $$
+  select case when p_pct >= 90 then 'gold' when p_pct >= 75 then 'silver' when p_pct >= 50 then 'bronze' end
+$$;
+
+-- ---------- ม.3 ----------
+create or replace function public.m3_session_medals(p_sid uuid)
+returns jsonb
+language sql stable security definer
+set search_path = ''
+as $$
+  with st as (
+    select coalesce(late_penalty_enabled, false) as pen, coalesce(late_penalty_pct, 0) as pct from public.app_settings where id = 1
+  ),
+  items as (
+    select a.session_no, a.max_score,
+           case
+             when s.status = 'graded' and s.score is not null then
+               least(greatest(s.score, 0), a.max_score)
+               * case when (select pen from st) and a.due_at is not null and s.submitted_at > a.due_at
+                      then 1 - (select pct from st) / 100 else 1 end
+             else 0
+           end as earned
+    from public.assignments a
+    left join public.submissions s on s.assignment_id = a.id and s.student_id = p_sid
+    where a.session_no is not null and a.max_score > 0
+  ),
+  per as (
+    select session_no, round(100 * sum(earned) / sum(max_score), 2) as pct from items group by session_no
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('session_no', session_no, 'pct', pct, 'tier', public.medal_tier(pct)) order by session_no), '[]'::jsonb)
+  from per
+$$;
+
+-- เหรียญของฉัน (ม.3) — ครูดูตัวอย่าง = รายการว่าง
+create or replace function public.my_medals()
+returns jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_sid uuid := public.current_student_id();
+begin
+  if public.current_app_role() is null then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  if v_sid is null then
+    return '[]'::jsonb;
+  end if;
+  return public.m3_session_medals(v_sid);
+end;
+$$;
+
+-- ---------- DB Quest ----------
+create or replace function public.dbq_session_medals(p_sid uuid)
+returns jsonb
+language sql stable security definer
+set search_path = ''
+as $$
+  with ws as (
+    select a.session_no,
+           coalesce(sum(s.score) filter (where s.graded_at is not null), 0) / sum(a.max_score) as ratio
+    from public.dbq_assignments a
+    left join public.dbq_submissions s on s.assignment_id = a.id and s.student_id = p_sid
+    where a.session_no is not null and a.max_score > 0
+    group by a.session_no
+  ),
+  gm as (
+    select l.session_no,
+           least(coalesce((select max(g.score) from public.dbq_game_scores g where g.student_id = p_sid and g.game_key = l.game_key), 0), 100) / 100.0 as ratio
+    from public.dbq_lessons l where l.game_key is not null
+  ),
+  parts as (select * from ws union all select * from gm),
+  per as (select session_no, round(100 * avg(ratio), 2) as pct from parts group by session_no)
+  select coalesce(jsonb_agg(jsonb_build_object('session_no', session_no, 'pct', pct, 'tier', public.medal_tier(pct)) order by session_no), '[]'::jsonb)
+  from per
+$$;
+
+-- นับเหรียญจากรายการ (ใช้จัดอันดับ)
+create or replace function public.medal_counts(p_medals jsonb)
+returns table (gold int, silver int, bronze int)
+language sql immutable
+set search_path = ''
+as $$
+  select count(*) filter (where m ->> 'tier' = 'gold')::int,
+         count(*) filter (where m ->> 'tier' = 'silver')::int,
+         count(*) filter (where m ->> 'tier' = 'bronze')::int
+  from jsonb_array_elements(coalesce(p_medals, '[]'::jsonb)) m
+$$;
+
+-- คะแนนของฉัน: เพิ่ม medals
+create or replace function public.dbq_my_scores()
+returns jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_sid uuid := public.dbq_student_id();
+begin
+  perform public.dbq_require_member();
+  if v_sid is null then
+    return jsonb_build_object('preview', true);
+  end if;
+  return jsonb_build_object(
+    'preview', false,
+    'scores', public.dbq_student_scores(v_sid),
+    'medals', public.dbq_session_medals(v_sid),
+    'assignments', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'item_id', a.item_id,
+        'title', a.title,
+        'session_no', a.session_no,
+        'max_score', a.max_score,
+        'open', a.session_no is null or public.dbq_is_session_open(v_sid, a.session_no),
+        'status', case when s.id is null then 'missing' when s.graded_at is null then 'submitted' else 'graded' end,
+        'score', s.score,
+        'feedback', s.feedback,
+        'submitted_at', s.submitted_at,
+        'graded_at', s.graded_at
+      ) order by a.session_no nulls last, a.sort_order)
+      from public.dbq_assignments a
+      left join public.dbq_submissions s on s.assignment_id = a.id and s.student_id = v_sid
+    ), '[]'::jsonb),
+    'games', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'game_key', l.game_key,
+        'session_no', l.session_no,
+        'best_score', (select max(g.score) from public.dbq_game_scores g where g.student_id = v_sid and g.game_key = l.game_key),
+        'best_stars', (select max(g.stars) from public.dbq_game_scores g where g.student_id = v_sid and g.game_key = l.game_key),
+        'plays', (select count(*) from public.dbq_game_scores g where g.student_id = v_sid and g.game_key = l.game_key)
+      ) order by l.session_no)
+      from public.dbq_lessons l where l.game_key is not null
+    ), '[]'::jsonb)
+  );
+end;
+$$;
+
+-- อันดับในห้อง DB Quest: เรียงตามเหรียญ (แสดงแค่ชื่อเล่น)
+create or replace function public.dbq_leaderboard()
+returns jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_sid  uuid := public.dbq_student_id();
+  v_room uuid;
+begin
+  perform public.dbq_require_member();
+  if not coalesce((select (value #>> '{}')::boolean from public.dbq_settings where key = 'leaderboard_enabled'), true) then
+    return jsonb_build_object('enabled', false, 'rows', '[]'::jsonb);
+  end if;
+  select classroom_id into v_room from public.students where id = v_sid;
+  return jsonb_build_object('enabled', true, 'rows', coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'rank', r.rank, 'nickname', r.nickname, 'avatar', r.avatar,
+      'gold', r.gold, 'silver', r.silver, 'bronze', r.bronze, 'is_me', r.id = v_sid
+    ) order by r.rank, r.nickname)
+    from (
+      select t.*, rank() over (order by t.gold desc, t.silver desc, t.bronze desc) as rank
+      from (
+        select st.id, coalesce(nullif(st.nickname, ''), st.first_name) as nickname, st.avatar, mc.gold, mc.silver, mc.bronze
+        from public.students st
+        cross join lateral public.medal_counts(public.dbq_session_medals(st.id)) mc
+        where st.is_active and st.classroom_id = v_room
+      ) t
+    ) r
+    where r.rank <= 10 or r.id = v_sid
+  ), '[]'::jsonb));
+end;
+$$;
+
+-- ลีดเดอร์บอร์ด ม.3: เรียงตามเหรียญ (เฉพาะห้อง ม.3) — เปลี่ยนคอลัมน์ผลลัพธ์จึงต้อง drop ก่อน
+drop function if exists public.leaderboard(text, uuid);
+create function public.leaderboard(p_scope text default 'class', p_classroom_id uuid default null)
+returns table (rank int, nickname text, avatar text, classroom_name text, gold int, silver int, bronze int, is_me boolean)
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_mode  text;
+  v_admin boolean := public.is_admin();
+  v_room  uuid;
+  v_me    uuid := public.current_student_id();
+begin
+  if public.current_app_role() is null then
+    return;
+  end if;
+  select leaderboard_mode into v_mode from public.app_settings where id = 1;
+  if v_mode = 'hidden' and not v_admin then
+    return;
+  end if;
+  v_room := case when p_scope = 'class' then coalesce(case when v_admin then p_classroom_id end, public.current_classroom_id()) end;
+
+  return query
+  with totals as (
+    select s.id, coalesce(nullif(s.nickname, ''), s.first_name) as nick, s.avatar, c.name as room, mc.gold, mc.silver, mc.bronze
+    from public.students s
+    left join public.classrooms c on c.id = s.classroom_id
+    cross join lateral public.medal_counts(public.m3_session_medals(s.id)) mc
+    where s.is_active and coalesce(c.course, 'design_m3') = 'design_m3' and (v_room is null or s.classroom_id = v_room)
+  ), ranked as (
+    select (rank() over (order by t.gold desc, t.silver desc, t.bronze desc))::int as r, t.* from totals t
+  )
+  select r.r, r.nick, r.avatar, r.room, r.gold, r.silver, r.bronze, r.id = v_me
+  from ranked r
+  where v_admin or v_mode <> 'top10' or r.r <= 10 or r.id = v_me
+  order by r.r, r.nick;
+end;
+$$;
+
+-- ตรวจงานแล้วเหรียญเปลี่ยน: ให้หน้าลีดเดอร์บอร์ดโหลดใหม่
+drop trigger if exists submissions_tick on public.submissions;
+create trigger submissions_tick after insert or update of score, status or delete on public.submissions
+  for each statement execute function public._tick_leaderboard();
+
+-- ---------- นับการเข้าสู่ระบบ ----------
+alter table public.students add column if not exists login_count int not null default 0;
+
+-- เรียกหลังเข้าสู่ระบบสำเร็จ: +1 แล้วคืนจำนวนครั้ง "ก่อนหน้า" (0 = ครั้งแรก)
+create or replace function public.register_login()
+returns int
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_sid  uuid := public.current_student_id();
+  v_prev int;
+begin
+  if v_sid is null then
+    return 0;
+  end if;
+  update public.students set login_count = login_count + 1 where id = v_sid
+  returning login_count - 1 into v_prev;
+  return coalesce(v_prev, 0);
+end;
+$$;
+
+revoke execute on function
+  public.m3_session_medals(uuid),
+  public.dbq_session_medals(uuid)
+from public, anon, authenticated;
+
+revoke execute on function
+  public.my_medals(),
+  public.leaderboard(text, uuid),
+  public.register_login(),
+  public.dbq_my_scores(),
+  public.dbq_leaderboard()
+from public, anon;
+
+grant execute on function
+  public.my_medals(),
+  public.leaderboard(text, uuid),
+  public.register_login(),
+  public.dbq_my_scores(),
+  public.dbq_leaderboard()
+to authenticated;
+
 -- >>>>>>>>>> seed.sql
 -- =============================================================
 -- Seed ข้อมูลเริ่มต้น (รันซ้ำได้ ไม่สร้างข้อมูลซ้ำ)

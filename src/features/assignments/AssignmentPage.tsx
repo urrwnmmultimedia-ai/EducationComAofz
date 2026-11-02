@@ -276,7 +276,7 @@ function AssignmentForm({
               )}
             </div>
           )}
-          {!f.locked && <p className="text-xs text-slate-500">ส่งตรงเวลาครั้งแรกได้ +30 XP · แก้ไขได้จนกว่าครูจะตรวจ</p>}
+          {!f.locked && <p className="text-xs text-slate-500">แก้ไขได้จนกว่าครูจะตรวจ · ครูตรวจแล้วนับเป็นเหรียญของคาบ</p>}
         </section>
       )}
     </div>

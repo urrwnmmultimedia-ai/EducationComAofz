@@ -349,7 +349,7 @@ function StepBody({
         <Panel character={<Non className="size-16" />} title="เวลาเล่นเกม!">
           {gameSlug ? (
             <>
-              <p>เกมประจำคาบนี้พร้อมให้ลองแล้ว เล่นครั้งแรกได้ XP เต็ม</p>
+              <p>เกมประจำคาบนี้พร้อมให้ลองแล้ว</p>
               <Link
                 to={`/games/${gameSlug}?session=${sessionNo}`}
                 className="mt-4 inline-flex rounded-2xl tq-press bg-action px-5 py-2.5 font-semibold text-white shadow-action hover:bg-brand-600"
@@ -384,7 +384,7 @@ function StepBody({
     case 'exit':
       return (
         <div className="flex flex-col gap-4">
-          <p className="font-display text-lg text-brand-900">ตอบคำถามท้ายคาบ ตอบถูกครบรับ +20 XP</p>
+          <p className="font-display text-lg text-brand-900">ตอบคำถามท้ายคาบ</p>
           {exams.length === 0 ? (
             <Panel title="Exit ticket และแบบทดสอบ">
               <p className="text-sm text-slate-500">คาบนี้ยังไม่มีแบบทดสอบ</p>

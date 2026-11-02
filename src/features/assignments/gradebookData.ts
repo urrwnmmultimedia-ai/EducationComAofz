@@ -40,7 +40,7 @@ export function sortAssignments(list: AssignmentRow[]): AssignmentRow[] {
 }
 
 export function toScoredItems(list: AssignmentRow[]): ScoredItem[] {
-  return list.map((a) => ({ id: a.id, category: a.category, maxScore: Number(a.max_score), dueAt: a.due_at }))
+  return list.map((a) => ({ id: a.id, category: a.category, maxScore: Number(a.max_score), dueAt: a.due_at, sessionNo: a.session_no }))
 }
 
 export function entriesFor(studentId: string, subs: SubmissionRow[]): Map<string, ScoreEntry> {

@@ -182,7 +182,7 @@ export function QuestionCard({ question, solved, onChecked }: Props) {
             <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-b from-mint-400 to-mint-500 text-white shadow-md" aria-hidden>
               ✓
             </span>
-            ถูกต้อง! 🎉{result && result.xp > 0 && ` · +${result.xp} XP`}
+            ถูกต้อง! 🎉
           </p>
         ) : result ? (
           <div className="tq-verdict flex gap-3 rounded-2xl bg-gradient-to-br from-rose-50 to-rose-100 px-4 py-3 text-rose-900 shadow-sm ring-2 ring-coral-400 dark:from-rose-950/60 dark:to-rose-900/40 dark:text-rose-100">

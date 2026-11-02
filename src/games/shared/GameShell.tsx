@@ -28,13 +28,13 @@ interface Props {
   onSubmit: (score: number, durationSec: number) => Promise<SubmitResult>
   backTo: string
   backLabel?: string
-  maxXp: number
+  maxXp?: number // ไม่แสดงแล้ว (เลิกใช้ XP)
   passScore?: number // เล่นในคาบ: ต่ำกว่านี้ยังไม่ผ่าน ต้องเล่นใหม่ก่อนไปขั้นต่อไป
   embedded?: boolean // ฝังในหน้าคาบ: ไม่มีลิงก์กลับ ผ่านแล้วหน้าคาบพาไปขั้นถัดไปเอง
 }
 
-// โครงเกมกลาง: คำอธิบาย → นับถอยหลัง 3-2-1 → เล่น → สรุปผล (คะแนน XP เฉลยข้อผิด) → เล่นอีกครั้ง
-export function GameShell({ title, description, config, Game, onSubmit, backTo, backLabel = 'กลับบทเรียน', maxXp, passScore, embedded = false }: Props) {
+// โครงเกมกลาง: คำอธิบาย → นับถอยหลัง 3-2-1 → เล่น → สรุปผล (คะแนน เฉลยข้อผิด) → เล่นอีกครั้ง
+export function GameShell({ title, description, config, Game, onSubmit, backTo, backLabel = 'กลับบทเรียน', passScore, embedded = false }: Props) {
   const sfx = useSfx()
   const [phase, setPhase] = useState<Phase>('intro')
   const [round, setRound] = useState(0)
@@ -98,7 +98,7 @@ export function GameShell({ title, description, config, Game, onSubmit, backTo, 
           <h1 className="text-3xl">{title}</h1>
           <p className="text-brand-100">{description}</p>
           <p className="max-w-lg rounded-2xl bg-white/10 p-3 text-sm">{config.instructions}</p>
-          <p className="text-sm text-brand-100">ได้สูงสุด {maxXp} XP ในรอบแรก · รอบต่อไป 20% · วันละ 3 รอบ</p>
+          <p className="text-sm text-brand-100">เล่นซ้ำได้ ระบบเก็บคะแนนดีที่สุดไว้ให้</p>
           <Button className="mt-2 bg-sun-400 text-amber-950 hover:bg-sun-300" onClick={() => setPhase('countdown')}>
             ▶ เริ่มเล่น
           </Button>
@@ -200,24 +200,7 @@ function ResultScreen({
         {submit?.status === 'error' && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">{submit.message}</p>}
         {r && (
           <div className="flex flex-col items-center gap-1">
-            <p className="font-display text-2xl text-emerald-700">+{r.xp} XP</p>
-            <p className="text-xs text-slate-500">
-              {r.capped ? 'วันนี้รับ XP ของเกมนี้ครบ 3 รอบแล้ว (เล่นฝึกต่อได้)' : r.first_play ? 'รอบแรก ได้ XP เต็ม!' : 'รอบซ้ำได้ 20% ของ XP'} · คะแนนดีที่สุด {r.best_score ?? score}
-            </p>
-            {r.new_badges.length > 0 && (
-              <div className="mt-2 flex flex-wrap justify-center gap-2">
-                {r.new_badges.map((b) => (
-                  <motion.span
-                    key={b.code}
-                    initial={{ scale: 0, rotate: -20 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    className="rounded-full bg-sun-300 px-4 py-1.5 font-display text-amber-950 shadow"
-                  >
-                    {b.icon} ได้เหรียญ "{b.name}"
-                  </motion.span>
-                ))}
-              </div>
-            )}
+            <p className="font-display text-xl text-emerald-700">คะแนนดีที่สุด {r.best_score ?? score}</p>
           </div>
         )}
         <div className="mt-3 flex flex-wrap justify-center gap-2">

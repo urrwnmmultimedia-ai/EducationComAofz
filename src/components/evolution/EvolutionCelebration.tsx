@@ -56,7 +56,8 @@ function Confetti() {
   )
 }
 
-// หน้าต่างแสดงความยินดีกลางจอเมื่อวิวัฒนาการขึ้นขั้นใหม่ (พลุ + กระดาษสี + ตัวละครเด้ง)
+// หน้าต่างแสดงความยินดีกลางจอ (พลุ + กระดาษสี + ตัวละครเด้ง)
+// from < to = ขึ้นขั้นใหม่ · from === to = ทักทายหลังเข้าสู่ระบบ ยินดีกับขั้นปัจจุบัน
 export function EvolutionCelebrationModal({
   art: ArtC,
   from,
@@ -80,8 +81,14 @@ export function EvolutionCelebrationModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  const welcome = from === to
   return createPortal(
-    <div className="fixed inset-0 z-[60] grid place-items-center overflow-hidden p-4" role="dialog" aria-modal="true" aria-label={`ยินดีด้วย วิวัฒนาการเป็น ${toName}`}>
+    <div
+      className="fixed inset-0 z-[60] grid place-items-center overflow-hidden p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={welcome ? `ยินดีต้อนรับกลับ ตอนนี้เป็น ${toName}` : `ยินดีด้วย วิวัฒนาการเป็น ${toName}`}
+    >
       <button type="button" className="tq-fade-in absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgb(31_86_214/0.55),rgb(10_21_48/0.85))] backdrop-blur-sm" onClick={onClose} aria-label="ปิด" />
       <Confetti />
       <Firework x="22%" y="26%" delay={150} seed={0.3} />
@@ -92,24 +99,26 @@ export function EvolutionCelebrationModal({
 
       <section className="tq-celebrate relative w-full max-w-sm overflow-hidden rounded-[2rem] bg-gradient-to-b from-white to-brand-50 p-6 text-center shadow-[0_30px_80px_-20px_rgb(0_0_0/0.7)] ring-4 ring-gold-300">
         <span className="tq-rays pointer-events-none absolute left-1/2 top-[5.5rem] size-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full" aria-hidden />
-        <p className="relative font-display text-sm tracking-wide text-gold-600">🎉 วิวัฒนาการสำเร็จ!</p>
-        <h2 className="relative mt-1 text-2xl font-bold text-ink">ยินดีด้วย!</h2>
+        <p className="relative font-display text-sm tracking-wide text-gold-600">{welcome ? '👋 ยินดีต้อนรับกลับมา!' : '🎉 วิวัฒนาการสำเร็จ!'}</p>
+        <h2 className="relative mt-1 text-2xl font-bold text-ink">{welcome ? 'เก่งมาก!' : 'ยินดีด้วย!'}</h2>
 
         <div className="relative mt-4 flex items-end justify-center gap-3">
-          <span className="grid size-16 place-items-center rounded-full bg-white/80 opacity-70 shadow-inner ring-2 ring-line">
-            <ArtC stage={from} className="size-14 grayscale" title={fromName} />
-          </span>
-          <span className="pb-6 font-display text-2xl text-gold-500" aria-hidden>
-            ➜
-          </span>
+          {!welcome && (
+            <>
+              <span className="grid size-16 place-items-center rounded-full bg-white/80 opacity-70 shadow-inner ring-2 ring-line">
+                <ArtC stage={from} className="size-14 grayscale" title={fromName} />
+              </span>
+              <span className="pb-6 font-display text-2xl text-gold-500" aria-hidden>
+                ➜
+              </span>
+            </>
+          )}
           <span className="tq-hero-pop grid size-36 place-items-center rounded-full bg-[radial-gradient(circle_at_50%_32%,#ffffff,#fff6d6_55%,#f6d77a)] shadow-[inset_0_-8px_16px_rgb(180_130_0/0.25),0_0_40px_rgb(241_196_67/0.7)] ring-4 ring-gold-400">
             <ArtC stage={to} className="size-32 drop-shadow-[0_8px_8px_rgb(20_45_100/0.3)]" title={toName} />
           </span>
         </div>
 
-        <p className="relative mt-4 text-sm text-ink-2">
-          จาก “{fromName}” กลายเป็น
-        </p>
+        <p className="relative mt-4 text-sm text-ink-2">{welcome ? 'ตอนนี้วิวัฒนาการของเราคือ' : `จาก “${fromName}” กลายเป็น`}</p>
         <p className="relative text-[1.6rem] font-bold leading-tight text-action-strong">{toName}</p>
         <p className="relative mt-1 text-sm text-ink-2">{tagline}</p>
         <button
@@ -118,7 +127,7 @@ export function EvolutionCelebrationModal({
           onClick={onClose}
           className="tq-press relative mt-5 inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-b from-gold-300 to-gold-400 px-8 font-display text-lg text-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.7),0_5px_0_#a97c06,0_14px_26px_-10px_rgb(0_0_0/0.45)] active:translate-y-1"
         >
-          เยี่ยมเลย! 🚀
+          {welcome ? 'ไปเรียนกันต่อ! 🚀' : 'เยี่ยมเลย! 🚀'}
         </button>
       </section>
     </div>,
@@ -126,8 +135,31 @@ export function EvolutionCelebrationModal({
   )
 }
 
-// จำขั้นล่าสุดที่นักเรียนเห็นไว้ในเบราว์เซอร์ ขึ้นขั้นสูงกว่าเดิมเมื่อไร = เปิดหน้าต่างแสดงความยินดี
-// ครั้งแรกที่ยังไม่เคยจำ: จำไว้เฉย ๆ ไม่แสดง (กันเด้งตอนเปิดเว็บครั้งแรก)
+// เข้าสู่ระบบสำเร็จ (ไม่ใช่ครั้งแรกของบัญชี): ฝากธงไว้ให้การ์ดวิวัฒนาการทักทายครั้งเดียว
+const LOGIN_FLAG = 'tq-login-celebrate'
+export function markLoginCelebration(studentId: string) {
+  try {
+    sessionStorage.setItem(LOGIN_FLAG, studentId)
+  } catch {
+    // เก็บไม่ได้ = ไม่ทักทาย
+  }
+}
+
+// ธงทักทายของนักเรียนคนนี้ (ใช้แล้วลบทิ้ง)
+function takeLoginFlag(storageKey: string): boolean {
+  try {
+    const id = sessionStorage.getItem(LOGIN_FLAG)
+    if (!id || !storageKey.endsWith(id)) return false
+    sessionStorage.removeItem(LOGIN_FLAG)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// จำขั้นล่าสุดที่นักเรียนเห็นไว้ในเบราว์เซอร์ (ขึ้นหรือลงก็จำ) ขึ้นขั้นสูงกว่าเดิมเมื่อไร = เปิดหน้าต่างแสดงความยินดี
+// เพิ่งเข้าสู่ระบบ (มีธง) = ทักทายด้วยขั้นปัจจุบัน · ครั้งแรกที่ยังไม่เคยจำ: จำไว้เฉย ๆ ไม่แสดง
+// storageKey ต้องลงท้ายด้วย id นักเรียน
 export function useEvolutionCelebration(storageKey: string | null, index: number): { from: number; to: number; close: () => void } | null {
   const [shown, setShown] = useState<{ from: number; to: number } | null>(null)
   useEffect(() => {
@@ -139,8 +171,11 @@ export function useEvolutionCelebration(storageKey: string | null, index: number
     } catch {
       return
     }
+    const login = takeLoginFlag(storageKey)
     if (prev != null && Number.isFinite(prev) && index > prev) setShown({ from: prev, to: index })
-    if (prev == null || !Number.isFinite(prev) || index > prev) {
+    else if (login) setShown({ from: index, to: index })
+    // ขั้นลดลง (เช่น ปรับวิธีคิดคะแนน) ก็จำขั้นใหม่ไว้ ขึ้นกลับมาอีกครั้งจะได้แสดงความยินดีได้
+    if (prev == null || !Number.isFinite(prev) || index !== prev) {
       try {
         localStorage.setItem(storageKey, String(index))
       } catch {

@@ -7,11 +7,9 @@ type Art = ComponentType<{ stage: number; className?: string; title?: string }>
 
 const fmt = (n: number) => n.toLocaleString('th-TH', { maximumFractionDigits: 2 })
 
-// ข้อมูลประกอบในการ์ด: เลเวล XP เหรียญ งานค้าง ความคืบหน้าบทเรียน และงานที่ต้องส่งถัดไป
+// ข้อมูลประกอบในการ์ด: เหรียญรายคาบ งานค้าง ความคืบหน้าบทเรียน และงานที่ต้องส่งถัดไป
 export interface EvoInfo {
-  level?: string // ม.3 มีเลเวลจาก XP · ม.5 ไม่มี
-  xp: number
-  badges: string // เช่น "3" หรือ "3/8"
+  medals: { gold: number; silver: number; bronze: number }
   pending: number
   progressPct: number // ความคืบหน้าทั้งวิชา นับทุกคาบ (รวมคาบที่ยังไม่เปิด)
   nextDue?: { title: string; to: string; when: string } | null
@@ -28,7 +26,7 @@ function Tile({ icon, label, value, tone }: { icon: string; label: string; value
   )
 }
 
-// การ์ดวิวัฒนาการตามคะแนนรวม 0–100 (ม.3 ลิง → คน · ม.5 ควาย → คน): ตัวละครขั้นปัจจุบันบนแท่น + แถบไปขั้นถัดไป + เส้นทาง 6 ขั้น
+// การ์ดวิวัฒนาการตามคะแนนรวม 0–100 (ม.3 ลิง → คน · ม.5 ควาย → คน): ตัวละครขั้นปัจจุบันบนแท่น + แถบไปขั้นถัดไป + เส้นทาง 8 ขั้น (= เกรด 0–4)
 // compact: การ์ดเล็กในหน้าหลัก สูงเต็มกรอบที่ให้ (ห่อด้วย EvolutionSlot) แต่ละแถวอยู่บรรทัดเดียว และกระจายแถวเต็มการ์ดไม่เหลือที่ว่าง
 // celebrateKey: ขึ้นขั้นใหม่แล้วเปิดหน้าต่างแสดงความยินดีกลางจอ (null = ไม่ฉลอง เช่น ครูดูตัวอย่าง)
 export function ScoreEvolutionCard({
@@ -82,7 +80,9 @@ export function ScoreEvolutionCard({
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 whitespace-nowrap text-xs text-ink-2 dark:text-dq-300">
             วิวัฒนาการของฉัน
-            {info?.level && <span className="truncate rounded-full bg-xp-300/40 px-2 py-px font-semibold text-ink dark:text-white">{info.level}</span>}
+            <span className="truncate rounded-full bg-gold-300/50 px-2 py-px font-semibold text-ink dark:text-white">
+              เกรด {e.stage.grade} · {e.stage.gradeLabel}
+            </span>
           </p>
           <p className={`flex items-baseline gap-2 font-bold leading-tight text-ink dark:text-white ${compact ? 'text-lg' : 'text-2xl sm:text-[1.7rem]'}`}>
             <span className="truncate">{e.stage.name}</span>
@@ -99,7 +99,7 @@ export function ScoreEvolutionCard({
           <>
             <p className="mb-1 flex items-baseline justify-between gap-2 whitespace-nowrap text-sm">
               <span className="min-w-0 truncate font-semibold text-ink dark:text-white">
-                อีก {fmt(e.toNext)} คะแนน → {e.next.name}
+                อีก {fmt(e.toNext)} คะแนน → {e.next.name} (เกรด {e.next.grade})
               </span>
               <span className="shrink-0 tabular-nums text-ink-2 dark:text-dq-300">{e.next.minScore} คะแนน</span>
             </p>
@@ -126,11 +126,12 @@ export function ScoreEvolutionCard({
 
       {info && (
         <div className="relative space-y-2">
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-5 gap-1.5">
             <Tile icon="📝" label="งานค้าง" value={String(info.pending)} tone={info.pending > 0 ? 'bg-rose-50 ring-rose-200' : 'bg-emerald-50 ring-emerald-200'} />
-            <Tile icon="📚" label="เรียนแล้ว (ทุกคาบ)" value={`${info.progressPct}%`} tone="bg-sky-50 ring-sky-200" />
-            <Tile icon="✨" label="XP" value={info.xp.toLocaleString('th-TH')} tone="bg-amber-50 ring-amber-200" />
-            <Tile icon="🏅" label="เหรียญ" value={info.badges} tone="bg-violet-50 ring-violet-200" />
+            <Tile icon="📚" label="เรียนแล้ว" value={`${info.progressPct}%`} tone="bg-sky-50 ring-sky-200" />
+            <Tile icon="🥇" label="ทอง" value={String(info.medals.gold)} tone="bg-amber-50 ring-amber-200" />
+            <Tile icon="🥈" label="เงิน" value={String(info.medals.silver)} tone="bg-slate-50 ring-slate-200" />
+            <Tile icon="🥉" label="ทองแดง" value={String(info.medals.bronze)} tone="bg-orange-50 ring-orange-200" />
           </div>
           {info.nextDue ? (
             <Link
@@ -156,10 +157,10 @@ export function ScoreEvolutionCard({
         {stages.map((s, i) => {
           const reached = i <= e.index
           const sizes = compact
-            ? ['size-7', 'size-8', 'size-8', 'size-9', 'size-9', 'size-10']
-            : ['size-9', 'size-10', 'size-11', 'size-12', 'size-[3.25rem]', 'size-14']
+            ? ['size-6', 'size-6', 'size-7', 'size-7', 'size-8', 'size-8', 'size-9', 'size-9']
+            : ['size-8', 'size-9', 'size-9', 'size-10', 'size-11', 'size-12', 'size-[3.25rem]', 'size-14']
           return (
-            <li key={s.name} className="relative flex flex-1 flex-col items-center gap-0.5" title={`${s.name} · ${s.minScore} คะแนนขึ้นไป`}>
+            <li key={s.name} className="relative flex flex-1 flex-col items-center gap-0.5" title={`${s.name} · ${s.minScore} คะแนนขึ้นไป · เกรด ${s.grade}`}>
               <span className={`rounded-full p-0.5 ${i === e.index ? 'bg-gold-300/50 shadow-[0_0_14px_rgb(241_196_67/0.6)] ring-2 ring-gold-400' : ''}`}>
                 <ArtC stage={i} className={`${sizes[i] ?? 'size-9'} ${reached ? '' : 'opacity-25 brightness-0'}`} />
               </span>

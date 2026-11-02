@@ -40,7 +40,11 @@ export function GameView({ slug, preview, sessionNo, backTo, backLabel, onStepDo
   const state = useAsync(() => fetchGame(slug), [slug])
   const onSubmit = useCallback(
     async (score: number, duration: number) => {
-      if (preview) return { xp: 0, first_play: false, plays_today: 0, daily_limit: 3, capped: false, best_score: score, new_badges: [] }
+      if (preview) {
+        // ครูดูตัวอย่างในหน้าคาบ: ผ่านเกณฑ์ก็ไปขั้นถัดไปเหมือนนักเรียน (ไม่บันทึก)
+        if (score >= GAME_PASS_SCORE) onStepDone?.(['game'])
+        return { xp: 0, first_play: false, plays_today: 0, daily_limit: 3, capped: false, best_score: score, new_badges: [] }
+      }
       const result = await submitGameResult(slug, score, duration)
       // ขั้นเกมของคาบผ่านเมื่อได้คะแนนถึงเกณฑ์เท่านั้น
       if (sessionNo && score >= GAME_PASS_SCORE) {

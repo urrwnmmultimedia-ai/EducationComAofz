@@ -1,6 +1,5 @@
 import { Link } from 'react-router'
 import { ArrowRight, BookOpen, ChevronRight, CircleCheck, ClipboardList, Flame, Gamepad2, PencilLine, Star, Ticket } from 'lucide-react'
-import { Doctor } from '@/components/characters/Characters'
 import { EmptyBlock, ErrorBlock, LoadingBlock, ProgressBar } from '@/components/StatusViews'
 import { StepPreview } from '@/components/StepJourney'
 import { levelFromXp } from '@/lib/levels'
@@ -81,10 +80,9 @@ function Dashboard({
     <>
       {/* minmax(0, …): คอลัมน์ไม่ถูกข้อความบรรทัดเดียวในการ์ดวิวัฒนาการดันจนล้นขวา */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        {/* การ์ดหลัก: สิ่งเดียวที่ควรทำต่อ — แผ่นซ้อนด้านหลัง + ตัวละครยื่นออกนอกขอบ */}
+        {/* การ์ดหลัก: สิ่งเดียวที่ควรทำต่อ — แผ่นซ้อนด้านหลัง */}
         <div className="tq-stack mb-4 mt-3 flex min-w-0 flex-col sm:mt-6 lg:mb-6 lg:mt-10">
-          <section className="tq-card tq-arrive relative flex flex-1 flex-col p-5 pr-24 sm:p-8 sm:pr-40">
-            <Doctor className="pointer-events-none absolute -right-2 -top-5 size-24 drop-shadow-xl sm:-right-4 sm:-top-9 sm:size-32 lg:-right-6 lg:-top-14 lg:size-44" />
+          <section className="tq-card tq-arrive relative flex flex-1 flex-col p-5 sm:p-8">
             {current ? (
               <>
                 <h2 className="text-[1.6rem] leading-[1.25] text-ink sm:text-[2.1rem] lg:text-[2.6rem]">{current.title}</h2>

@@ -57,6 +57,21 @@ export async function fetchExamResult(attemptId: string): Promise<ExamResult> {
   return examResultSchema.parse(data)
 }
 
+// ครูดูตัวอย่างข้อสอบ: อ่านข้อและเฉลยตรงจากคลังข้อสอบ (RLS ให้เฉพาะครู) เรียงตามลำดับในชุด
+export async function fetchPreviewQuestions(questionIds: string[]) {
+  if (questionIds.length === 0) return []
+  const { data, error } = await supabase
+    .from('questions')
+    .select('id, type, prompt, choices, correct_answer, explanation')
+    .in('id', questionIds)
+  if (error) throw error
+  const byId = new Map(data.map((q) => [q.id, q]))
+  return questionIds.flatMap((id) => {
+    const q = byId.get(id)
+    return q ? [q] : []
+  })
+}
+
 export async function fetchExam(examId: string): Promise<ExamRow | null> {
   const { data, error } = await supabase.from('exams').select('*').eq('id', examId).maybeSingle()
   if (error) throw error

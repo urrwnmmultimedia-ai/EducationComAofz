@@ -1,10 +1,14 @@
-import { Link } from 'react-router'
-import { Lock, MessageSquare } from 'lucide-react'
+import { useState } from 'react'
+import { Link, useSearchParams } from 'react-router'
+import { Award, ChartColumn, Lock, MessageSquare, Palette, type LucideIcon } from 'lucide-react'
+import { useAuth } from '@/app/AuthContext'
+import { AVATARS, Avatar, type AvatarKey } from '@/components/characters/Characters'
 import { NongDataSays } from '@/components/illustrations/NongData'
-import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
+import { ErrorBlock, LoadingBlock, ProgressBar } from '@/components/StatusViews'
+import { setMyAvatar } from '@/features/games/gamesApi'
 import { computeGrade, formatGrade } from '@/lib/grade'
 import { useAsync } from '@/lib/useAsync'
-import { CATEGORIES, CATEGORY_LABEL } from '../admin/dbqAdminApi'
+import { CATEGORIES, CATEGORY_LABEL, type Scores } from '../admin/dbqAdminApi'
 import { fetchGameTitles, gameTitle } from '../gameTitles'
 import { EvolutionCard } from '../EvolutionCard'
 import { fetchMap } from '../lesson/dbqLessonApi'
@@ -65,118 +69,303 @@ export function DbqAssignmentsPage() {
   )
 }
 
-function ScoreSummary({ data }: { data: Extract<MyScores, { preview: false }> }) {
+type MyScoresData = Extract<MyScores, { preview: false }>
+
+// คะแนนแบบหน้า "ฉัน" ของ ม.3: คะแนนรวม + เกรดคาดการณ์ แล้วแยกตามประเภท
+function ScoreSummary({ data }: { data: MyScoresData }) {
   const s = data.scores
   return (
-    <section className={`${card} space-y-3`}>
-      <h2 className="text-xl text-dq-900 dark:text-white">คะแนนสะสม</h2>
-      <p className="font-display text-4xl text-dq-700 dark:text-dq-200">
-        {s.total} <span className="text-xl text-slate-500 dark:text-dq-300">/ 100</span>
-      </p>
-      {s.current_pct != null && (
-        <p className="text-base text-slate-600 dark:text-dq-300">
-          ตอนนี้มีคะแนนแล้ว {s.available} จาก 100 คะแนน ทำได้ {s.current_pct}% ของส่วนนี้ (ถ้ารักษาระดับนี้ได้ เกรดประมาณ {formatGrade(computeGrade(s.current_pct))})
-        </p>
-      )}
-      <ul className="grid gap-2 sm:grid-cols-2">
-        {CATEGORIES.map((c) => {
-          const x = s.categories[c]
-          const pct = x?.pct ?? 0
-          return (
-            <li key={c} className="rounded-2xl bg-dq-50 p-3 dark:bg-dq-950">
-              <div className="flex justify-between gap-2 text-base">
-                <span>{CATEGORY_LABEL[c]}</span>
-                <span className="font-display">
-                  {x?.points == null ? 'ยังไม่มีคะแนน' : `${x.points} / ${x.weight}`}
-                </span>
-              </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-dq-100 dark:bg-dq-800" aria-hidden>
-                <div className="h-full rounded-full bg-xp-500" style={{ width: `${x?.pct == null ? 0 : pct}%` }} />
-              </div>
-            </li>
-          )
-        })}
-      </ul>
-    </section>
-  )
-}
-
-// ฉัน: XP เหรียญ คะแนนสะสม เกม อันดับในห้อง
-export function DbqMePage() {
-  const res = useAsync(() => Promise.all([fetchMe(), fetchMyScores(), fetchLeaderboard(), fetchGameTitles(), fetchMap()]), [])
-  if (res.status === 'loading') return <LoadingBlock />
-  if (res.status === 'error') return <ErrorBlock message={res.error} onRetry={res.reload} />
-  const [me, scores, board, titles, map] = res.data
-  if (scores.preview) return <Preview />
-  const lessons = map.filter((m) => m.kind === 'lesson')
-  const pending = scores.assignments.filter((a) => a.open && a.status === 'missing')
-
-  return (
-    <div className="space-y-4">
-      <h1 className="text-2xl text-dq-900 dark:text-white">ฉัน</h1>
-      <EvolutionCard
-        score={scores.scores.total}
-        info={{
-          xp: me.xp,
-          badges: String(me.badges.length),
-          pending: pending.length,
-          progressPct: lessons.length ? Math.round(lessons.reduce((s, m) => s + (m.pct ?? 0), 0) / lessons.length) : 0,
-          nextDue: pending[0]
-            ? { title: pending[0].title, to: '/db/assignments', when: pending[0].session_no ? `คาบ ${pending[0].session_no}` : 'ส่งได้เลย' }
-            : null,
-        }}
-      />
-      <section className={`${card} flex flex-wrap items-center gap-4`}>
-        <p className="font-display text-4xl text-xp-600 dark:text-xp-400">{me.xp} XP</p>
-        <div className="flex flex-wrap gap-2">
-          {me.badges.length === 0 ? (
-            <span className="text-slate-500 dark:text-dq-300">ยังไม่มีเหรียญ เรียนให้ครบคาบหรือเล่นเกมให้ได้ 3 ดาวสิ</span>
-          ) : (
-            me.badges.map((b) => (
-              <span key={b.key} className="rounded-full bg-xp-300/40 px-3 py-1 text-base">
-                {b.icon} {b.name}
-              </span>
-            ))
-          )}
+    <>
+      <section className="grid gap-4 sm:grid-cols-2">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white to-brand-50 p-5 shadow-raise ring-1 ring-brand-100 dark:from-dq-900 dark:to-dq-950 dark:shadow-none dark:ring-dq-800">
+          <span className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-action to-gold-400" aria-hidden />
+          <p className="text-base text-slate-500 dark:text-dq-300">คะแนนรวมตอนนี้ (จาก 100)</p>
+          <p className="font-display text-5xl text-brand-700 dark:text-dq-100">{s.total}</p>
+          <ProgressBar value={s.total} className="mt-2" />
+          <p className="mt-2 text-slate-600 dark:text-dq-300">เกรดถ้าจบเทอมตอนนี้: {formatGrade(computeGrade(s.total))}</p>
+        </div>
+        <div className="rounded-3xl bg-gradient-to-br from-mint-400/20 to-sky2-400/20 p-5 shadow-raise ring-1 ring-mint-400/50 dark:shadow-none">
+          <p className="text-base text-slate-600 dark:text-dq-300">เกรดคาดการณ์ (ถ้าทำได้แบบนี้ต่อไป)</p>
+          <p className="font-display text-4xl text-emerald-800 dark:text-emerald-300">
+            {s.current_pct == null ? '–' : formatGrade(computeGrade(s.current_pct))}
+          </p>
+          <p className="text-slate-600 dark:text-dq-300">
+            {s.current_pct == null
+              ? 'ยังไม่มีงานที่ครูตรวจ'
+              : `ตอนนี้มีคะแนนแล้ว ${s.available} จาก 100 ทำได้ ${s.current_pct}% ของส่วนนี้`}
+          </p>
         </div>
       </section>
 
-      <ScoreSummary data={scores} />
+      <section className={card}>
+        <h2 className="mb-3 text-xl text-dq-900 dark:text-white">แยกตามประเภท</h2>
+        <ul className="flex flex-col gap-3">
+          {CATEGORIES.map((c) => {
+            const x = s.categories[c]
+            return (
+              <li key={c}>
+                <div className="flex justify-between gap-2 text-base">
+                  <span>{CATEGORY_LABEL[c]}</span>
+                  <span className="font-display">{x?.points == null ? 'ยังไม่มีคะแนน' : `${x.points} / ${x.weight}`}</span>
+                </div>
+                <ProgressBar value={x?.pct ?? 0} className="mt-1" />
+              </li>
+            )
+          })}
+        </ul>
+      </section>
 
-      {scores.games.length > 0 && (
+      {data.assignments.length > 0 && (
         <section className={card}>
-          <h2 className="mb-3 text-xl text-dq-900 dark:text-white">เกม</h2>
-          <ul className="space-y-2">
-            {scores.games.map((g) => (
-              <li key={g.game_key} className="flex flex-wrap items-center justify-between gap-2">
-                <Link to={`/db/games/${g.game_key}`} className="text-dq-700 underline-offset-2 hover:underline dark:text-dq-300">
-                  คาบ {g.session_no} · {gameTitle(titles, g.game_key)}
-                </Link>
-                <span>{g.plays === 0 ? 'ยังไม่เคยเล่น' : `ดีสุด ${g.best_score} · ${g.best_stars ?? 0} ดาว`}</span>
+          <h2 className="mb-2 text-xl text-dq-900 dark:text-white">ใบงาน</h2>
+          <ul className="divide-y divide-dq-100 dark:divide-dq-800">
+            {data.assignments.map((a) => (
+              <li key={a.item_id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                <span className="min-w-0">
+                  {a.open ? (
+                    <Link to={`/db/lesson/${a.session_no}`} className="hover:text-dq-700 hover:underline dark:hover:text-dq-200">
+                      {a.title}
+                    </Link>
+                  ) : (
+                    a.title
+                  )}
+                  {a.session_no && <span className="ml-2 text-sm text-slate-400">คาบ {a.session_no}</span>}
+                </span>
+                <span className="flex items-center gap-2 text-base">
+                  {a.status === 'submitted' && <span className="rounded-full bg-sky-100 px-2 text-sky-800 dark:bg-sky-950 dark:text-sky-200">รอตรวจ</span>}
+                  <span className="font-display">
+                    {a.score ?? '–'} / {a.max_score}
+                  </span>
+                </span>
               </li>
             ))}
           </ul>
         </section>
       )}
+    </>
+  )
+}
 
-      {board.enabled && board.rows.length > 0 && (
+type MeTab = 'scores' | 'badges' | 'avatar'
+const TABS: { key: MeTab; label: string; icon: LucideIcon }[] = [
+  { key: 'scores', label: 'คะแนน', icon: ChartColumn },
+  { key: 'badges', label: 'เหรียญ', icon: Award },
+  { key: 'avatar', label: 'อวาตาร์', icon: Palette },
+]
+
+// เหรียญทั้งหมดของ DB Quest (ตรงกับ dbq_badges — นักเรียนอ่านตารางนี้ตรง ๆ ไม่ได้ จึงเก็บรายการไว้ฝั่งเว็บ)
+const DBQ_BADGES: { key: string; name: string; description: string; icon: string }[] = [
+  { key: 'unit-complete', name: 'จบหน่วยแรก', description: 'เรียนครบทุกขั้นของหน่วยใดหน่วยหนึ่ง', icon: '🎓' },
+  { key: 'all-units', name: 'นักผจญภัยครบ 7 หน่วย', description: 'เรียนครบทุกหน่วย', icon: '🗺️' },
+  { key: 'three-stars', name: 'สามดาวแรก', description: 'ทำเกมใดเกมหนึ่งได้ 3 ดาว', icon: '⭐' },
+  { key: 'on-time-5', name: 'ส่งตรงเวลา 5 ครั้งติด', description: 'ส่งใบงานก่อนกำหนด 5 ครั้งติดต่อกัน', icon: '⏰' },
+  { key: 'sql-no-hint', name: 'SQL ไร้คำใบ้', description: 'ผ่านด่าน SQL Quest โดยไม่ใช้คำใบ้', icon: '🧙' },
+  { key: 'streak-5', name: 'มาเรียนต่อเนื่อง 5 คาบ', description: 'เข้าเรียนต่อเนื่อง 5 คาบไม่ขาด', icon: '🔥' },
+]
+
+// ครูดูตัวอย่าง: หน้าตาเหมือนนักเรียนที่ยังไม่มีคะแนน (เซิร์ฟเวอร์ไม่ส่งคะแนนของใครให้ครูในหน้านี้)
+const EMPTY_SCORES: MyScoresData = {
+  preview: false,
+  scores: {
+    categories: Object.fromEntries(
+      CATEGORIES.map((c) => [c, { weight: 0, earned: null, max: null, pct: null, points: null }]),
+    ) as Scores['categories'],
+    total: 0,
+    available: 0,
+    current_pct: null,
+  },
+  assignments: [],
+  games: [],
+}
+
+// ฉัน: แบบเดียวกับหน้า "ฉัน" ของ ม.3 — แท็บ คะแนน / เหรียญ / อวาตาร์ (ครูเห็นหน้าเดียวกับนักเรียน แต่ไม่บันทึกอะไร)
+export function DbqMePage() {
+  const { identity, refresh } = useAuth()
+  const isPreview = identity.role === 'admin'
+  const [params, setParams] = useSearchParams()
+  const tab: MeTab = TABS.some((t) => t.key === params.get('tab')) ? (params.get('tab') as MeTab) : 'scores'
+  const res = useAsync(() => Promise.all([fetchMe(), fetchMyScores(), fetchLeaderboard(), fetchGameTitles(), fetchMap()]), [])
+  const [saving, setSaving] = useState<string | null>(null)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
+
+  if (res.status === 'loading') return <LoadingBlock />
+  if (res.status === 'error') return <ErrorBlock message={res.error} onRetry={res.reload} />
+  const [me, rawScores, board, titles, map] = res.data
+  const scores = rawScores.preview ? EMPTY_SCORES : rawScores
+  const lessons = map.filter((m) => m.kind === 'lesson')
+  const pending = scores.assignments.filter((a) => a.open && a.status === 'missing')
+  const earned = new Map(me.badges.map((b) => [b.key, b.earned_at]))
+  // เหรียญที่ได้แต่ไม่อยู่ในรายการ (เพิ่มใหม่ใน DB) ก็แสดงด้วย
+  const allBadges = [
+    ...DBQ_BADGES,
+    ...me.badges.filter((b) => !DBQ_BADGES.some((d) => d.key === b.key)).map((b) => ({ ...b, description: '' })),
+  ]
+  const avatar = identity.student?.avatar ?? 'doctor'
+
+  const choose = async (key: AvatarKey) => {
+    if (isPreview || saving || key === avatar) return
+    setSaving(key)
+    setAvatarError(null)
+    try {
+      await setMyAvatar(key)
+      await refresh()
+    } catch {
+      setAvatarError('เปลี่ยนอวาตาร์ไม่สำเร็จ ลองใหม่อีกครั้ง')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div
+        role="tablist"
+        aria-label="ข้อมูลของฉัน"
+        className="flex gap-1 rounded-full bg-surface/80 p-1 shadow-[inset_0_2px_5px_rgb(20_45_100/0.1)] ring-1 ring-line dark:bg-dq-950 dark:ring-dq-800"
+      >
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setParams(key === 'scores' ? {} : { tab: key }, { replace: true })}
+            className={`tq-press flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full text-base font-semibold ${
+              tab === key
+                ? 'bg-white text-action-strong shadow-[inset_0_1px_0_#fff,0_6px_14px_-6px_rgb(20_45_100/0.45)] ring-1 ring-line dark:bg-dq-800 dark:text-white dark:shadow-none dark:ring-dq-700'
+                : 'text-ink-2 hover:bg-white/60 dark:text-dq-300 dark:hover:bg-dq-900'
+            }`}
+          >
+            <Icon className="size-4" aria-hidden />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {isPreview && (
+        <p className="rounded-2xl bg-xp-300/40 px-4 py-2 text-base">โหมดครู: หน้านี้เหมือนที่นักเรียนเห็น ตัวเลขเป็นศูนย์เพราะครูไม่มีคะแนน</p>
+      )}
+
+      {tab === 'scores' && (
+        <>
+          <EvolutionCard
+            score={scores.scores.total}
+            info={{
+              xp: me.xp,
+              badges: `${earned.size}/${allBadges.length}`,
+              pending: pending.length,
+              progressPct: lessons.length ? Math.round(lessons.reduce((s, m) => s + (m.pct ?? 0), 0) / lessons.length) : 0,
+              nextDue: pending[0]
+                ? { title: pending[0].title, to: '/db/assignments', when: pending[0].session_no ? `คาบ ${pending[0].session_no}` : 'ส่งได้เลย' }
+                : null,
+            }}
+          />
+          <ScoreSummary data={scores} />
+
+          {scores.games.length > 0 && (
+            <section className={card}>
+              <h2 className="mb-3 text-xl text-dq-900 dark:text-white">เกม</h2>
+              <ul className="space-y-2">
+                {scores.games.map((g) => (
+                  <li key={g.game_key} className="flex flex-wrap items-center justify-between gap-2">
+                    <Link to={`/db/games/${g.game_key}`} className="text-dq-700 underline-offset-2 hover:underline dark:text-dq-300">
+                      คาบ {g.session_no} · {gameTitle(titles, g.game_key)}
+                    </Link>
+                    <span>{g.plays === 0 ? 'ยังไม่เคยเล่น' : `ดีสุด ${g.best_score} · ${g.best_stars ?? 0} ดาว`}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {board.enabled && board.rows.length > 0 && (
+            <section className={card}>
+              <h2 className="mb-3 text-xl text-dq-900 dark:text-white">อันดับ XP ในห้อง</h2>
+              <ol className="space-y-1">
+                {board.rows.map((r, i) => (
+                  <li key={i} className={`flex items-center gap-3 rounded-2xl px-3 py-2 ${r.is_me ? 'bg-xp-300/40 font-display' : ''}`}>
+                    <span className="w-8 text-right font-display">{r.rank}</span>
+                    <Avatar name={r.avatar} className="size-8 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      {r.nickname}
+                      {r.is_me && ' (ฉัน)'}
+                    </span>
+                    <span>{r.xp} XP</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+        </>
+      )}
+
+      {tab === 'badges' && (
+        <>
+          <section className={card}>
+            <h2 className="mb-3 text-xl text-dq-900 dark:text-white">
+              เหรียญ ({earned.size}/{allBadges.length})
+            </h2>
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {allBadges.map((b) => {
+                const at = earned.get(b.key)
+                return (
+                  <li
+                    key={b.key}
+                    className={`flex flex-col items-center gap-1 rounded-2xl p-3 text-center ${
+                      at
+                        ? 'bg-gradient-to-b from-sun-300/40 to-sun-300/10 shadow-[0_10px_20px_-14px_rgb(180_130_0/0.7)] ring-2 ring-sun-400'
+                        : 'bg-slate-50 ring-1 ring-slate-200 dark:bg-dq-950 dark:ring-dq-800'
+                    }`}
+                  >
+                    <span className={`text-4xl ${at ? 'drop-shadow-md' : 'opacity-30 grayscale'}`} aria-hidden>
+                      {b.icon}
+                    </span>
+                    <span className={`font-display text-base ${at ? 'text-amber-950 dark:text-amber-100' : 'text-slate-500 dark:text-dq-300'}`}>
+                      {b.name}
+                    </span>
+                    {b.description && <span className="text-sm text-slate-500 dark:text-dq-300">{b.description}</span>}
+                    <span className="text-sm text-slate-500 dark:text-dq-400">
+                      {at ? `ได้เมื่อ ${new Date(at).toLocaleDateString('th-TH')}` : 'ยังไม่ได้'}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+          <section className={`${card} text-base`}>
+            <h2 className="mb-2 text-xl text-dq-900 dark:text-white">วิธีได้ XP</h2>
+            <ul className="grid gap-1 text-slate-600 sm:grid-cols-2 dark:text-dq-300">
+              <li>ผ่านแต่ละขั้นของคาบ +5–20</li>
+              <li>เรียนครบทุกขั้นของคาบ +20</li>
+              <li>ตอบคำถามครั้งแรก +5 (ตอบใหม่ +2)</li>
+              <li>ส่งใบงาน +15</li>
+              <li>เกมได้ดาว ดาวละ +5</li>
+            </ul>
+          </section>
+        </>
+      )}
+
+      {tab === 'avatar' && (
         <section className={card}>
-          <h2 className="mb-3 text-xl text-dq-900 dark:text-white">อันดับ XP ในห้อง</h2>
-          <ol className="space-y-1">
-            {board.rows.map((r, i) => (
-              <li
-                key={i}
-                className={`flex items-center gap-3 rounded-2xl px-3 py-2 ${r.is_me ? 'bg-xp-300/40 font-display' : ''}`}
+          <h2 className="mb-3 text-xl text-dq-900 dark:text-white">เลือกอวาตาร์</h2>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+            {(Object.keys(AVATARS) as AvatarKey[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={avatar === k}
+                disabled={saving !== null || isPreview}
+                onClick={() => void choose(k)}
+                data-state={avatar === k ? 'picked' : 'idle'}
+                className="tq-choice flex flex-col items-center gap-1 p-2"
               >
-                <span className="w-8 text-right font-display">{r.rank}</span>
-                <span className="flex-1">
-                  {r.nickname}
-                  {r.is_me && ' (ฉัน)'}
-                </span>
-                <span>{r.xp} XP</span>
-              </li>
+                <Avatar name={k} className="size-16" />
+                <span className="text-sm text-slate-600 dark:text-dq-300">{saving === k ? 'กำลังบันทึก…' : AVATARS[k].label}</span>
+              </button>
             ))}
-          </ol>
+          </div>
+          {isPreview && <p className="mt-2 text-base text-amber-800 dark:text-amber-200">โหมดครู: นักเรียนเลือกอวาตาร์ได้ตรงนี้</p>}
+          {avatarError && <p className="mt-2 text-base text-rose-600 dark:text-rose-300">{avatarError}</p>}
         </section>
       )}
     </div>

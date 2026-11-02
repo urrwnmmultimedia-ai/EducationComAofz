@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { examErrorText, formatClock, isAnswered, moveItem, remainingMs, seededOrder, startResponseSchema, type Answer, type ExamQuestion } from './examModel'
+import { examErrorText, formatClock, gradeLocal, isAnswered, moveItem, remainingMs, seededOrder, startResponseSchema, type Answer, type ExamQuestion } from './examModel'
+
+describe('gradeLocal (ตรงกับ grade_answer ใน DB)', () => {
+  it.each([
+    ['mcq', { index: 2 }, { index: 2 }, 1],
+    ['mcq', { index: 2 }, { index: 1 }, 0],
+    ['true_false', { value: false }, { value: false }, 1],
+    ['true_false', { value: false }, { value: true }, 0],
+    ['matching', { pairs: [1, 0, 2] }, { pairs: [1, 2, 0] }, 0.33],
+    ['ordering', { order: [0, 1] }, { order: [0, 1] }, 1],
+    ['fill', { accept: ['kWh', 'กิโลวัตต์ ชั่วโมง'] }, { text: ' KWH ' }, 1],
+    ['fill', { accept: ['kWh'] }, { text: 'วัตต์' }, 0],
+    ['short', null, { text: 'ตอบ' }, null],
+    ['short', null, { text: ' ' }, 0],
+    ['mcq', { index: 0 }, null, 0],
+  ] as [ExamQuestion['type'], unknown, Answer | null, number | null][])('%s %#', (type, correct, answer, expected) => {
+    expect(gradeLocal(type, correct, answer)).toBe(expected)
+  })
+})
 
 const q = (type: ExamQuestion['type'], choices: ExamQuestion['choices'] = []): ExamQuestion => ({ id: '1', type, prompt: 'x', choices })
 

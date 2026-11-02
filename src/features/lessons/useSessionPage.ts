@@ -4,6 +4,7 @@ import { fetchMyCompletedSteps, fetchMySessionWork, fetchSessionDetail, markStep
 import { parseSteps, type StepKey } from './sessionSteps'
 
 // logic ทั้งหมดของหน้าคาบเรียน: โหลดข้อมูล และบันทึกขั้นตอนที่ทำเสร็จ (ไม่มีระบบเช็คชื่อ)
+// isStudent = false (ครูดูตัวอย่าง): ทำได้เหมือนนักเรียน แต่ขั้นที่ผ่านเก็บไว้ในหน้านี้เท่านั้น
 export function useSessionPage(sessionNo: number, isStudent: boolean, studentId: string | null) {
   const detail = useAsync(() => fetchSessionDetail(sessionNo), [sessionNo])
   const [completed, setCompleted] = useState<string[]>([])
@@ -29,7 +30,13 @@ export function useSessionPage(sessionNo: number, isStudent: boolean, studentId:
   const assignmentIds = detail.data?.assignments.map((a) => a.id).join(',') ?? ''
   const examIds = detail.data?.exams.map((e) => e.id).join(',') ?? ''
   useEffect(() => {
-    if (!unlocked || !isStudent || !studentId) return
+    if (!unlocked) return
+    // ครูดูตัวอย่าง: ยังไม่ได้ส่งอะไร (เหมือนนักเรียนที่เพิ่งเปิดคาบ)
+    if (!isStudent) {
+      setWork({ submitted: [], examsDone: [] })
+      return
+    }
+    if (!studentId) return
     let cancelled = false
     void fetchMySessionWork(studentId, assignmentIds ? assignmentIds.split(',') : [], examIds ? examIds.split(',') : []).then(
       (w) => !cancelled && setWork(w),
@@ -42,7 +49,12 @@ export function useSessionPage(sessionNo: number, isStudent: boolean, studentId:
 
   const completeStep = useCallback(
     async (step: StepKey) => {
-      if (!isStudent || savingStep) return
+      // ครูดูตัวอย่าง: นับขั้นที่ผ่านในเครื่องเท่านั้น ไม่บันทึก
+      if (!isStudent) {
+        setCompleted((c) => (c.includes(step) ? c : [...c, step]))
+        return
+      }
+      if (savingStep) return
       setSavingStep(step)
       setSaveError(null)
       try {

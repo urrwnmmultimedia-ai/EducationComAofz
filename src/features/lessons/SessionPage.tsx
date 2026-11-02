@@ -7,7 +7,6 @@ import { Button } from '@/components/Button'
 import { NamWan, Non } from '@/components/characters/Characters'
 import { EmptyBlock, ErrorBlock, LoadingBlock, ProgressBar } from '@/components/StatusViews'
 import type { AssignmentRow, ExamRow } from '@/lib/database.types'
-import { dueCountdown } from '@/features/student/studentApi'
 import { GameView } from '@/features/games/GamePlayPage'
 import { AssignmentView } from '@/features/assignments/AssignmentPage'
 import { ExamView } from '@/features/exams/ExamPage'
@@ -92,23 +91,23 @@ export function SessionPage() {
     exit: examsSent,
     summary: false,
   }
-  const autoFinish = !!current && isStudent && !currentDone && autoReady[current.key]
+  const autoFinish = !!current && !currentDone && autoReady[current.key]
   const hint: Partial<Record<StepKey, string>> = {
     game: `เล่นเกมให้ได้อย่างน้อย ${GAME_PASS_SCORE} คะแนน จะไปขั้นถัดไปให้เอง`,
     work: work ? 'ส่งงานในขั้นนี้ให้ครบ จะไปขั้นถัดไปให้เอง' : 'กำลังตรวจสถานะการส่งงาน…',
     exit: work ? 'ทำ Exit ticket และส่งให้ครบ จะไปขั้นถัดไปให้เอง' : 'กำลังตรวจสถานะการส่ง…',
   }
-  const currentHint = current && isStudent && !currentDone && !autoFinish ? hint[current.key] : undefined
+  const currentHint = current && !currentDone && !autoFinish ? hint[current.key] : undefined
 
   const setActive = (step: StepKey) => {
     if (!reachable(step)) return
     setPickedAt({ loc: location.key, step })
     scrollTo({ top: 0, behavior: 'smooth' })
   }
-  // ทำขั้นนี้เสร็จ (นักเรียนบันทึกผล ครูแค่เลื่อนไปขั้นถัดไป)
+  // ทำขั้นนี้เสร็จ (นักเรียนบันทึกผล ครูนับในหน้านี้เท่านั้น) แล้วไปขั้นถัดไป
   const finishCurrent = async () => {
     if (!current) return
-    if (isStudent && !currentDone) await completeStep(current.key)
+    if (!currentDone) await completeStep(current.key)
     if (next) setPickedAt({ loc: location.key, step: next.key })
     scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -136,14 +135,12 @@ export function SessionPage() {
         </p>
         <h1 className="mt-1 text-2xl sm:text-3xl">{session.title}</h1>
         {session.summary && <p className="mt-2 text-brand-100">{session.summary}</p>}
-        {isStudent && (
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-            <ProgressBar value={percent} className="w-40 bg-white/20" />
-            <span>
-              ทำแล้ว {doneCount}/{steps.length} ขั้น
-            </span>
-          </div>
-        )}
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+          <ProgressBar value={percent} className="w-40 bg-white/20" />
+          <span>
+            ทำแล้ว {doneCount}/{steps.length} ขั้น
+          </span>
+        </div>
       </header>
 
       <StepJourney
@@ -157,7 +154,7 @@ export function SessionPage() {
 
       {!isStudent && (
         <p className="rounded-2xl bg-sun-300/40 px-4 py-2 text-sm text-amber-900">
-          โหมดครู: ครูดูได้ทุกขั้นและไม่บันทึกผล · นักเรียนต้องทำทีละขั้น ตอบคำถาม ส่งงาน หรือเล่นเกมให้ได้อย่างน้อย {GAME_PASS_SCORE} คะแนนก่อน จึงไปขั้นถัดไปได้
+          โหมดครู: เห็นและทำได้เหมือนนักเรียนทุกขั้น แต่ไม่บันทึกผล (รีเฟรชแล้วเริ่มใหม่) · ครูกดข้ามขั้นได้ ส่วนนักเรียนต้องทำทีละขั้น ตอบคำถาม ส่งงาน หรือเล่นเกมให้ได้อย่างน้อย {GAME_PASS_SCORE} คะแนนก่อน จึงไปขั้นถัดไปได้
         </p>
       )}
 
@@ -175,12 +172,13 @@ export function SessionPage() {
             gameSlug={session.game_slug}
             sessionNo={session.session_no}
             isStudent={isStudent}
-            lessonsLocked={isStudent && !currentDone}
+            lessonsLocked={!currentDone}
             guess={guess}
             onGuess={setGuess}
             onLessonDone={() => void finishCurrent()}
             onGameStepDone={(c) => {
-              setCompleted(c)
+              // นักเรียนได้รายการจากเซิร์ฟเวอร์ · ครูได้แค่ ['game'] จึงรวมกับของเดิม
+              setCompleted((prev) => [...new Set([...prev, ...c])])
               setGamePassed(true)
             }}
             stepDone={currentDone}
@@ -199,7 +197,7 @@ export function SessionPage() {
               </span>
             )}
             {currentHint && <span className="text-amber-700">🔒 {currentHint}</span>}
-            {isStudent && currentDone && current.key !== 'summary' && next && !gamePassed && (
+            {currentDone && current.key !== 'summary' && next && !gamePassed && (
               <span className="font-display text-mint-500">ทำขั้นนี้แล้ว ✓</span>
             )}
           </div>
@@ -418,14 +416,13 @@ function StepBody({
           ) : (
             <p className="text-slate-500">ร่วมกันสรุปสิ่งที่ได้เรียนรู้กับครู</p>
           )}
-          {isStudent &&
-            (stepDone ? (
-              <p className="mt-4 font-display text-mint-500">จบคาบแล้ว เก่งมาก! 🎉</p>
-            ) : (
-              <Button className="mt-4" loading={saving} onClick={onFinish}>
-                จบคาบ ✓
-              </Button>
-            ))}
+          {stepDone ? (
+            <p className="mt-4 font-display text-mint-500">จบคาบแล้ว เก่งมาก! 🎉</p>
+          ) : (
+            <Button className="mt-4" loading={saving} onClick={onFinish}>
+              จบคาบ ✓
+            </Button>
+          )}
         </Panel>
       )
   }
@@ -578,14 +575,11 @@ function WorkPager({
       <p className="text-sm text-slate-500">
         ชิ้นที่ {i + 1} จาก {items.length} · {title}
       </p>
-      {isStudent ? (
-        item.kind === 'assignment' ? (
-          <AssignmentView key={id} id={id} embedded onSubmitted={() => onSent('assignment', id)} />
-        ) : (
-          <ExamView key={id} id={id} embedded onSubmitted={() => onSent('exam', id)} />
-        )
+      {/* ครูเห็นฟอร์มเดียวกับนักเรียน (ใบงานส่งไม่ได้ · ข้อสอบลองทำได้แต่ไม่บันทึก) */}
+      {item.kind === 'assignment' ? (
+        <AssignmentView key={id} id={id} embedded onSubmitted={() => onSent('assignment', id)} />
       ) : (
-        <TeacherWorkPreview item={item} />
+        <ExamView key={id} id={id} embedded onSubmitted={() => onSent('exam', id)} />
       )}
       {items.length > 1 && (
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -603,31 +597,6 @@ function WorkPager({
         </div>
       )}
     </div>
-  )
-}
-
-// ครูดูตัวอย่าง: แสดงรายละเอียดชิ้นงาน (ครูไม่ได้ส่งงาน/ทำข้อสอบจากหน้านี้)
-function TeacherWorkPreview({ item }: { item: WorkItem }) {
-  if (item.kind === 'assignment') {
-    const a = item.assignment
-    return (
-      <Panel title={`📝 ${a.title}`}>
-        <p className="mb-2 text-sm text-slate-600">
-          {a.max_score} คะแนน · {dueCountdown(a.due_at)}
-        </p>
-        {a.instructions_md && <Markdown text={a.instructions_md} />}
-        <p className="mt-3 text-sm text-slate-500">นักเรียนจะเห็นช่องตอบและปุ่มส่งงานตรงนี้</p>
-      </Panel>
-    )
-  }
-  const e = item.exam
-  return (
-    <Panel title={`🎟️ ${e.title}`}>
-      <p className="text-slate-600">
-        {e.question_ids.length} ข้อ{e.duration_min ? ` · ${e.duration_min} นาที` : ''} · ทำได้ {e.max_attempts} ครั้ง
-      </p>
-      <p className="mt-3 text-sm text-slate-500">นักเรียนจะเห็นข้อสอบตรงนี้ทันทีโดยไม่ต้องกดเริ่ม</p>
-    </Panel>
   )
 }
 

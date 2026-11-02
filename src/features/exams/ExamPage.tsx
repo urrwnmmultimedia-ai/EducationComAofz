@@ -6,13 +6,25 @@ import { Button } from '@/components/Button'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import type { ExamAttemptRow, ExamRow } from '@/lib/database.types'
 import { useAsync } from '@/lib/useAsync'
-import { examErrorText, formatClock, isAnswered, parseAnswer, type ActiveAttempt, type Answer, type ExamResult, type Feedback } from './examModel'
-import { EXAM_KIND_LABELS, ExamError, fetchExam, fetchExamResult, fetchMyAttempts, startExam } from './examsApi'
+import {
+  examErrorText,
+  examQuestionSchema,
+  formatClock,
+  gradeLocal,
+  isAnswered,
+  parseAnswer,
+  type ActiveAttempt,
+  type Answer,
+  type ExamQuestion,
+  type ExamResult,
+  type Feedback,
+} from './examModel'
+import { EXAM_KIND_LABELS, ExamError, fetchExam, fetchExamResult, fetchMyAttempts, fetchPreviewQuestions, startExam } from './examsApi'
 import { describeAnswer, ExamResultView } from './ExamResultView'
 import { QuestionInput, QuestionPrompt } from './QuestionInput'
 import { useExamSession } from './useExamSession'
 
-type View = { kind: 'intro' } | { kind: 'taking'; attempt: ActiveAttempt } | { kind: 'result'; result: ExamResult }
+type View = { kind: 'intro' } | { kind: 'taking'; attempt: ActiveAttempt } | { kind: 'result'; result: ExamResult } | { kind: 'preview' }
 
 export function ExamPage() {
   return <ExamView id={useParams().id ?? ''} />
@@ -57,10 +69,11 @@ function ExamFlow({
   attempts: ExamAttemptRow[]
   autoStart: boolean
   embedded: boolean
-  preview: boolean // ครูดูตัวอย่าง: เห็นรายละเอียดชุดสอบ แต่เริ่มทำไม่ได้
+  preview: boolean // ครูดูตัวอย่าง: ลองทำข้อสอบได้แบบนักเรียน ตรวจในเครื่อง ไม่บันทึกผล
   onSubmitted?: () => void
 }) {
-  const [view, setView] = useState<View>({ kind: 'intro' })
+  // ฝังในหน้าคาบ + ครู: เปิดข้อสอบให้เลยเหมือนที่นักเรียนเห็น
+  const [view, setView] = useState<View>({ kind: embedded && preview ? 'preview' : 'intro' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const backTo = embedded ? undefined : exam.session_no ? `/sessions/${exam.session_no}` : '/home'
@@ -123,6 +136,7 @@ function ExamFlow({
 
   if (view.kind === 'taking') return <TakingExam attempt={view.attempt} instant={exam.show_answers} onFinished={onFinished} />
   if (view.kind === 'result') return <ExamResultView result={view.result} backTo={backTo} />
+  if (view.kind === 'preview') return <PreviewExam exam={exam} onExit={embedded ? undefined : () => setView({ kind: 'intro' })} />
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
@@ -151,7 +165,12 @@ function ExamFlow({
           </ul>
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          {preview && <span className="text-sm text-amber-800">โหมดครู: ดูรายละเอียดได้ ทำข้อสอบได้เฉพาะนักเรียน</span>}
+          {preview && (
+            <>
+              <Button onClick={() => setView({ kind: 'preview' })}>ลองทำแบบนักเรียน</Button>
+              <span className="text-sm text-amber-800">โหมดครู: ทำได้ทุกข้อ ตรวจให้ดูแต่ไม่บันทึกผล</span>
+            </>
+          )}
           {!preview && (open || left > 0) && (
             <Button loading={busy} loadingText="กำลังเตรียมข้อสอบ…" onClick={() => void begin()}>
               {open ? 'ทำข้อสอบต่อ' : 'เริ่มทำข้อสอบ'}
@@ -368,6 +387,155 @@ function TakingExam({ attempt, instant, onFinished }: { attempt: ActiveAttempt; 
           {s.submitError && <p className="mt-2 text-sm text-rose-600">{s.submitError}</p>}
         </section>
       )}
+    </div>
+  )
+}
+
+// ครูดูตัวอย่าง: ข้อสอบชุดเดียวกับที่นักเรียนเห็น ทำทีละข้อ ตรวจในเครื่อง (ไม่สร้างครั้งสอบ ไม่บันทึกคะแนน)
+function PreviewExam({ exam, onExit }: { exam: ExamRow; onExit?: () => void }) {
+  const state = useAsync(() => fetchPreviewQuestions(exam.question_ids), [exam.id])
+  const [round, setRound] = useState(0)
+  if (state.status === 'loading') return <LoadingBlock label="กำลังเปิดข้อสอบ…" />
+  if (state.status === 'error') return <ErrorBlock message={state.error} onRetry={state.reload} />
+  const qs = state.data.flatMap((row) => {
+    const q = examQuestionSchema.safeParse(row)
+    return q.success ? [{ q: q.data, correct: row.correct_answer as unknown, explanation: row.explanation }] : []
+  })
+  if (qs.length === 0) return <ErrorBlock message="ชุดนี้ยังไม่มีข้อสอบ" />
+  return <PreviewRun key={round} title={exam.title} instant={exam.show_answers} items={qs} onRestart={() => setRound((r) => r + 1)} onExit={onExit} />
+}
+
+function PreviewRun({
+  title,
+  instant,
+  items,
+  onRestart,
+  onExit,
+}: {
+  title: string
+  instant: boolean
+  items: { q: ExamQuestion; correct: unknown; explanation: string }[]
+  onRestart: () => void
+  onExit?: () => void
+}) {
+  const [index, setIndex] = useState(0)
+  const [answers, setAnswers] = useState<Record<string, Answer>>({})
+  const [feedback, setFeedback] = useState<Record<string, Feedback>>({})
+  const [finished, setFinished] = useState(false)
+  const item = items[index]!
+  const q = item.q
+  const fb = feedback[q.id] ?? null
+  const answer = answers[q.id]
+  const answeredCount = items.filter((x) => isAnswered(x.q, answers[x.q.id])).length
+  const isLast = index === items.length - 1
+
+  const commit = (a: Answer) => {
+    setAnswers((s) => ({ ...s, [q.id]: a }))
+    if (instant && q.type !== 'short') {
+      setFeedback((s) => ({
+        ...s,
+        [q.id]: { question_id: q.id, points: gradeLocal(q.type, item.correct, a), correct: item.correct, explanation: item.explanation, answer: a },
+      }))
+    } else if (!isLast) setIndex(index + 1)
+  }
+  const onChange = (a: Answer) => {
+    if (fb) return
+    if (TAP_TO_ANSWER.has(q.type)) commit(a)
+    else setAnswers((s) => ({ ...s, [q.id]: a }))
+  }
+
+  if (finished) {
+    const graded = items.map((x) => gradeLocal(x.q.type, x.correct, answers[x.q.id]))
+    const score = graded.reduce<number>((s, p) => s + (p ?? 0), 0)
+    const review = graded.filter((p) => p === null).length
+    return (
+      <section className="mx-auto flex w-full max-w-3xl flex-col gap-3 rounded-3xl bg-white p-6 shadow-raise ring-1 ring-brand-100">
+        <p className="font-display text-brand-600">โหมดครู · ผลลองทำ (ไม่บันทึก)</p>
+        <p className="font-display text-4xl text-brand-900">
+          {Math.round(score * 100) / 100} / {items.length}
+        </p>
+        {review > 0 && <p className="text-sm text-slate-600">ข้ออัตนัย {review} ข้อ ครูตรวจเองภายหลัง</p>}
+        <p className="text-sm text-slate-600">นักเรียนจะเห็นผลและเฉลย{instant ? 'ทันทีหลังส่ง' : 'ตามที่ครูตั้งค่าชุดสอบ'}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={onRestart}>ลองทำใหม่</Button>
+          {onExit && (
+            <Button variant="secondary" onClick={onExit}>
+              กลับ
+            </Button>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <p className="rounded-2xl bg-sun-300/40 px-4 py-2 text-sm text-amber-900">โหมดครู: ข้อสอบชุดเดียวกับที่นักเรียนเห็น ตรวจให้ดูในเครื่อง ไม่บันทึกผล</p>
+      <header className="flex flex-col gap-2 rounded-2xl bg-white/95 p-3 shadow-md ring-1 ring-brand-100">
+        <p className="min-w-0 truncate font-display text-brand-900">{title}</p>
+        <div className="flex items-center gap-3">
+          <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-surface shadow-[inset_0_1px_3px_rgb(20_45_100/0.18)]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-action to-gold-400 transition-[width] duration-500"
+              style={{ width: `${(answeredCount / items.length) * 100}%` }}
+            />
+          </div>
+          <span className="shrink-0 text-sm font-semibold tabular-nums text-ink-2">
+            ข้อ {index + 1}/{items.length}
+          </span>
+        </div>
+      </header>
+
+      <section
+        key={q.id}
+        className="tq-verdict relative flex flex-col gap-5 overflow-hidden rounded-3xl bg-gradient-to-b from-white to-brand-50/60 p-5 shadow-raise ring-1 ring-brand-100 sm:p-7"
+      >
+        <span className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-action via-brand-400 to-gold-400" aria-hidden />
+        <QuestionPrompt no={index + 1} prompt={q.prompt} />
+        <QuestionInput key={q.id} question={q} answer={answer} onChange={onChange} feedback={fb} shuffleSeed={null} />
+        <div aria-live="polite">{fb && <Verdict question={q} feedback={fb} />}</div>
+        {!fb && !TAP_TO_ANSWER.has(q.type) && (
+          <Button disabled={!isAnswered(q, answer)} onClick={() => answer && commit(answer)}>
+            {instant && q.type !== 'short' ? 'ตรวจคำตอบ' : 'ยืนยันคำตอบ ไปข้อถัดไป →'}
+          </Button>
+        )}
+        {fb && !isLast && (
+          <Button variant="secondary" onClick={() => setIndex(index + 1)}>
+            ข้อถัดไป →
+          </Button>
+        )}
+      </section>
+
+      <nav aria-label="เลือกข้อ" className="flex flex-wrap items-center gap-2">
+        {items.map((x, i) => {
+          const f = feedback[x.q.id]
+          const done = isAnswered(x.q, answers[x.q.id])
+          const tone =
+            i === index
+              ? 'bg-gradient-to-b from-action to-action-strong text-white shadow-action'
+              : f
+                ? (f.points ?? 0) >= 1
+                  ? 'bg-mint-400/30 text-emerald-900 ring-1 ring-mint-500'
+                  : 'bg-rose-100 text-rose-800 ring-1 ring-coral-400'
+                : done
+                  ? 'bg-brand-100 text-brand-800'
+                  : 'bg-white text-slate-500 ring-1 ring-brand-100'
+          return (
+            <button
+              key={x.q.id}
+              type="button"
+              onClick={() => setIndex(i)}
+              aria-current={i === index ? 'step' : undefined}
+              className={`tq-press size-10 rounded-xl font-display text-sm shadow-sm ${tone}`}
+            >
+              {f ? ((f.points ?? 0) >= 1 ? '✓' : '✗') : i + 1}
+            </button>
+          )
+        })}
+        <Button variant="ghost" onClick={() => setFinished(true)}>
+          ส่งข้อสอบ (ลอง)
+        </Button>
+      </nav>
     </div>
   )
 }

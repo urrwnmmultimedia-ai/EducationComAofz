@@ -118,6 +118,37 @@ export function isAnswered(q: ExamQuestion, a: Answer | null | undefined): boole
   }
 }
 
+const normalize = (s: unknown) => (typeof s === 'string' ? s.trim().replace(/\s+/g, '').toLowerCase() : '')
+
+// ตรวจคำตอบในเครื่อง (ตรงกับ public.grade_answer) — ใช้เฉพาะครูดูตัวอย่างข้อสอบ ไม่บันทึกผล
+// คืน 0..1 · null = อัตนัย ครูตรวจเอง
+export function gradeLocal(type: QuestionType, correct: unknown, answer: Answer | null | undefined): number | null {
+  if (type === 'short') return answer && 'text' in answer && normalize(answer.text) ? null : 0
+  if (!answer || !correct || typeof correct !== 'object') return 0
+  const c = correct as Record<string, unknown>
+  switch (type) {
+    case 'mcq':
+      return 'index' in answer && answer.index === c.index ? 1 : 0
+    case 'true_false':
+      return 'value' in answer && answer.value === c.value ? 1 : 0
+    case 'matching':
+    case 'ordering': {
+      const key = type === 'matching' ? 'pairs' : 'order'
+      const want = Array.isArray(c[key]) ? (c[key] as unknown[]) : []
+      const got = key in answer ? ((answer as Record<string, unknown>)[key] as unknown[]) : null
+      if (want.length === 0 || !Array.isArray(got)) return 0
+      const ok = want.filter((w, i) => got[i] != null && got[i] === w).length
+      return Math.round((ok / want.length) * 100) / 100
+    }
+    case 'fill': {
+      const text = 'text' in answer ? normalize(answer.text) : ''
+      if (!text) return 0
+      const accept = Array.isArray(c.accept) ? c.accept : []
+      return accept.some((a) => normalize(a) === text) ? 1 : 0
+    }
+  }
+}
+
 // สุ่มลำดับแบบกำหนด seed (ลำดับเดิมทุกครั้งที่รีเฟรชในการสอบครั้งเดียวกัน)
 export function seededOrder(n: number, seed: string): number[] {
   let h = 2166136261

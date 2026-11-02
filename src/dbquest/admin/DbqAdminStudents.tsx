@@ -4,7 +4,7 @@ import { Lock, RotateCcw } from 'lucide-react'
 import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import { useAsync } from '@/lib/useAsync'
 import { btn, displayName, formatDateTime, PageHeader, panel, RoomSelect } from './adminUi'
-import { CATEGORIES, CATEGORY_LABEL, fetchStudentDetail, fetchStudents, resetSession, type Scores, type StudentDetail } from './dbqAdminApi'
+import { CATEGORIES, CATEGORY_LABEL, evoScore, fetchStudentDetail, fetchStudents, resetSession, type Scores, type StudentDetail } from './dbqAdminApi'
 import { gradeOf } from './gradebookModel'
 import { evolutionOf } from '../evolution'
 import { fetchGameTitles, gameTitle } from '../gameTitles'
@@ -109,7 +109,7 @@ export function DbqAdminStudentDetail() {
   if (res.status === 'loading') return <LoadingBlock />
   if (res.status === 'error') return <ErrorBlock message={res.error} onRetry={res.reload} />
   const [d, titles] = res.data
-  const evo = evolutionOf(d.scores.total)
+  const evo = evolutionOf(evoScore(d.scores))
 
   return (
     <div className="space-y-4">

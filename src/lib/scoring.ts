@@ -194,6 +194,43 @@ export function computeStudentScore(
   }
 }
 
+// คะแนนที่ทำได้ตอนนี้ (0–100) ใช้กับวิวัฒนาการ: คิดเฉพาะคาบที่ครูเปิดแล้ว
+//   ตรวจแล้ว = คะแนนจริง · ยังไม่ส่ง = 0 · ส่งแล้วรอตรวจ = ยังไม่นับ (ไม่ดึงคะแนนลง)
+//   แต่ละหมวดเฉลี่ยรายคาบเหมือนคะแนนรวม แล้วเฉลี่ยตามน้ำหนักของหมวดที่มีคาบให้นับแล้ว
+//   งานไม่ผูกคาบนับเมื่อมีคะแนนแล้วเท่านั้น · ยังไม่มีอะไรให้นับ = 0
+export function computeSoFarScore(
+  items: ScoredItem[],
+  entries: Map<string, ScoreEntry>,
+  policy: ScoringPolicy,
+  openSessions: ReadonlySet<number>,
+): number {
+  let earned = 0
+  let weightSeen = 0
+  for (const category of CATEGORIES) {
+    const weight = policy.weights[category]
+    if (weight <= 0) continue
+    const slots = new Map<string, { raw: number; max: number }>()
+    for (const item of items) {
+      if (item.category !== category || item.maxScore <= 0) continue
+      const entry = entries.get(item.id)
+      const eff = effectiveScore(item, entry, policy)
+      const open = item.sessionNo == null ? eff != null : openSessions.has(item.sessionNo)
+      if (!open) continue
+      if (eff == null && entry?.submittedAt) continue // รอครูตรวจ
+      const key = item.sessionNo != null ? `s${item.sessionNo}` : `i${item.id}`
+      const slot = slots.get(key) ?? { raw: 0, max: 0 }
+      slot.raw += eff ?? 0
+      slot.max += item.maxScore
+      slots.set(key, slot)
+    }
+    if (slots.size === 0) continue
+    const ratio = [...slots.values()].reduce((s, x) => s + x.raw / x.max, 0) / slots.size
+    earned += ratio * weight
+    weightSeen += weight
+  }
+  return weightSeen > 0 ? round2((earned / weightSeen) * 100) : 0
+}
+
 // สำหรับ ปพ.5: คะแนนระหว่างภาค = ทุกอย่างยกเว้นปลายภาค
 export function splitForPp5(score: StudentScore): { during: number; final: number } {
   const final = score.categories.find((c) => c.category === 'final')?.scaled ?? 0

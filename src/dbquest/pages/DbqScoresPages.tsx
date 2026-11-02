@@ -9,7 +9,7 @@ import { countMedals, MedalShelf } from '@/components/medals/Medals'
 import { setMyAvatar } from '@/features/games/gamesApi'
 import { computeGrade, formatGrade } from '@/lib/grade'
 import { useAsync } from '@/lib/useAsync'
-import { CATEGORIES, CATEGORY_LABEL, type Scores } from '../admin/dbqAdminApi'
+import { CATEGORIES, CATEGORY_LABEL, evoScore, type Scores } from '../admin/dbqAdminApi'
 import { fetchGameTitles, gameTitle } from '../gameTitles'
 import { EvolutionCard } from '../EvolutionCard'
 import { fetchMap } from '../lesson/dbqLessonApi'
@@ -236,7 +236,7 @@ export function DbqMePage() {
       {tab === 'scores' && (
         <>
           <EvolutionCard
-            score={scores.scores.total}
+            score={evoScore(scores.scores)}
             info={{
               medals: countMedals(scores.medals),
               pending: pending.length,

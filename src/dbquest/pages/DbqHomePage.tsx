@@ -11,6 +11,7 @@ import { EvolutionSlot } from '@/components/evolution/ScoreEvolutionCard'
 import { EvolutionCard } from '../EvolutionCard'
 import { unitIcon } from '../unitIcons'
 import { countMedals } from '@/components/medals/Medals'
+import { evoScore } from '../admin/dbqAdminApi'
 import { fetchMyScores } from './dbqStudentApi'
 
 // คาบปัจจุบัน = คาบที่ครูปลดล็อกให้ห้องของนักเรียนล่าสุด (เหมือนหน้าแรก ม.3)
@@ -122,7 +123,7 @@ function Home({ map, scores }: { map: MapItem[]; scores: Awaited<ReturnType<type
 
         <EvolutionSlot fit={!!next}>
           <EvolutionCard
-            score={scores.preview ? 0 : scores.scores.total}
+            score={scores.preview ? 0 : evoScore(scores.scores)}
             compact
             info={{
               medals: countMedals(scores.preview ? [] : scores.medals),

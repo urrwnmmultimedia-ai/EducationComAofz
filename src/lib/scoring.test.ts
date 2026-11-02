@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  computeSoFarScore,
   computeStudentScore,
   DEFAULT_WEIGHTS,
   effectiveScore,
@@ -121,6 +122,33 @@ describe('computeStudentScore', () => {
   it('แยกคะแนน ปพ.5', () => {
     const e = entries(items.map((i) => [i.id, i.maxScore]))
     expect(splitForPp5(computeStudentScore(items, e, policy))).toEqual({ during: 80, final: 20 })
+  })
+})
+
+describe('computeSoFarScore (วิวัฒนาการ: เฉพาะคาบที่เปิดแล้ว)', () => {
+  const s = (id: string, cat: ScoredItem['category'], max: number, sessionNo: number): ScoredItem => ({ ...item(id, cat, max), sessionNo })
+  const items = [s('w1', 'work', 4, 1), s('w2', 'work', 4, 2), s('w3', 'work', 4, 3), s('m', 'midterm', 20, 10)]
+
+  it('ทำเต็มทุกคาบที่เปิด = 100 แม้คาบอื่นยังไม่เปิด', () => {
+    expect(computeSoFarScore(items, entries([['w1', 4], ['w2', 4]]), policy, new Set([1, 2]))).toBe(100)
+  })
+
+  it('ยังไม่ส่งในคาบที่เปิด = 0 · รอตรวจไม่นับ', () => {
+    const e = new Map<string, ScoreEntry>([
+      ['w1', { score: 4, submittedAt: null }],
+      ['w2', { score: null, submittedAt: '2026-11-01T00:00:00Z' }], // รอตรวจ
+    ])
+    expect(computeSoFarScore(items, e, policy, new Set([1, 2]))).toBe(100)
+    expect(computeSoFarScore(items, e, policy, new Set([1, 2, 3]))).toBe(50) // คาบ 3 ไม่ส่ง
+  })
+
+  it('เฉลี่ยตามน้ำหนักเฉพาะหมวดที่มีคาบให้นับ', () => {
+    // work 100% (30) + midterm 50% (20) → (30 + 10) / 50 = 80
+    expect(computeSoFarScore(items, entries([['w1', 4], ['m', 10]]), policy, new Set([1, 10]))).toBe(80)
+  })
+
+  it('ยังไม่มีคาบเปิด = 0', () => {
+    expect(computeSoFarScore(items, new Map(), policy, new Set())).toBe(0)
   })
 })
 

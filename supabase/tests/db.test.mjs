@@ -732,6 +732,7 @@ let sc = r[0].r.scores
 check('dbq013: worksheet category counts missing work as 0', sc.categories.worksheet.earned == 0.8 && sc.categories.worksheet.max == 17 && sc.categories.worksheet.unit === 'session' && sc.categories.worksheet.pct == 4.71 && sc.categories.worksheet.points == 1.18)
 check('dbq022: game category = best score per session slot', sc.categories.game.earned == 1 && sc.categories.game.max == 17 && sc.categories.game.pct == 5.88 && sc.categories.game.points == 0.59)
 check('dbq013: manual categories empty until entered', sc.categories.midterm.pct === null && sc.total == 1.77 && sc.available == 35)
+check('025: so_far uses only open sessions (ws 0.8 x25 + game 1 x10) / 35', sc.so_far == 85.71)
 // เหรียญ DB Quest (023): คาบ 1 = เฉลี่ย ใบงาน 80% กับ เกม 100% = 90% ทอง · คาบ 2 = 0 ไม่มีเหรียญ
 check('023: dbq session medals', r[0].r.medals.find((m) => m.session_no === 1)?.pct == 90 && r[0].r.medals.find((m) => m.session_no === 1)?.tier === 'gold' && r[0].r.medals.find((m) => m.session_no === 2)?.tier === null)
 check('dbq013: my_scores lists assignments with status', r[0].r.assignments.map((a) => `${a.item_id}:${a.status}`).join() === 'ws-s01:graded,ws-s02:missing')
@@ -745,6 +746,7 @@ r = await as(T, `select public.dbq_admin_set_manual_score('${sidD5}', 'midterm',
 r = await as(D5, `select public.dbq_my_scores() as r`)
 sc = r[0].r.scores
 check('dbq013: manual midterm 15/20 -> 7.5 points', sc.categories.midterm.pct == 75 && sc.categories.midterm.points == 7.5 && sc.total == 9.27 && sc.available == 45)
+check('025: so_far includes entered manual score', sc.so_far == 83.33)
 r = await as(T, `select public.dbq_admin_set_manual_score('${sidD5}', 'midterm', 25, 20)`).catch(err)
 check('dbq013: manual score over max rejected', r === 'invalid_score')
 r = await as(T, `select public.dbq_admin_set_manual_score('${sidD5}', 'worksheet', 5, 10)`).catch(err)

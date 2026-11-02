@@ -26,7 +26,7 @@ function Tile({ icon, label, value, tone }: { icon: string; label: string; value
   )
 }
 
-// การ์ดวิวัฒนาการตามคะแนนรวม 0–100 (ม.3 ลิง → คน · ม.5 ควาย → คน): ตัวละครขั้นปัจจุบันบนแท่น + แถบไปขั้นถัดไป + เส้นทาง 8 ขั้น (= เกรด 0–4)
+// การ์ดวิวัฒนาการตามคะแนนที่ทำได้ตอนนี้ 0–100 (เฉพาะคาบที่ครูเปิดแล้ว) (ม.3 ลิง → คน · ม.5 ควาย → คน): ตัวละครขั้นปัจจุบันบนแท่น + แถบไปขั้นถัดไป + เส้นทาง 8 ขั้น (= เกรด 0–4)
 // compact: การ์ดเล็กในหน้าหลัก สูงเต็มกรอบที่ให้ (ห่อด้วย EvolutionSlot) แต่ละแถวอยู่บรรทัดเดียว และกระจายแถวเต็มการ์ดไม่เหลือที่ว่าง
 // celebrateKey: ขึ้นขั้นใหม่แล้วเปิดหน้าต่างแสดงความยินดีกลางจอ (null = ไม่ฉลอง เช่น ครูดูตัวอย่าง)
 export function ScoreEvolutionCard({
@@ -86,8 +86,8 @@ export function ScoreEvolutionCard({
           </p>
           <p className={`flex items-baseline gap-2 font-bold leading-tight text-ink dark:text-white ${compact ? 'text-lg' : 'text-2xl sm:text-[1.7rem]'}`}>
             <span className="truncate">{e.stage.name}</span>
-            <span className="shrink-0 rounded-full bg-action-soft px-2 py-0.5 text-xs font-semibold text-action-strong">
-              <span className="font-display tabular-nums">{fmt(score)}</span>/100
+            <span className="shrink-0 rounded-full bg-action-soft px-2 py-0.5 text-xs font-semibold text-action-strong" title="คะแนนที่ทำได้ตอนนี้ คิดจากคาบที่ครูเปิดแล้ว">
+              ทำได้ <span className="font-display tabular-nums">{fmt(score)}</span>%
             </span>
           </p>
           <p className="mt-0.5 truncate text-sm text-ink-2 dark:text-dq-300">{e.stage.tagline}</p>
@@ -99,9 +99,9 @@ export function ScoreEvolutionCard({
           <>
             <p className="mb-1 flex items-baseline justify-between gap-2 whitespace-nowrap text-sm">
               <span className="min-w-0 truncate font-semibold text-ink dark:text-white">
-                อีก {fmt(e.toNext)} คะแนน → {e.next.name} (เกรด {e.next.grade})
+                อีก {fmt(e.toNext)}% → {e.next.name} (เกรด {e.next.grade})
               </span>
-              <span className="shrink-0 tabular-nums text-ink-2 dark:text-dq-300">{e.next.minScore} คะแนน</span>
+              <span className="shrink-0 tabular-nums text-ink-2 dark:text-dq-300">{e.next.minScore}%</span>
             </p>
             <div
               className="h-3 overflow-hidden rounded-full bg-surface dark:bg-dq-800 shadow-[inset_0_1px_3px_rgb(20_45_100/0.2)]"
@@ -160,7 +160,7 @@ export function ScoreEvolutionCard({
             ? ['size-6', 'size-6', 'size-7', 'size-7', 'size-8', 'size-8', 'size-9', 'size-9']
             : ['size-8', 'size-9', 'size-9', 'size-10', 'size-11', 'size-12', 'size-[3.25rem]', 'size-14']
           return (
-            <li key={s.name} className="relative flex flex-1 flex-col items-center gap-0.5" title={`${s.name} · ${s.minScore} คะแนนขึ้นไป · เกรด ${s.grade}`}>
+            <li key={s.name} className="relative flex flex-1 flex-col items-center gap-0.5" title={`${s.name} · ทำได้ ${s.minScore}% ขึ้นไป · เกรด ${s.grade}`}>
               <span className={`rounded-full p-0.5 ${i === e.index ? 'bg-gold-300/50 shadow-[0_0_14px_rgb(241_196_67/0.6)] ring-2 ring-gold-400' : ''}`}>
                 <ArtC stage={i} className={`${sizes[i] ?? 'size-9'} ${reached ? '' : 'opacity-25 brightness-0'}`} />
               </span>

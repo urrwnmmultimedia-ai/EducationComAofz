@@ -32,7 +32,7 @@ export function StudentHomePage() {
       fetchMyScore(studentId),
       fetchMyMedals(),
     ])
-    return { units, sessions, stats, score: mine.score.total, medals }
+    return { units, sessions, stats, score: mine.soFar, medals }
   }, [studentId])
 
   if (!student) return null
@@ -76,7 +76,7 @@ function Dashboard({
   units: UnitRow[]
   sessions: SessionListItem[]
   stats: Awaited<ReturnType<typeof fetchStudentStats>>
-  score: number // คะแนนรวม 0–100 จากสมุดคะแนน (ใช้กับวิวัฒนาการ)
+  score: number // คะแนนที่ทำได้ตอนนี้ 0–100 (เฉพาะคาบที่เปิดแล้ว ใช้กับวิวัฒนาการ)
   medals: Medal[]
 }) {
   const current = currentSession(sessions)

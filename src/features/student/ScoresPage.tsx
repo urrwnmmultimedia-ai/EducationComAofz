@@ -18,7 +18,7 @@ export function ScoresPanel({ studentId, info }: { studentId: string; info?: Evo
 
   return (
     <div className="flex flex-col gap-5">
-      <EvolutionCardM3 score={score.total} info={info} />
+      <EvolutionCardM3 score={state.data.soFar} info={info} />
       <section className="grid gap-4 sm:grid-cols-2">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white to-brand-50 p-5 shadow-raise ring-1 ring-brand-100">
           <span className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-action to-gold-400" aria-hidden />

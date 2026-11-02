@@ -28,8 +28,13 @@ export const scoresSchema = z.object({
   total: num,
   available: num,
   current_pct: numOrNull,
+  // คะแนนที่ทำได้ตอนนี้ (เฉพาะคาบที่เปิดแล้ว) ใช้กับวิวัฒนาการ — ฐานข้อมูลที่ยังไม่รันอัปเดต 025 = ไม่มี
+  so_far: num.optional(),
 })
 export type Scores = z.infer<typeof scoresSchema>
+
+// คะแนนสำหรับวิวัฒนาการ
+export const evoScore = (s: Scores): number => s.so_far ?? s.total
 
 export const briefSchema = z.object({
   id: z.string(),

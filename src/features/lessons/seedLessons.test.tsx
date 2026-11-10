@@ -21,3 +21,19 @@ describe('seed lessons', () => {
     expect(html).toContain(`การ์ด 1 / ${cards.length}`)
   })
 })
+
+describe('คาบ 2 (5G) มีภาพเคลื่อนไหวและกิจกรรม', () => {
+  const md = lessons[1] ?? ''
+  it('มีบล็อกกิจกรรมครบและแสดงได้ทุกการ์ด', () => {
+    const kinds = splitCards(md, 'x').flatMap((c) => c.segments.map((s) => s.kind))
+    for (const k of ['order', 'timeline', 'bars', 'flip', 'sort', 'widget', 'flow']) expect(kinds).toContain(k)
+    expect(kinds).not.toContain('think-fallback')
+  })
+  it('ทุกการ์ดเรนเดอร์ได้ (รวมสื่อโต้ตอบ)', async () => {
+    const { SegmentView } = await import('./LessonCards')
+    for (const card of splitCards(md, 'x')) {
+      for (const seg of card.segments) expect(() => renderToString(<SegmentView segment={seg} />)).not.toThrow()
+    }
+    expect(renderToString(<SegmentView segment={{ kind: 'widget', name: 'latency-brake' }} />)).toContain('ความหน่วงกับรถไร้คนขับ')
+  })
+})

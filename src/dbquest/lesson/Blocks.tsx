@@ -2,6 +2,7 @@ import type { Block, TableData } from '@/content/lesson'
 import { Globe2, Lightbulb, TriangleAlert } from 'lucide-react'
 import { DbqMarkdown } from './DbqMarkdown'
 import { FIGURES } from './figures'
+import { DBQ_WIDGETS, DbqFlow, DrillBlock } from './widgets'
 
 // แสดงบล็อกเนื้อหาในการ์ดบทเรียน (ข้อความ ภาพ ตาราง โค้ด SQL ชีวิตจริง ทิป คำเตือน ก่อน/หลัง ขั้นตอน)
 
@@ -121,6 +122,14 @@ export function BlockView({ block }: { block: Block }) {
           <Caption text={block.caption} />
         </figure>
       )
+    case 'flow':
+      return <DbqFlow title={block.title} cycle={block.cycle} nodes={block.nodes} />
+    case 'drill':
+      return <DrillBlock title={block.title} groups={block.groups} items={block.items} rounds={block.rounds} />
+    case 'widget': {
+      const W = DBQ_WIDGETS[block.name]
+      return W ? <W /> : null
+    }
     case 'steps':
       return (
         <section>

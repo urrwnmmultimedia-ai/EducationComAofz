@@ -5,7 +5,7 @@ import { ErrorBlock, LoadingBlock } from '@/components/StatusViews'
 import type { LessonRow } from '@/lib/database.types'
 import { useAsync } from '@/lib/useAsync'
 import { LessonCards } from '@/features/lessons/LessonCards'
-import { parseSteps, totalMinutes, type SessionStep } from '@/features/lessons/sessionSteps'
+import { formatGuide, parseGuide, parseSteps, totalMinutes, type SessionStep } from '@/features/lessons/sessionSteps'
 import {
   createLesson,
   deleteLesson,
@@ -142,12 +142,36 @@ function SessionForm({ data }: { data: SessionEditData }) {
                 onChange={(e) => updateStep(i, { items: e.target.value.split('\n').filter((l) => l.trim() !== '') })}
               />
             )}
+            {s.key === 'warmup' && <GuideField value={s.guide} onChange={(guide) => updateStep(i, { guide })} />}
           </div>
         ))}
       </div>
 
       <SaveRow state={save} onSave={() => void submit()} errorText={title.trim() ? 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง' : 'กรุณากรอกชื่อเรื่อง'} />
     </Card>
+  )
+}
+
+// ช่องไกด์คำตอบขั้นเปิดคาบ: แก้เป็นข้อความ เก็บข้อความที่พิมพ์ไว้ระหว่างแก้ (ไม่จัดรูปใหม่ทุกครั้งที่พิมพ์)
+function GuideField({ value, onChange }: { value: SessionStep['guide']; onChange: (g: SessionStep['guide']) => void }) {
+  const [text, setText] = useState(() => formatGuide(value))
+  return (
+    <label className="block space-y-1 sm:col-span-2">
+      <span className="text-sm text-slate-600">
+        ช่องไกด์คำตอบ (ไม่บังคับ) — บรรทัดละ 1 ช่อง <code>ป้าย | ตัวอย่างประโยคเริ่ม</code> · บรรทัด <code>---</code> = ช่องของคำถามข้อถัดไป · เว้นว่าง = ตอบช่องเดียว
+      </span>
+      <textarea
+        className={INPUT}
+        rows={4}
+        aria-label="ช่องไกด์คำตอบ"
+        placeholder={'📞 สิ่งที่ทำได้ | เช่น โทรหากันได้\n🚫 สิ่งที่ยังทำไม่ได้ | เช่น ยังดู…ไม่ได้\n---\n📶 เพราะเครือข่าย… | เช่น ส่งข้อมูลได้…'}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value)
+          onChange(parseGuide(e.target.value))
+        }}
+      />
+    </label>
   )
 }
 
@@ -189,6 +213,14 @@ function LessonsEditor({ data, onChanged }: { data: SessionEditData; onChanged: 
           </li>
           <li>
             <code>:::embed https://youtu.be/…</code> = ฝังวิดีโอ YouTube หรือลิงก์ Canva (บรรทัดเดียว)
+          </li>
+          <li>
+            ภาพเคลื่อนไหว/กิจกรรม (ปิดด้วย <code>:::</code> · บรรทัดแรกที่ไม่ขึ้นต้นด้วย <code>-</code> = คำชี้แจง):{' '}
+            <code>:::flow</code> <code>- ไอคอน | ชื่อ | คำอธิบาย</code> = แผนภาพลำดับขั้น /{' '}
+            <code>:::sort</code> <code>กลุ่ม: ก | ข</code> <code>- ข้อความ =&gt; ก</code> = เกมจัดกลุ่ม /{' '}
+            <code>:::order</code> <code>- ขั้นตามลำดับที่ถูก</code> = เกมเรียงลำดับ / <code>:::flip</code> <code>- หน้า | หลัง</code> = การ์ดพลิก /{' '}
+            <code>:::timeline</code> <code>- ไอคอน | ชื่อ | ช่วงเวลา | คำอธิบาย</code> = เส้นเวลา /{' '}
+            <code>:::bars หน่วย</code> <code>- ชื่อ | ตัวเลข</code> = กราฟให้ทาย / <code>:::widget latency-brake</code> = จำลองรถเบรก (บรรทัดเดียว)
           </li>
         </ul>
       </details>

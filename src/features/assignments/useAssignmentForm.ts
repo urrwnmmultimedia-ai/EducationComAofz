@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AssignmentRow, SubmissionRow } from '@/lib/database.types'
 import {
+  guidedProgress,
   isContentEmpty,
+  isGuidedTable,
   isValidHttpUrl,
   normalizeRows,
   parseContent,
@@ -64,6 +66,14 @@ export function useAssignmentForm(assignment: AssignmentRow, studentId: string, 
           setMessage('ยังไม่มีคำตอบ กรอกงานก่อนกดส่งนะ')
           return
         }
+        if (assignment.type === 'table' && isGuidedTable(tableConfig)) {
+          const p = guidedProgress(tableConfig, content)
+          if (p.filled < p.total) {
+            setStatus('error')
+            setMessage(`ยังกรอกไม่ครบ (${p.filled}/${p.total} ช่อง) กรอกให้ครบก่อนส่ง หรือกดบันทึกฉบับร่างไว้ก่อน`)
+            return
+          }
+        }
         if (assignment.type === 'link' && !isValidHttpUrl(content.url ?? '')) {
           setStatus('error')
           setMessage('ลิงก์ไม่ถูกต้อง ต้องขึ้นต้นด้วย https://')
@@ -81,7 +91,7 @@ export function useAssignmentForm(assignment: AssignmentRow, studentId: string, 
         setMessage('บันทึกไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่')
       }
     },
-    [assignment.type, busy, content, files.length, locked, persist],
+    [assignment.type, busy, content, files.length, locked, persist, tableConfig],
   )
 
   const addFiles = useCallback(

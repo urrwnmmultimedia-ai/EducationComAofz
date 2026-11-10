@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router'
+import { motion } from 'framer-motion'
 import { BookOpen, Flame, Gamepad2, PencilLine, Sparkles, Star, Target, Ticket, type LucideIcon } from 'lucide-react'
 import { StepJourney } from '@/components/StepJourney'
 import { useAuth } from '@/app/AuthContext'
@@ -12,7 +13,7 @@ import { AssignmentView } from '@/features/assignments/AssignmentPage'
 import { ExamView } from '@/features/exams/ExamPage'
 import { LessonCards } from './LessonCards'
 import { Markdown } from './Markdown'
-import { GAME_PASS_SCORE, type SessionStep, type StepKey } from './sessionSteps'
+import { composeGuess, GAME_PASS_SCORE, warmupQuestions, type SessionStep, type StepKey, type WarmupQuestion } from './sessionSteps'
 import { useSessionPage } from './useSessionPage'
 
 const STEP_ICON: Record<StepKey, LucideIcon> = {
@@ -41,6 +42,7 @@ export function SessionPage() {
   const [pickedAt, setPickedAt] = useState<{ loc: string; step: StepKey } | null>(null)
   const picked = pickedAt?.loc === location.key ? pickedAt.step : null
   const [guess, setGuess] = useGuess(sessionNo)
+  const [answers, setAnswers] = useStoredAnswers(sessionNo)
   // เล่นเกมผ่านในหน้าคาบ: รอให้เห็นผลสักครู่แล้วไปขั้นถัดไปเอง
   const [gamePassed, setGamePassed] = useState(false)
 
@@ -81,6 +83,8 @@ export function SessionPage() {
   const examsInWork = !steps.some((x) => x.key === 'exit')
   const examsSent = !!work && exams.every((e) => work.examsDone.includes(e.id))
   const needsAnswer = !!(current?.question || current?.items?.length)
+  // คาบแบบใหม่ (ครูตั้งช่องไกด์คำตอบไว้): ทุกขั้นอยู่ในเวทีมีมิติ และเกมเริ่มเองต่อจากบทเรียน
+  const deluxe = steps.some((s) => !!s.guide?.length)
   // ขั้นที่ทำครบแล้วผ่านเอง ไม่มีปุ่มไปขั้นถัดไป: ส่งงาน/ข้อสอบครบ หรือขั้นที่ไม่มีอะไรให้ทำ
   // (ตอบคำถามเปิดคาบ อ่านการ์ดครบ และจบคาบ มีปุ่มของขั้นนั้นเอง · เกมผ่านเมื่อได้คะแนนถึงเกณฑ์)
   const autoReady: Record<StepKey, boolean> = {
@@ -160,6 +164,7 @@ export function SessionPage() {
 
       {current && (
         <section aria-live="polite">
+          <StepStage key={`stage-${current.key}`} deluxe={deluxe} no={currentIdx + 1} label={current.label} Icon={STEP_ICON[current.key]}>
           <StepBody
             key={current.key}
             step={current}
@@ -175,6 +180,11 @@ export function SessionPage() {
             lessonsLocked={!currentDone}
             guess={guess}
             onGuess={setGuess}
+            answers={answers}
+            onAnswers={(qs, a) => {
+              setAnswers(a)
+              setGuess(composeGuess(qs, a))
+            }}
             onLessonDone={() => void finishCurrent()}
             onGameStepDone={(c) => {
               // นักเรียนได้รายการจากเซิร์ฟเวอร์ · ครูได้แค่ ['game'] จึงรวมกับของเดิม
@@ -186,7 +196,9 @@ export function SessionPage() {
             onFinish={() => void finishCurrent()}
             sent={work}
             onSent={markSent}
+            deluxe={deluxe}
           />
+          </StepStage>
           <div className="mt-4 flex flex-wrap items-center justify-end gap-3 text-sm">
             {saveError && (
               <span className="text-rose-600">
@@ -240,6 +252,28 @@ function useGuess(sessionNo: number): [string, (g: string) => void] {
   return [guess, setGuess]
 }
 
+// คำตอบรายช่องของขั้นเปิดคาบ (ช่องไกด์คำตอบ) เก็บในเบราว์เซอร์ เปิดหน้าใหม่ยังอยู่
+function useStoredAnswers(sessionNo: number): [string[][], (a: string[][]) => void] {
+  const storageKey = `tq-guide-${sessionNo}`
+  const [answers, setState] = useState<string[][]>(() => {
+    try {
+      const raw: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '[]')
+      return Array.isArray(raw) ? raw.map((r) => (Array.isArray(r) ? r.map((x) => (typeof x === 'string' ? x : '')) : [])) : []
+    } catch {
+      return []
+    }
+  })
+  const setAnswers = (a: string[][]) => {
+    setState(a)
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(a))
+    } catch {
+      // เบราว์เซอร์ไม่ให้เก็บ: ใช้ได้เฉพาะรอบนี้
+    }
+  }
+  return [answers, setAnswers]
+}
+
 interface StepBodyProps {
   step: SessionStep
   steps: SessionStep[]
@@ -254,6 +288,8 @@ interface StepBodyProps {
   lessonsLocked: boolean // นักเรียนต้องตอบเช็กความเข้าใจถูกก่อนไปการ์ดถัดไป
   guess: string
   onGuess: (g: string) => void
+  answers: string[][]
+  onAnswers: (questions: WarmupQuestion[], answers: string[][]) => void
   onLessonDone: () => void
   onGameStepDone: (completed: string[]) => void
   stepDone: boolean
@@ -261,6 +297,7 @@ interface StepBodyProps {
   onFinish: () => void // ปุ่มของขั้น (ส่งคำตอบเปิดคาบ / จบคาบ) บันทึกแล้วไปขั้นถัดไป
   sent: { submitted: string[]; examsDone: string[] } | null // งาน/ข้อสอบที่ส่งแล้ว
   onSent: (kind: 'assignment' | 'exam', id: string) => void
+  deluxe: boolean
 }
 
 function StepBody({
@@ -277,6 +314,8 @@ function StepBody({
   lessonsLocked,
   guess,
   onGuess,
+  answers,
+  onAnswers,
   onLessonDone,
   onGameStepDone,
   stepDone,
@@ -284,14 +323,55 @@ function StepBody({
   onFinish,
   sent,
   onSent,
+  deluxe,
 }: StepBodyProps) {
+  // คาบที่ครูตั้งช่องไกด์คำตอบไว้: ตอบเป็นช่อง ๆ และต้องกรอกครบทุกช่อง
+  const guided = !!step.guide?.length
+  const questions = guided ? warmupQuestions(step) : []
+  const slotCount = questions.reduce((n, q) => n + q.slots.length, 0)
+  const filled = questions.reduce((n, q, i) => n + q.slots.filter((_, j) => answers[i]?.[j]?.trim()).length, 0)
+  const ready = guided ? filled === slotCount : !!guess.trim()
+  const setSlot = (qi: number, si: number, v: string) => {
+    const next = questions.map((q, i) => q.slots.map((_, j) => (i === qi && j === si ? v : (answers[i]?.[j] ?? ''))))
+    onAnswers(questions, next)
+  }
   const answerButton = (
-    <Button className="mt-4" loading={saving} disabled={!guess.trim()} onClick={onFinish}>
-      {stepDone ? 'บันทึกคำตอบ ไปขั้นถัดไป →' : 'ตอบคำถาม ไปขั้นถัดไป →'}
-    </Button>
+    <div className="mt-4 flex flex-wrap items-center gap-3">
+      <Button loading={saving} disabled={!ready} onClick={onFinish}>
+        {stepDone ? 'บันทึกคำตอบ ไปขั้นถัดไป →' : 'ตอบคำถาม ไปขั้นถัดไป →'}
+      </Button>
+      {guided && (
+        <span className={`text-sm ${ready ? 'text-mint-500' : 'text-slate-500'}`}>
+          ตอบแล้ว {filled}/{slotCount} ช่อง{ready ? ' ✓' : ' — กรอกให้ครบทุกช่องก่อนนะ'}
+        </span>
+      )}
+    </div>
   )
   switch (step.key) {
     case 'warmup':
+      if (guided) {
+        return (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <NamWan className="hidden size-16 shrink-0 sm:block" />
+              <div>
+                <h2 className="text-xl text-brand-900">คำถามก่อนเรียน</h2>
+                <p className="text-slate-600">ตอบตามที่คิดทีละช่อง ไม่มีถูกผิด — ช่องสีจางคือตัวอย่างวิธีเริ่มประโยค ท้ายคาบจะกลับมาดูกันอีกที</p>
+              </div>
+            </div>
+            {questions.map((q, qi) => (
+              <GuideBoxes
+                key={qi}
+                no={questions.length > 1 ? qi + 1 : null}
+                question={q}
+                values={answers[qi] ?? []}
+                onChange={(si, v) => setSlot(qi, si, v)}
+              />
+            ))}
+            {answerButton}
+          </div>
+        )
+      }
       if (step.question) return <OpeningStep step={step} guess={guess} onGuess={onGuess} action={answerButton} />
       return (
         <Panel character={<NamWan className="size-16" />} title="คำถามชวนคิด">
@@ -325,6 +405,7 @@ function StepBody({
               title={l.title}
               markdown={l.content_md}
               locked={lessonsLocked}
+              depth={deluxe}
               onFinished={i === lessons.length - 1 ? onLessonDone : undefined}
             />
           ))}
@@ -333,7 +414,7 @@ function StepBody({
     case 'game': {
       // คาบแบบ DB Quest (มีคำถามเปิดคาบ) ฝังเกมในหน้าคาบเลย · คาบอื่นเปิดหน้าเกมแยก
       const nextStep = steps[steps.findIndex((s) => s.key === 'game') + 1]
-      if (gameSlug && steps.some((s) => s.question)) {
+      if (gameSlug && (deluxe || steps.some((s) => s.question))) {
         return (
           <GameView
             slug={gameSlug}
@@ -342,6 +423,7 @@ function StepBody({
             backTo={`/sessions/${sessionNo}?after=game`}
             backLabel={nextStep ? `ไปขั้น${nextStep.label}` : 'กลับคาบเรียน'}
             onStepDone={onGameStepDone}
+            autoStart={deluxe}
           />
         )
       }
@@ -515,6 +597,58 @@ function AnswerBox({ label, placeholder, value, onChange }: { label: string; pla
   )
 }
 
+// คำถามเปิดคาบหนึ่งข้อ + ช่องไกด์คำตอบ (ป้ายบอกว่าช่องนี้ตอบอะไร · ตัวอย่างประโยคเริ่มเป็นข้อความจางในช่อง)
+function GuideBoxes({
+  no,
+  question,
+  values,
+  onChange,
+}: {
+  no: number | null
+  question: WarmupQuestion
+  values: string[]
+  onChange: (slot: number, value: string) => void
+}) {
+  return (
+    <fieldset className="tq-raised p-4 sm:p-5">
+      <legend className="sr-only">{question.text}</legend>
+      <div className="tq-banner relative flex items-center gap-3 overflow-hidden rounded-2xl p-4 text-white">
+        <span className="tq-orb grid size-11 shrink-0 place-items-center rounded-full font-display text-lg" aria-hidden>
+          {no ?? '?'}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-brand-100">{no ? `คำถามที่ ${no}` : 'คำถามใหญ่'}</p>
+          <p className="mt-0.5 text-lg font-semibold leading-snug sm:text-xl">{question.text}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-col gap-3">
+        {question.slots.map((s, i) => {
+          const v = values[i] ?? ''
+          const done = !!v.trim()
+          return (
+            <label key={`${s.label}-${i}`} className="grid gap-1.5 sm:grid-cols-[minmax(9rem,14rem)_1fr] sm:items-start sm:gap-3">
+              <span className={`flex items-center gap-2 rounded-xl px-3 py-2 font-display text-sm sm:min-h-12 ${done ? 'bg-mint-400/25 text-emerald-900' : 'bg-white text-brand-800 ring-1 ring-brand-200'}`}>
+                <span className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold ${done ? 'bg-mint-500 text-white' : 'bg-brand-100 text-brand-700'}`}>
+                  {done ? '✓' : i + 1}
+                </span>
+                {s.label}
+              </span>
+              <textarea
+                rows={2}
+                maxLength={300}
+                value={v}
+                placeholder={s.hint ?? 'ตอบสั้น ๆ ตามที่คิด'}
+                onChange={(e) => onChange(i, e.target.value)}
+                className={`min-h-12 w-full resize-y rounded-xl border-2 bg-white px-3 py-2 shadow-[inset_0_2px_4px_rgb(15_31_61/0.08)] outline-none placeholder:text-slate-400 focus:border-brand-500 ${done ? 'border-mint-400' : 'border-brand-200'}`}
+              />
+            </label>
+          )
+        })}
+      </div>
+    </fieldset>
+  )
+}
+
 type WorkItem = { kind: 'assignment'; assignment: AssignmentRow } | { kind: 'exam'; exam: ExamRow }
 
 // ใบงาน/ข้อสอบของขั้นนี้ แสดงในหน้าคาบเลยทีละชิ้น — นักเรียนต้องส่งชิ้นนี้ก่อนจึงไปชิ้นถัดไปได้
@@ -597,6 +731,31 @@ function WorkPager({
         </div>
       )}
     </div>
+  )
+}
+
+// เวทีของแต่ละขั้น (คาบแบบใหม่): พื้นนูนหลายชั้น หัวขั้นมีลูกแก้วไอคอน เปลี่ยนขั้นแล้วลอยขึ้นมาแบบ 3 มิติ
+function StepStage({ deluxe, no, label, Icon, children }: { deluxe: boolean; no: number; label: string; Icon: LucideIcon; children: ReactNode }) {
+  if (!deluxe) return <>{children}</>
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24, rotateX: 8 }}
+      animate={{ opacity: 1, y: 0, rotateX: 0 }}
+      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+      style={{ transformPerspective: 1200 }}
+      className="tq-stage p-3 sm:p-5"
+    >
+      <div className="mb-4 flex items-center gap-3 px-1">
+        <span className="tq-orb grid size-12 shrink-0 place-items-center rounded-2xl" aria-hidden>
+          <Icon className="size-6" />
+        </span>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-action">ขั้นที่ {no}</p>
+          <p className="font-display text-xl text-brand-900">{label}</p>
+        </div>
+      </div>
+      {children}
+    </motion.div>
   )
 }
 

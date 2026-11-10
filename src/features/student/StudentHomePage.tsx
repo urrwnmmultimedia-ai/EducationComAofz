@@ -9,6 +9,7 @@ import { fetchSessionList, fetchUnits } from '@/features/lessons/lessonsApi'
 import { courseProgressPercent, progressPercent } from '@/features/lessons/sessionSteps'
 import { EvolutionSlot } from '@/components/evolution/ScoreEvolutionCard'
 import { EvolutionCardM3 } from './EvolutionCardM3'
+import type { GradeStep } from '@/lib/grade'
 import { fetchMyScore } from './myScore'
 import { dueCountdown, fetchMyMedals, fetchStudentStats } from './studentApi'
 import { useViewer } from './viewer'
@@ -32,7 +33,7 @@ export function StudentHomePage() {
       fetchMyScore(studentId),
       fetchMyMedals(),
     ])
-    return { units, sessions, stats, score: mine.soFar, medals }
+    return { units, sessions, stats, score: mine.score.total, gradeScale: mine.policy.gradeScale, medals }
   }, [studentId])
 
   if (!student) return null
@@ -71,12 +72,14 @@ function Dashboard({
   sessions,
   stats,
   score,
+  gradeScale,
   medals,
 }: {
   units: UnitRow[]
   sessions: SessionListItem[]
   stats: Awaited<ReturnType<typeof fetchStudentStats>>
-  score: number // คะแนนที่ทำได้ตอนนี้ 0–100 (เฉพาะคาบที่เปิดแล้ว ใช้กับวิวัฒนาการ)
+  score: number // คะแนนรวม 0–100 เท่ากับในสมุดคะแนน (ใช้กับวิวัฒนาการ)
+  gradeScale: readonly GradeStep[]
   medals: Medal[]
 }) {
   const current = currentSession(sessions)
@@ -133,6 +136,7 @@ function Dashboard({
         <EvolutionSlot fit={!!current}>
           <EvolutionCardM3
             score={score}
+            gradeScale={gradeScale}
             compact
             info={{
               medals: countMedals(medals),

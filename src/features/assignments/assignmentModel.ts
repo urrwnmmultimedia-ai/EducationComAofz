@@ -4,11 +4,48 @@ import type { Json } from '@/lib/database.types'
 export const rubricSchema = z.array(z.object({ criterion: z.string(), points: z.number().nonnegative() }))
 export type Rubric = z.infer<typeof rubricSchema>
 
+// ใบงานแบบไกด์ (ไม่บังคับ ทุกช่องเสียได้โดยไม่ทำให้ตารางพัง):
+//   rowLabels  ป้ายคอลัมน์แรกของแต่ละแถว (กรอกให้เอง นักเรียนแก้ไม่ได้) เช่น อดีต / ปัจจุบัน / อนาคต
+//   hints      ตัวอย่างประโยคเริ่มในช่องของแต่ละคอลัมน์ · chips  คำให้แตะเติมในช่องของแต่ละคอลัมน์
+//   steps      ขั้นตอนทำใบงาน · topic  ช่อง "เลือกเรื่อง" ก่อนกรอกตาราง (เก็บใน content.text)
+//   example    ตัวอย่างที่ทำเสร็จแล้ว (เรื่องอื่น) ให้กดดู
+const loose = <T extends z.ZodType>(t: T) => t.optional().catch(undefined)
 export const tableConfigSchema = z.object({
   columns: z.array(z.string()).min(1).max(8).default(['คำตอบ']),
   rows: z.number().int().min(1).max(30).default(3),
+  rowLabels: loose(z.array(z.string())),
+  hints: loose(z.array(z.string())),
+  chips: loose(z.array(z.array(z.string()))),
+  steps: loose(z.array(z.string())),
+  topic: loose(z.object({ label: z.string(), hint: z.string().optional(), choices: z.array(z.string()).optional() })),
+  example: loose(z.object({ topic: z.string().optional(), rows: z.array(z.array(z.string())) })),
 })
 export type TableConfig = z.infer<typeof tableConfigSchema>
+
+// ใบงานตารางที่ครูใส่ตัวไกด์ไว้ → แสดงเป็นการ์ดทีละแถว
+export function isGuidedTable(config: TableConfig): boolean {
+  return !!(config.rowLabels?.length || config.topic || config.steps?.length)
+}
+
+// ช่องที่นักเรียนต้องกรอก (ไม่นับคอลัมน์ป้ายแถว) และกรอกแล้วกี่ช่อง
+export function guidedProgress(config: TableConfig, content: SubmissionContent): { filled: number; total: number } {
+  const rows = normalizeRows(content.rows, config)
+  const firstEditable = config.rowLabels?.length ? 1 : 0
+  let filled = 0
+  let total = 0
+  rows.slice(0, config.rows).forEach((row) =>
+    row.forEach((cell, c) => {
+      if (c < firstEditable) return
+      total++
+      if (cell.trim()) filled++
+    }),
+  )
+  if (config.topic) {
+    total++
+    if (content.text?.trim()) filled++
+  }
+  return { filled, total }
+}
 
 export const submissionContentSchema = z.object({
   text: z.string().max(20000).optional(),
@@ -35,7 +72,7 @@ export function parseContent(raw: Json): SubmissionContent {
 // ตารางคำตอบให้ขนาดตรงกับ config เสมอ (ข้อมูลเกินถูกตัด ขาดเติมช่องว่าง)
 export function normalizeRows(rows: string[][] | undefined, config: TableConfig): string[][] {
   return Array.from({ length: Math.max(config.rows, rows?.length ?? 0) }, (_, r) =>
-    config.columns.map((_, c) => rows?.[r]?.[c] ?? ''),
+    config.columns.map((_, c) => (c === 0 && config.rowLabels?.[r] ? config.rowLabels[r] : (rows?.[r]?.[c] ?? ''))),
   )
 }
 

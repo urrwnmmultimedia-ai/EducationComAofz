@@ -175,6 +175,18 @@ export function TableWorksheetView({ sheet }: { sheet: TableSheet }) {
       <p className="whitespace-pre-wrap">
         <span className="text-slate-500">เหตุผลที่คีย์หลักไม่ซ้ำ:</span> {sheet.reason || '-'}
       </p>
+      {sheet.why && (
+        <p className="whitespace-pre-wrap">
+          <span className="text-slate-500">ทำไมระบบนี้ต้องใช้ฐานข้อมูล:</span> {sheet.why}
+        </p>
+      )}
+      {(sheet.query || sheet.queryResult) && (
+        <p className="whitespace-pre-wrap">
+          <span className="text-slate-500">คำถามสืบค้น (Query):</span> {sheet.query || '-'}
+          <br />
+          <span className="text-slate-500">คำตอบจากตาราง:</span> {sheet.queryResult || '-'}
+        </p>
+      )}
     </div>
   )
 }

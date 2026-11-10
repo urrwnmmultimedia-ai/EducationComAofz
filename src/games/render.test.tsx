@@ -19,3 +19,20 @@ describe('render every seeded game', () => {
     expect(html.length).toBeGreaterThan(100)
   })
 })
+
+// เกมในคาบแบบใหม่: เริ่มนับถอยหลังทันที ไม่มีปุ่ม "เริ่มเล่น"
+describe('GameShell autoStart', () => {
+  it('ข้ามหน้าคำอธิบาย', async () => {
+    const { MemoryRouter } = await import('react-router')
+    const { GameShell } = await import('./shared/GameShell')
+    const g = games.find((x) => x.slug === '5g-time-machine')
+    const r = parseGameConfig(g?.config)
+    if (!r.ok) throw new Error(r.error)
+    const props = { title: 'เกม', description: '', config: r.config, Game: gameComponent(r.config), onSubmit: async () => ({ xp: 0, first_play: false, plays_today: 0, daily_limit: 3, capped: false, best_score: 0, new_badges: [] }), backTo: '/' }
+    const auto = renderToString(<MemoryRouter><GameShell {...props} embedded autoStart /></MemoryRouter>)
+    const normal = renderToString(<MemoryRouter><GameShell {...props} embedded /></MemoryRouter>)
+    expect(auto).not.toContain('เริ่มเล่น')
+    expect(auto).toContain('3')
+    expect(normal).toContain('เริ่มเล่น')
+  })
+})

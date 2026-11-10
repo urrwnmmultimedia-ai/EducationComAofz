@@ -339,7 +339,103 @@ function Stage5({ g }: { g: G }) {
   )
 }
 
-const STAGES = [Stage0, Stage1, Stage2, Stage3, StageFarmer, Stage4, StageDesigner, Stage5]
+// ---------- วิวัฒนาการย่อยช่วงเกรด 0 (10/20/30/40 คะแนน): ลิงน้อยค่อย ๆ โตจนเกือบยืน ----------
+function Spark({ x, y, s = 1, fill = C.gold }: { x: number; y: number; s?: number; fill?: string }) {
+  return <path transform={`translate(${x} ${y}) scale(${s})`} d="M0-6C1-1 1-1 6 0 1 1 1 1 0 6-1 1-1 1-6 0-1-1-1-1 0-6z" fill={fill} />
+}
+
+// ลิงน้อยนั่ง (เหมือนขั้นแรก) ขยับตัวไปตาม dx
+function SitMonkey({ g, dx = 0, tail = true }: { g: G; dx?: number; tail?: boolean }) {
+  return (
+    <g transform={`translate(${dx} 0)`}>
+      {tail && <Limb d="M74 98 C96 100 98 74 86 70 C80 68 77 76 83 78" color={C.fur} w={4} />}
+      <ellipse cx="45" cy="93" rx="5" ry="9" transform="rotate(20 45 93)" fill={C.fur} />
+      <ellipse cx="60" cy="91" rx="16" ry="17" fill={`url(#${g.fur})`} />
+      <ellipse cx="60" cy="94" rx="10" ry="11" fill={C.face} />
+      <ellipse cx="50" cy="107" rx="7" ry="4" fill={C.furDark} />
+      <ellipse cx="70" cy="107" rx="7" ry="4" fill={C.furDark} />
+      <MonkeyHead cx={60} cy={62} r={19} g={g} />
+    </g>
+  )
+}
+
+// 10 ลิงน้อยหัดปีน: เกาะเถาวัลย์ มือหนึ่งเอื้อมขึ้น
+function StageClimb({ g }: { g: G }) {
+  return (
+    <>
+      <Ground />
+      <path d="M92 4 C86 30 98 54 90 80 C86 94 92 104 90 114" fill="none" stroke={C.leafDark} strokeWidth="4" strokeLinecap="round" />
+      {[
+        [94, 22, 30],
+        [86, 46, -30],
+        [95, 70, 35],
+      ].map(([x, y, r]) => (
+        <ellipse key={y} cx={x} cy={y} rx="7" ry="3.5" fill={C.leaf} transform={`rotate(${r} ${x} ${y})`} />
+      ))}
+      <SitMonkey g={g} dx={-8} tail={false} />
+      <Limb d="M64 84 C76 76 84 58 88 44" color={C.fur} w={6} />
+      <circle cx="88.5" cy="43" r="4.2" fill={C.furDark} />
+      <ellipse cx="67" cy="93" rx="5" ry="9" transform="rotate(-20 67 93)" fill={C.fur} />
+    </>
+  )
+}
+
+// 20 ลิงน้อยตาเป็นประกาย: ตาวาว มีประกายรอบหัว
+function StageSparkle({ g }: { g: G }) {
+  return (
+    <>
+      <Ground />
+      <SitMonkey g={g} />
+      <ellipse cx="75" cy="93" rx="5" ry="9" transform="rotate(-20 75 93)" fill={C.fur} />
+      <circle cx="55.2" cy="58.8" r="1.6" fill="#fff" />
+      <circle cx="66.6" cy="58.8" r="1.6" fill="#fff" />
+      <Spark x={30} y={40} s={1.2} />
+      <Spark x={92} y={36} s={1} />
+      <Spark x={86} y={18} s={0.7} fill={C.sky} />
+      <Spark x={36} y={20} s={0.7} fill={C.sky} />
+    </>
+  )
+}
+
+// 30 ลิงน้อยถือกิ่งไม้: ถือกิ่งไม้เป็นเครื่องมือชิ้นแรก
+function StageStick({ g }: { g: G }) {
+  return (
+    <>
+      <Ground />
+      <SitMonkey g={g} dx={-4} />
+      <path d="M78 110 L94 46" stroke={C.wood} strokeWidth="4" strokeLinecap="round" />
+      <path d="M90 62 L100 56" stroke={C.wood} strokeWidth="2.5" strokeLinecap="round" />
+      <ellipse cx="102" cy="54" rx="5" ry="2.6" fill={C.leaf} transform="rotate(-30 102 54)" />
+      <ellipse cx="95" cy="44" rx="4.5" ry="2.4" fill={C.leaf} transform="rotate(60 95 44)" />
+      <Limb d="M66 84 C76 84 82 80 87 74" color={C.fur} w={6} />
+      <circle cx="87.5" cy="73.5" r="4.2" fill={C.furDark} />
+    </>
+  )
+}
+
+// 40 ลิงน้อยใกล้ยืน: ย่อเข่ายืนสองขา มือจับเข่า เกือบลุกยืนได้
+function StageCrouch({ g }: { g: G }) {
+  return (
+    <>
+      <Ground />
+      <Limb d="M78 94 C100 94 102 66 90 62 C84 60 81 68 87 70" color={C.fur} w={4} />
+      <Limb d="M52 92 C44 98 46 104 48 110" color={C.fur} w={8} />
+      <Limb d="M68 92 C76 98 74 104 72 110" color={C.fur} w={8} />
+      <ellipse cx="47" cy="111" rx="7" ry="3.5" fill={C.furDark} />
+      <ellipse cx="73" cy="111" rx="7" ry="3.5" fill={C.furDark} />
+      <ellipse cx="60" cy="80" rx="15" ry="18" fill={`url(#${g.fur})`} />
+      <ellipse cx="60" cy="83" rx="9" ry="12" fill={C.face} />
+      <Limb d="M47 72 C40 84 42 92 48 98" color={C.fur} w={6} />
+      <Limb d="M73 72 C80 84 78 92 72 98" color={C.fur} w={6} />
+      <MonkeyHead cx={60} cy={50} r={18} g={g} />
+      <path d="M98 30v-12M92 24l6-6 6 6" stroke={C.gold} strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <Spark x={24} y={30} s={1} />
+    </>
+  )
+}
+
+// ลำดับภาพ = ลำดับขั้นทั้งหมด (M3_STAGES): ขั้นแรก + ขั้นย่อย 4 ภาพ + ขั้นหลัก 7 ภาพ
+const STAGES = [Stage0, StageClimb, StageSparkle, StageStick, StageCrouch, Stage1, Stage2, Stage3, StageFarmer, Stage4, StageDesigner, Stage5]
 
 export function EvolutionArtM3({ stage, className = '', title }: { stage: number; className?: string; title?: string }) {
   const id = useId().replace(/:/g, '')

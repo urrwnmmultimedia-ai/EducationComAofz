@@ -7,6 +7,10 @@ export type StepKey = (typeof STEP_KEYS)[number]
 // คะแนนเกมขั้นต่ำ (0–100) ที่ถือว่าผ่านขั้น "เกม" ของคาบ
 export const GAME_PASS_SCORE = 50
 
+// ช่องไกด์คำตอบของขั้นเปิดคาบ: ป้ายบอกว่าช่องนี้ให้ตอบอะไร + ตัวอย่างประโยคเริ่ม (ไม่ใช่เฉลย)
+export const guideSlotSchema = z.object({ label: z.string(), hint: z.string().optional() })
+export type GuideSlot = z.infer<typeof guideSlotSchema>
+
 export const stepSchema = z.object({
   key: z.enum(STEP_KEYS),
   label: z.string(),
@@ -16,6 +20,9 @@ export const stepSchema = z.object({
   question: z.string().optional(),
   why: z.string().optional(),
   goals: z.array(z.string()).optional(),
+  // ช่องไกด์คำตอบ แยกตามคำถาม (คำถามใหญ่ question = ชุดแรก · คำถามชวนคิด items[i] = ชุดที่ i)
+  // ข้อมูลเสียให้ถือว่าไม่มี ไม่ทำให้ขั้นตอนทั้งคาบกลายเป็นค่าเริ่มต้น
+  guide: z.array(z.array(guideSlotSchema)).optional().catch(undefined),
 })
 export type SessionStep = z.infer<typeof stepSchema>
 
@@ -55,3 +62,58 @@ export function progressPercent(items: { is_unlocked: boolean; completed_steps: 
   const done = open.reduce((s, i) => s + Math.min(i.completed_steps.length, i.total_steps), 0)
   return Math.round((done / total) * 100)
 }
+
+export interface WarmupQuestion {
+  text: string
+  slots: GuideSlot[]
+}
+
+const FREE_SLOT: GuideSlot = { label: 'คำตอบของฉัน', hint: 'ตอบสั้น ๆ ตามที่คิด ไม่มีถูกผิด' }
+
+// คำถามเปิดคาบพร้อมช่องให้ตอบ: ไม่มีไกด์ = ช่องเดียวต่อคำถาม
+export function warmupQuestions(step: SessionStep): WarmupQuestion[] {
+  const texts = step.question ? [step.question] : (step.items ?? [])
+  return texts.map((text, i) => {
+    const slots = (step.guide?.[i] ?? []).filter((s) => s.label.trim())
+    return { text, slots: slots.length ? slots : [FREE_SLOT] }
+  })
+}
+
+// รวมคำตอบทุกช่องเป็นข้อความเดียว (แสดงตอนสรุปท้ายคาบ)
+export function composeGuess(questions: WarmupQuestion[], answers: string[][]): string {
+  const multi = questions.length > 1
+  return questions
+    .map((q, i) => {
+      const lines = q.slots.flatMap((s, j) => {
+        const a = answers[i]?.[j]?.trim()
+        if (!a) return []
+        return [s === FREE_SLOT ? a : `${s.label}: ${a}`]
+      })
+      if (!lines.length) return ''
+      return multi ? [`${i + 1}. ${q.text}`, ...lines.map((l) => `   ${l}`)].join('\n') : lines.join('\n')
+    })
+    .filter(Boolean)
+    .join('\n')
+}
+
+// ฟอร์มครู: บรรทัดละช่อง "ป้าย | ตัวอย่าง" · บรรทัด "---" = ขึ้นคำถามถัดไป
+export function formatGuide(guide: GuideSlot[][] | undefined): string {
+  return (guide ?? []).map((g) => g.map((s) => (s.hint ? `${s.label} | ${s.hint}` : s.label)).join('\n')).join('\n---\n')
+}
+
+export function parseGuide(text: string): GuideSlot[][] | undefined {
+  const groups = text.split(/^\s*---\s*$/m).map((block) =>
+    block
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l): GuideSlot => {
+        const at = l.indexOf('|')
+        const label = (at >= 0 ? l.slice(0, at) : l).trim()
+        const hint = at >= 0 ? l.slice(at + 1).trim() : ''
+        return hint ? { label, hint } : { label }
+      }),
+  )
+  return groups.some((g) => g.length) ? groups : undefined
+}
+

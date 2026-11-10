@@ -790,6 +790,243 @@
   }
 }
 
+/* ===== บล็อกภาพเคลื่อนไหว/กิจกรรมในบทเรียน ม.3 (flow / sort / order / flip / timeline / bars / widget) ===== */
+@layer components {
+  /* ลูกศรเส้นประวิ่ง: ข้อมูลกำลังไหลจากกล่องหนึ่งไปอีกกล่อง */
+  .tq-flow-line {
+    background-image: repeating-linear-gradient(90deg, currentColor 0 8px, transparent 8px 14px);
+    background-size: 28px 100%;
+    animation: tq-flow-run 900ms linear infinite;
+  }
+  .tq-flow-line-v {
+    background-image: repeating-linear-gradient(180deg, currentColor 0 8px, transparent 8px 14px);
+    background-size: 100% 28px;
+    animation: tq-flow-run-v 900ms linear infinite;
+  }
+  @keyframes tq-flow-run {
+    to {
+      background-position: 28px 0;
+    }
+  }
+  @keyframes tq-flow-run-v {
+    to {
+      background-position: 0 28px;
+    }
+  }
+  /* เลือกผิด: สั่นเบา ๆ */
+  .tq-shake {
+    animation: tq-shake 380ms ease-in-out;
+  }
+  /* การ์ดพลิก 3 มิติ */
+  .tq-flip {
+    perspective: 900px;
+  }
+  .tq-flip-inner {
+    position: relative;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 520ms var(--ease-out-expo);
+  }
+  .tq-flip[data-flipped='true'] .tq-flip-inner {
+    transform: rotateY(180deg);
+  }
+  .tq-flip-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .tq-flip-back {
+    transform: rotateY(180deg);
+  }
+  /* ===== มิติของคาบแบบใหม่: เวทีของขั้น → การ์ดนูน → ลูกแก้วไอคอน ===== */
+  /* เวที: พื้นไล่แสงจากมุมบน ขอบบนสว่าง ขอบล่างหนา เงาลึกด้านล่าง */
+  .tq-stage {
+    position: relative;
+    border-radius: 2rem;
+    background:
+      radial-gradient(120% 90% at 0% 0%, #ffffff 0%, rgb(255 255 255 / 0) 55%),
+      linear-gradient(160deg, var(--color-brand-50) 0%, var(--color-surface) 100%);
+    box-shadow:
+      inset 0 1px 0 #ffffff,
+      inset 0 0 0 1px var(--color-line),
+      0 3px 0 var(--color-brand-200),
+      0 30px 50px -30px rgb(15 31 61 / 0.45);
+  }
+  /* การ์ดนูนบนเวที */
+  .tq-raised {
+    border-radius: 1.5rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+    box-shadow:
+      inset 0 1px 0 #ffffff,
+      0 0 0 1px rgb(31 86 214 / 0.08),
+      0 4px 0 var(--color-brand-200),
+      0 18px 30px -18px rgb(15 31 61 / 0.45);
+  }
+  /* แถบหัวสีน้ำเงินมีประกายและเงาใน */
+  .tq-banner {
+    background:
+      radial-gradient(90% 140% at 100% 0%, rgb(255 255 255 / 0.22) 0%, rgb(255 255 255 / 0) 55%),
+      linear-gradient(135deg, var(--color-action) 0%, var(--color-action-strong) 100%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.3),
+      inset 0 -3px 0 rgb(0 0 0 / 0.18),
+      0 10px 20px -12px rgb(22 63 166 / 0.8);
+  }
+  /* ลูกแก้วไอคอน: ทรงกลมมีแสงสะท้อน */
+  .tq-orb {
+    color: #ffffff;
+    background: radial-gradient(circle at 32% 28%, #9dbaf5 0%, var(--color-action) 55%, var(--color-action-strong) 100%);
+    box-shadow:
+      inset 0 3px 6px rgb(255 255 255 / 0.45),
+      inset 0 -4px 8px rgb(0 0 0 / 0.25),
+      0 8px 16px -6px rgb(31 86 214 / 0.6);
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  }
+  .tq-banner .tq-orb {
+    background: radial-gradient(circle at 32% 28%, #fff6d5 0%, var(--color-gold-400) 55%, var(--color-gold-600) 100%);
+    color: #4a3500;
+    text-shadow: 0 1px 0 rgb(255 255 255 / 0.5);
+  }
+  /* โหมดมืด (DB Quest): เวทีน้ำเงินเข้ม การ์ดนูนสีกลางคืน */
+  .dark .tq-stage {
+    background:
+      radial-gradient(120% 90% at 0% 0%, rgb(95 140 233 / 0.16) 0%, rgb(95 140 233 / 0) 55%),
+      linear-gradient(160deg, var(--color-dq-900) 0%, var(--color-dq-950) 100%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.08),
+      inset 0 0 0 1px var(--color-dq-800),
+      0 3px 0 var(--color-dq-800),
+      0 30px 50px -30px rgb(0 0 0 / 0.8);
+  }
+  .dark .tq-raised {
+    background: linear-gradient(180deg, var(--color-dq-900) 0%, #0e1b3c 100%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.07),
+      0 0 0 1px var(--color-dq-800),
+      0 4px 0 #0b1630,
+      0 18px 30px -18px rgb(0 0 0 / 0.8);
+  }
+  /* ===== การ์ดวิวัฒนาการ (ม.3 + ม.5): การ์ดนูน แท่น รัศมี ตัวละครลอย เหรียญบนเส้นทาง ===== */
+  .tq-evo-card {
+    background:
+      radial-gradient(120% 80% at 0% 0%, #ffffff 0%, rgb(255 255 255 / 0) 60%),
+      radial-gradient(70% 60% at 100% 0%, rgb(249 220 138 / 0.35) 0%, rgb(249 220 138 / 0) 70%),
+      linear-gradient(165deg, #ffffff 0%, var(--color-brand-50) 100%);
+    box-shadow:
+      inset 0 1px 0 #ffffff,
+      0 0 0 1px var(--color-line),
+      0 5px 0 var(--color-brand-200),
+      0 30px 46px -28px rgb(15 31 61 / 0.55);
+  }
+  .dark .tq-evo-card {
+    background:
+      radial-gradient(120% 80% at 0% 0%, rgb(95 140 233 / 0.16) 0%, rgb(95 140 233 / 0) 60%),
+      radial-gradient(70% 60% at 100% 0%, rgb(241 196 67 / 0.14) 0%, rgb(241 196 67 / 0) 70%),
+      linear-gradient(165deg, var(--color-dq-900) 0%, var(--color-dq-950) 100%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.08),
+      0 0 0 1px var(--color-dq-800),
+      0 5px 0 #0b1630,
+      0 30px 46px -28px rgb(0 0 0 / 0.85);
+  }
+  /* ลูกแก้วใส่ตัวละคร: แสงบนซ้าย เงาในล่าง ขอบทอง */
+  .tq-evo-orb {
+    background: radial-gradient(circle at 38% 28%, #ffffff 0%, #eaf3ff 48%, #bcd3fa 100%);
+    box-shadow:
+      inset 0 -10px 18px rgb(31 86 214 / 0.22),
+      inset 0 6px 10px rgb(255 255 255 / 0.9),
+      0 0 0 4px var(--color-gold-300),
+      0 0 0 6px rgb(220 170 22 / 0.35),
+      0 18px 26px -14px rgb(20 45 100 / 0.6);
+  }
+  .dark .tq-evo-orb {
+    background: radial-gradient(circle at 38% 28%, #3a5aa0 0%, var(--color-dq-800) 55%, var(--color-dq-950) 100%);
+  }
+  /* รัศมีทองหมุนช้า ๆ หลังลูกแก้ว */
+  .tq-evo-aura {
+    border-radius: 9999px;
+    background: repeating-conic-gradient(from 0deg, rgb(241 196 67 / 0.5) 0deg 10deg, rgb(241 196 67 / 0) 10deg 30deg);
+    mask: radial-gradient(circle, transparent 42%, #000 46%, #000 60%, transparent 72%);
+    animation: tq-evo-spin 24s linear infinite;
+  }
+  /* แท่นทรงกระบอกใต้ลูกแก้ว */
+  .tq-evo-podium {
+    border-radius: 50%;
+    background: linear-gradient(180deg, var(--color-gold-300) 0%, var(--color-gold-500) 60%, #a67a00 100%);
+    box-shadow:
+      inset 0 2px 0 rgb(255 255 255 / 0.6),
+      0 6px 10px -4px rgb(120 80 0 / 0.6);
+  }
+  /* ตัวละครลอยขึ้นลงเบา ๆ */
+  .tq-evo-float {
+    animation: tq-evo-float 3.4s ease-in-out infinite;
+  }
+  /* แถบความคืบหน้า: แสงวิ่งผ่าน */
+  .tq-evo-shine {
+    position: relative;
+    overflow: hidden;
+  }
+  .tq-evo-shine::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, rgb(255 255 255 / 0) 30%, rgb(255 255 255 / 0.65) 50%, rgb(255 255 255 / 0) 70%);
+    transform: translateX(-100%);
+    animation: tq-evo-sweep 2.8s ease-in-out infinite;
+  }
+  /* เหรียญนูนบนเส้นทางวิวัฒนาการ */
+  .tq-evo-token {
+    display: inline-grid;
+    place-items: center;
+    border-radius: 9999px;
+    background: radial-gradient(circle at 40% 28%, #ffffff 0%, #eef4ff 55%, #cfe0fb 100%);
+    box-shadow:
+      inset 0 -3px 5px rgb(31 86 214 / 0.16),
+      0 2px 0 var(--color-brand-200),
+      0 6px 10px -6px rgb(20 45 100 / 0.5);
+  }
+  .dark .tq-evo-token {
+    background: radial-gradient(circle at 40% 28%, #34508f 0%, var(--color-dq-800) 60%, var(--color-dq-950) 100%);
+    box-shadow:
+      inset 0 -3px 5px rgb(0 0 0 / 0.35),
+      0 2px 0 #0b1630;
+  }
+  .tq-evo-token--now {
+    background: radial-gradient(circle at 40% 28%, #fff8dc 0%, var(--color-gold-300) 60%, var(--color-gold-500) 100%);
+    box-shadow:
+      inset 0 -3px 5px rgb(166 122 0 / 0.35),
+      0 2px 0 #a67a00,
+      0 0 16px rgb(241 196 67 / 0.75);
+    animation: tq-evo-float 3.4s ease-in-out infinite;
+  }
+  @keyframes tq-evo-spin {
+    to {
+      rotate: 360deg;
+    }
+  }
+  @keyframes tq-evo-float {
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+  @keyframes tq-evo-sweep {
+    60%,
+    100% {
+      transform: translateX(100%);
+    }
+  }
+  /* กล่องที่กำลังทำงาน: เรืองแสงเป็นจังหวะ */
+  .tq-glow {
+    animation: tq-glow 1.2s ease-in-out infinite;
+  }
+  @keyframes tq-glow {
+    50% {
+      box-shadow: 0 0 0 6px rgb(31 86 214 / 0.18), 0 10px 24px -8px rgb(31 86 214 / 0.55);
+    }
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

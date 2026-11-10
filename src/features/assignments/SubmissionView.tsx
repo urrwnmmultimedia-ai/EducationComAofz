@@ -42,7 +42,12 @@ export function SubmissionView({
           </table>
         </div>
       )}
-      {content.text && <p className="whitespace-pre-wrap rounded-2xl bg-brand-50 p-4">{content.text}</p>}
+      {content.text && (
+        <p className="whitespace-pre-wrap rounded-2xl bg-brand-50 p-4">
+          {assignment.type === 'table' && config.topic && <span className="font-display text-brand-700">{config.topic.label}: </span>}
+          {content.text}
+        </p>
+      )}
       {content.url && (
         <a href={content.url} target="_blank" rel="noopener noreferrer" className="break-all text-brand-700 underline">
           {content.url}

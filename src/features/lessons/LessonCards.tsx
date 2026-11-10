@@ -4,6 +4,8 @@ import { Button } from '@/components/Button'
 import { Doctor } from '@/components/characters/Characters'
 import { EmptyBlock } from '@/components/StatusViews'
 import { Markdown } from './Markdown'
+import { BarsBlock, FlipBlock, FlowBlock, OrderBlock, SortBlock, TimelineBlock } from './ActivityBlocks'
+import { LESSON_WIDGETS } from './LessonWidgets'
 import { splitCards, type Segment } from './lessonFormat'
 
 export function SegmentView({ segment, onSolved, solved }: { segment: Segment; onSolved?: () => void; solved?: boolean }) {
@@ -47,6 +49,22 @@ export function SegmentView({ segment, onSolved, solved }: { segment: Segment; o
           initialSolved={solved}
         />
       )
+    case 'flow':
+      return <FlowBlock prompt={segment.prompt} nodes={segment.nodes} cycle={segment.cycle} />
+    case 'sort':
+      return <SortBlock prompt={segment.prompt} groups={segment.groups} items={segment.items} />
+    case 'order':
+      return <OrderBlock prompt={segment.prompt} items={segment.items} />
+    case 'flip':
+      return <FlipBlock prompt={segment.prompt} cards={segment.cards} />
+    case 'timeline':
+      return <TimelineBlock prompt={segment.prompt} events={segment.events} />
+    case 'bars':
+      return <BarsBlock prompt={segment.prompt} unit={segment.unit} log={segment.log} bars={segment.bars} />
+    case 'widget': {
+      const Widget = LESSON_WIDGETS[segment.name]
+      return Widget ? <Widget /> : <p className="my-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">ไม่พบสื่อโต้ตอบชื่อ “{segment.name}”</p>
+    }
     case 'embed':
       return segment.embedUrl ? (
         <div className="my-4 aspect-video overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-brand-100">
@@ -179,11 +197,13 @@ export function LessonCards({
   markdown,
   onFinished,
   locked = false,
+  depth = false,
 }: {
   title: string
   markdown: string
   onFinished?: () => void
   locked?: boolean
+  depth?: boolean // การ์ดนูนมีมิติ พลิกเข้า-ออกแบบ 3 มิติ (คาบแบบใหม่)
 }) {
   const cards = useMemo(() => splitCards(markdown, title), [markdown, title])
   const [index, setIndex] = useState(0)
@@ -241,21 +261,38 @@ export function LessonCards({
         ))}
       </div>
 
-      <div className="overflow-hidden">
+      <div className={depth ? 'overflow-hidden px-1 pb-3 pt-1' : 'overflow-hidden'}>
         <AnimatePresence mode="wait" initial={false} custom={direction}>
           <motion.article
             key={safeIndex}
             custom={direction}
-            initial={{ opacity: 0, x: direction * 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: direction * -40 }}
-            transition={{ duration: 0.2 }}
-            className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100 sm:p-7"
+            initial={depth ? { opacity: 0, x: direction * 60, rotateY: direction * -14 } : { opacity: 0, x: direction * 40 }}
+            animate={depth ? { opacity: 1, x: 0, rotateY: 0 } : { opacity: 1, x: 0 }}
+            exit={depth ? { opacity: 0, x: direction * -60, rotateY: direction * 14 } : { opacity: 0, x: direction * -40 }}
+            transition={{ duration: depth ? 0.32 : 0.2 }}
+            style={depth ? { transformPerspective: 1400 } : undefined}
+            className={depth ? 'tq-raised p-5 sm:p-7' : 'rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100 sm:p-7'}
           >
-            <p className="text-sm text-brand-500">
-              การ์ด {safeIndex + 1} / {cards.length}
-            </p>
-            <h2 className="mb-2 text-xl text-brand-900 sm:text-2xl">{card.title}</h2>
+            {depth ? (
+              <div className="mb-3 flex items-center gap-3">
+                <span className="tq-orb grid size-10 shrink-0 place-items-center rounded-xl font-display" aria-hidden>
+                  {safeIndex + 1}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold tracking-wider text-action">
+                    การ์ด {safeIndex + 1} / {cards.length}
+                  </p>
+                  <h2 className="text-xl leading-snug text-brand-900 sm:text-2xl">{card.title}</h2>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-brand-500">
+                  การ์ด {safeIndex + 1} / {cards.length}
+                </p>
+                <h2 className="mb-2 text-xl text-brand-900 sm:text-2xl">{card.title}</h2>
+              </>
+            )}
             {card.segments.map((seg, i) => (
               <SegmentView key={i} segment={seg} solved={solved.has(`${safeIndex}:${i}`)} onSolved={() => onSolved(i)} />
             ))}

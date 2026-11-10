@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type SubmissionContent, isContentEmpty, isValidHttpUrl, normalizeRows, parseTableConfig, storagePath, validateFile } from './assignmentModel'
+import { type SubmissionContent, guidedProgress, isContentEmpty, isGuidedTable, isValidHttpUrl, normalizeRows, parseTableConfig, storagePath, validateFile } from './assignmentModel'
 
 describe('table', () => {
   it('config เสียใช้ค่าเริ่มต้น', () => {
@@ -44,5 +44,31 @@ describe('isValidHttpUrl', () => {
   it('รับเฉพาะ http/https', () => {
     expect(isValidHttpUrl('https://canva.com/x')).toBe(true)
     expect(isValidHttpUrl('javascript:alert(1)')).toBe(false)
+  })
+})
+
+describe('ใบงานตารางแบบไกด์', () => {
+  const config = parseTableConfig({
+    columns: ['ช่วงเวลา', 'ลักษณะ', 'ปัจจัย'],
+    rows: 2,
+    rowLabels: ['อดีต', 'ปัจจุบัน'],
+    topic: { label: 'เทคโนโลยีที่เลือก' },
+    chips: 'พัง',
+  })
+  it('ไกด์ที่เขียนผิดไม่ทำให้ตารางเป็นค่าเริ่มต้น', () => {
+    expect(config.columns).toHaveLength(3)
+    expect(config.chips).toBeUndefined()
+    expect(isGuidedTable(config)).toBe(true)
+    expect(isGuidedTable(parseTableConfig({ columns: ['ก'], rows: 1 }))).toBe(false)
+  })
+  it('ป้ายแถวกรอกให้เองในคอลัมน์แรก', () => {
+    expect(normalizeRows([['พิมพ์ทับ', 'ก', '']], config)).toEqual([
+      ['อดีต', 'ก', ''],
+      ['ปัจจุบัน', '', ''],
+    ])
+  })
+  it('นับช่องที่ต้องกรอก (ไม่นับป้ายแถว รวมช่องเลือกเรื่อง)', () => {
+    expect(guidedProgress(config, { rows: [['อดีต', 'ก', 'ข'], ['', 'ค', '']] })).toEqual({ filled: 3, total: 5 })
+    expect(guidedProgress(config, { text: 'โทรศัพท์', rows: [['', 'ก', 'ข'], ['', 'ค', 'ง']] })).toEqual({ filled: 5, total: 5 })
   })
 })

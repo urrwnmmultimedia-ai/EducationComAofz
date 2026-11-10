@@ -118,7 +118,7 @@ export function DbqAdminStudentDetail() {
       </Link>
       <PageHeader title={displayName(d.student)}>
         <span className="text-slate-500">
-          {d.student.classroom_name} · เลขที่ {d.student.number ?? '-'} · รหัส {d.student.student_code} · วิวัฒนาการขั้น {evo.index + 1} {evo.stage.name}
+          {d.student.classroom_name} · เลขที่ {d.student.number ?? '-'} · รหัส {d.student.student_code} · วิวัฒนาการขั้น {evo.main + 1}{evo.stage.minor ? `.${evo.stage.minor}` : ''} {evo.stage.name}
         </span>
       </PageHeader>
 

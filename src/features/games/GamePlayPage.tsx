@@ -33,10 +33,11 @@ interface GameViewProps {
   backTo: string
   backLabel: string
   onStepDone?: (completed: string[]) => void // ฝังในหน้าคาบ: แจ้งขั้นที่ทำเสร็จหลังบันทึกขั้นเกม
+  autoStart?: boolean // เริ่มเกมทันทีโดยไม่ต้องกด "เริ่มเล่น"
 }
 
 // ตัวเกมพร้อมโหลดข้อมูลและส่งผล — ใช้ทั้งหน้าเกมเดี่ยว และฝังในขั้น "เกม" ของหน้าคาบ
-export function GameView({ slug, preview, sessionNo, backTo, backLabel, onStepDone }: GameViewProps) {
+export function GameView({ slug, preview, sessionNo, backTo, backLabel, onStepDone, autoStart }: GameViewProps) {
   const state = useAsync(() => fetchGame(slug), [slug])
   const onSubmit = useCallback(
     async (score: number, duration: number) => {
@@ -74,6 +75,7 @@ export function GameView({ slug, preview, sessionNo, backTo, backLabel, onStepDo
       maxXp={state.data.max_xp}
       passScore={sessionNo || onStepDone ? GAME_PASS_SCORE : undefined}
       embedded={!!onStepDone}
+      autoStart={autoStart}
     />
   )
 }

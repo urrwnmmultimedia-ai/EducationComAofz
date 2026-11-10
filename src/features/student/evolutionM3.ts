@@ -1,7 +1,7 @@
 import { scoreEvolutionOf, withGradeBands, type ScoreEvo, type ScoreStage } from '@/components/evolution/scoreEvolution'
 
 // วิวัฒนาการของ ม.3: จาก "ลิงน้อย" สู่ "มนุษย์นักเทคโนโลยี" ตามคะแนนรวมในสมุดคะแนน (0–100)
-// 8 ขั้น = ระดับผลการเรียน 0, 1, 1.5, 2, 2.5, 3, 3.5, 4
+// 8 ขั้นหลัก = ระดับผลการเรียน 0, 1, 1.5, 2, 2.5, 3, 3.5, 4 · ช่วงเกรด 0 มีขั้นย่อยทุก 10 คะแนน
 
 export const M3_STAGES: ScoreStage[] = withGradeBands([
   { name: 'ลิงน้อย', tagline: 'เพิ่งเริ่มต้นการเดินทาง' },
@@ -12,6 +12,12 @@ export const M3_STAGES: ScoreStage[] = withGradeBands([
   { name: 'มนุษย์นักประดิษฐ์', tagline: 'ออกแบบและสร้างสิ่งใหม่ได้' },
   { name: 'มนุษย์นักออกแบบ', tagline: 'คิดไอเดียแล้วร่างแบบให้คนอื่นเข้าใจ' },
   { name: 'มนุษย์นักเทคโนโลยี', tagline: 'ใช้เทคโนโลยีอย่างเข้าใจและสร้างสรรค์' },
+], [
+  // วิวัฒนาการย่อยก่อนผ่านเกณฑ์ (10/20/30/40 คะแนน)
+  { name: 'ลิงน้อยหัดปีน', tagline: 'เก็บคะแนนแรก ๆ ได้แล้ว' },
+  { name: 'ลิงน้อยตาเป็นประกาย', tagline: 'สนใจเรียนมากขึ้นทุกคาบ' },
+  { name: 'ลิงน้อยถือกิ่งไม้', tagline: 'เริ่มหยิบเครื่องมือชิ้นแรก' },
+  { name: 'ลิงน้อยใกล้ยืน', tagline: 'อีกนิดเดียวจะผ่านเกณฑ์' },
 ])
 
 export const m3EvolutionOf = (score: number): ScoreEvo => scoreEvolutionOf(score, M3_STAGES)

@@ -34,7 +34,8 @@ export const scoresSchema = z.object({
 export type Scores = z.infer<typeof scoresSchema>
 
 // คะแนนสำหรับวิวัฒนาการ
-export const evoScore = (s: Scores): number => s.so_far ?? s.total
+// วิวัฒนาการใช้คะแนนรวมเดียวกับสมุดคะแนน (เกรดในการ์ดจึงตรงกับหน้าคะแนน)
+export const evoScore = (s: Scores): number => s.total
 
 export const briefSchema = z.object({
   id: z.string(),

@@ -8,7 +8,8 @@ import { useAsync } from '@/lib/useAsync'
 import { isLate } from '@/lib/scoring'
 import { Markdown } from '@/features/lessons/Markdown'
 import { dueCountdown } from '@/features/student/studentApi'
-import { parseRubric } from './assignmentModel'
+import { isGuidedTable, parseRubric } from './assignmentModel'
+import { GuidedWorksheet } from './GuidedWorksheet'
 import { fetchAssignmentForStudent } from './assignmentsApi'
 import { FileList } from './SubmissionView'
 import { useAssignmentForm } from './useAssignmentForm'
@@ -76,6 +77,9 @@ function AssignmentForm({
   const late = sub?.submitted_at ? isLate({ dueAt: assignment.due_at }, { submittedAt: sub.submitted_at }) : false
   const scoreOnly = assignment.type === 'score_only'
   const due = dueCountdown(assignment.due_at)
+  // ใบงานแบบไกด์: การ์ดนูนมีมิติ ทำทีละขั้น
+  const guided = assignment.type === 'table' && isGuidedTable(f.tableConfig)
+  const card = guided ? 'tq-raised p-5 sm:p-7' : 'rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100 sm:p-7'
 
   return (
     <div className="flex flex-col gap-5">
@@ -96,7 +100,7 @@ function AssignmentForm({
         </nav>
       )}
 
-      <header className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100 sm:p-7">
+      <header className={card}>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="rounded-full bg-brand-100 px-3 py-0.5 text-brand-700">คะแนนเต็ม {Number(assignment.max_score)}</span>
           {!scoreOnly && (
@@ -107,7 +111,14 @@ function AssignmentForm({
           {sub && <span className={`rounded-full px-3 py-0.5 ${STATUS_LABEL[sub.status].cls}`}>{STATUS_LABEL[sub.status].text}</span>}
           {late && <span className="rounded-full bg-rose-100 px-3 py-0.5 text-rose-700">ส่งช้า</span>}
         </div>
-        <h1 className="mt-2 text-2xl text-brand-900">{assignment.title}</h1>
+        <h1 className={`mt-2 text-2xl text-brand-900 ${guided ? 'flex items-center gap-3' : ''}`}>
+          {guided && (
+            <span className="tq-orb grid size-11 shrink-0 place-items-center rounded-2xl text-xl" aria-hidden>
+              📝
+            </span>
+          )}
+          {assignment.title}
+        </h1>
         {assignment.instructions_md && (
           <div className="mt-2">
             <Markdown text={assignment.instructions_md} />
@@ -145,8 +156,10 @@ function AssignmentForm({
           รายการนี้เป็นคะแนนจากการสอบหรือครูให้คะแนนในห้อง ไม่ต้องส่งงานในเว็บ
         </section>
       ) : (
-        <section className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100 sm:p-7">
-          <h2 className="text-lg text-brand-900">คำตอบของฉัน</h2>
+        <section className={guided ? 'flex flex-col gap-4' : 'flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100 sm:p-7'}>
+          {!guided && <h2 className="text-lg text-brand-900">คำตอบของฉัน</h2>}
+
+          {guided && <GuidedWorksheet config={f.tableConfig} content={f.content} locked={f.locked} onChange={f.update} />}
 
           {assignment.type === 'text' && (
             <textarea
@@ -159,7 +172,7 @@ function AssignmentForm({
             />
           )}
 
-          {assignment.type === 'table' && (
+          {assignment.type === 'table' && !guided && (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[540px] text-sm">
                 <thead>
@@ -260,7 +273,7 @@ function AssignmentForm({
 
           {preview && <p className="rounded-2xl bg-sun-300/40 px-4 py-2 text-sm text-amber-900">โหมดครู: นักเรียนจะพิมพ์คำตอบและกดส่งงานตรงนี้</p>}
           {!f.locked && !preview && (
-            <div className="flex flex-wrap items-center gap-3">
+            <div className={`flex flex-wrap items-center gap-3 ${guided ? 'tq-raised p-4' : ''}`}>
               <Button loading={f.status === 'saving'} disabled={f.busy} onClick={() => void f.save('submitted')}>
                 {sub?.status === 'submitted' ? 'ส่งงานอีกครั้ง (อัปเดต)' : 'ส่งงาน'}
               </Button>

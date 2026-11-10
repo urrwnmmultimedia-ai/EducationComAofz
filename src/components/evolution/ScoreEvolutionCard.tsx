@@ -1,7 +1,8 @@
 import type { ComponentType, ReactNode } from 'react'
 import { Link } from 'react-router'
 import { EvolutionCelebrationModal, useEvolutionCelebration } from './EvolutionCelebration'
-import { scoreEvolutionOf, type ScoreStage } from './scoreEvolution'
+import { computeGrade, formatGrade, type GradeStep } from '@/lib/grade'
+import { GRADE_BANDS, scoreEvolutionOf, type ScoreStage } from './scoreEvolution'
 
 type Art = ComponentType<{ stage: number; className?: string; title?: string }>
 
@@ -26,7 +27,7 @@ function Tile({ icon, label, value, tone }: { icon: string; label: string; value
   )
 }
 
-// การ์ดวิวัฒนาการตามคะแนนที่ทำได้ตอนนี้ 0–100 (เฉพาะคาบที่ครูเปิดแล้ว) (ม.3 ลิง → คน · ม.5 ควาย → คน): ตัวละครขั้นปัจจุบันบนแท่น + แถบไปขั้นถัดไป + เส้นทาง 8 ขั้น (= เกรด 0–4)
+// การ์ดวิวัฒนาการตามคะแนนที่ทำได้ตอนนี้ 0–100 (ช่วง 0–49 มีขั้นย่อยทุก 10 คะแนน) (เฉพาะคาบที่ครูเปิดแล้ว) (ม.3 ลิง → คน · ม.5 ควาย → คน): ตัวละครขั้นปัจจุบันบนแท่น + แถบไปขั้นถัดไป + เส้นทาง 8 ขั้น (= เกรด 0–4)
 // compact: การ์ดเล็กในหน้าหลัก สูงเต็มกรอบที่ให้ (ห่อด้วย EvolutionSlot) แต่ละแถวอยู่บรรทัดเดียว และกระจายแถวเต็มการ์ดไม่เหลือที่ว่าง
 // celebrateKey: ขึ้นขั้นใหม่แล้วเปิดหน้าต่างแสดงความยินดีกลางจอ (null = ไม่ฉลอง เช่น ครูดูตัวอย่าง)
 export function ScoreEvolutionCard({
@@ -35,6 +36,7 @@ export function ScoreEvolutionCard({
   art: ArtC,
   pathLabel,
   celebrateKey = null,
+  gradeScale,
   footer,
   info,
   compact = false,
@@ -45,35 +47,41 @@ export function ScoreEvolutionCard({
   art: Art
   pathLabel: string
   celebrateKey?: string | null
+  // เกณฑ์เกรดของครู (app_settings) — ไม่ส่ง = เกณฑ์มาตรฐาน
+  gradeScale?: readonly GradeStep[]
   footer?: ReactNode
   info?: EvoInfo
   compact?: boolean
   className?: string
 }) {
   const e = scoreEvolutionOf(score, stages)
-  const total = stages.length
+  const mains = stages.filter((s) => s.minor === 0).length
   const party = useEvolutionCelebration(celebrateKey, e.index)
+  // เกรดคิดแบบเดียวกับสมุดคะแนน (คะแนนรวม + เกณฑ์ของครู) ตัวเลขจึงตรงกันทุกหน้า
+  const grade = formatGrade(computeGrade(score, gradeScale))
+  const gradeLabel = GRADE_BANDS.find((b) => b.grade === grade)?.gradeLabel
   return (
     <section
-      className={`relative flex flex-col overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-white via-white to-brand-50 shadow-raise ring-1 ring-line dark:from-dq-900 dark:via-dq-900 dark:to-dq-950 dark:ring-dq-800 ${compact ? 'h-full justify-between gap-2 p-4' : 'gap-5 p-5 sm:p-6'} ${className}`}
+      className={`tq-evo-card relative flex flex-col overflow-hidden rounded-[1.75rem] ${compact ? 'h-full justify-between gap-2 p-4' : 'gap-5 p-5 sm:p-6'} ${className}`}
     >
       <span className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-gold-300/25 blur-3xl" aria-hidden />
       <div className={`relative flex items-center ${compact ? 'gap-3' : 'flex-wrap gap-4 sm:gap-6'}`}>
-        {/* ตัวละครบนแท่นเหรียญ */}
-        <div className="relative shrink-0">
-          <div
-            className={`grid place-items-center rounded-full bg-[radial-gradient(circle_at_50%_32%,#ffffff,#eaf3ff_55%,#c9ddfb)] shadow-[inset_0_-8px_16px_rgb(31_86_214/0.18),0_16px_30px_-14px_rgb(20_45_100/0.6)] ${
-              compact ? 'size-16 ring-[3px] ring-gold-300' : 'size-32 ring-4 ring-gold-300 sm:size-36'
-            }`}
-          >
-            <ArtC
-              stage={e.index}
-              className={`drop-shadow-[0_6px_6px_rgb(20_45_100/0.25)] ${compact ? 'size-14' : 'size-28 sm:size-32'}`}
-              title={e.stage.name}
-            />
+        {/* ตัวละครลอยอยู่บนแท่นทรงกระบอก มีรัศมีทองหมุนช้า ๆ ด้านหลัง */}
+        <div className={`relative shrink-0 ${compact ? 'pb-1' : 'pb-3'}`}>
+          <span aria-hidden className={`tq-evo-aura pointer-events-none absolute left-1/2 -translate-x-1/2 ${compact ? '-top-1 size-[4.5rem]' : '-top-2 size-40 sm:size-44'}`} />
+          <div className={`tq-evo-orb relative grid place-items-center rounded-full ${compact ? 'size-16' : 'size-32 sm:size-36'}`}>
+            <span className="tq-evo-float grid place-items-center">
+              <ArtC
+                stage={e.index}
+                className={`drop-shadow-[0_8px_6px_rgb(20_45_100/0.28)] ${compact ? 'size-14' : 'size-28 sm:size-32'}`}
+                title={e.stage.name}
+              />
+            </span>
           </div>
+          <span aria-hidden className={`tq-evo-podium absolute left-1/2 -translate-x-1/2 ${compact ? 'bottom-0 h-2.5 w-14' : 'bottom-0 h-4 w-28 sm:w-32'}`} />
           <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-b from-gold-300 to-gold-400 px-2 py-px text-[0.65rem] font-bold text-ink dark:text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.6),0_4px_10px_-4px_rgb(180_130_0/0.7)] ring-1 ring-gold-500/50">
-            ขั้น {e.index + 1}/{total}
+            ขั้น {e.main + 1}/{mains}
+            {e.stage.minor > 0 && ` · ย่อย ${e.stage.minor}`}
           </span>
         </div>
 
@@ -81,13 +89,14 @@ export function ScoreEvolutionCard({
           <p className="flex items-center gap-1.5 whitespace-nowrap text-xs text-ink-2 dark:text-dq-300">
             วิวัฒนาการของฉัน
             <span className="truncate rounded-full bg-gold-300/50 px-2 py-px font-semibold text-ink dark:text-white">
-              เกรด {e.stage.grade} · {e.stage.gradeLabel}
+              เกรด {grade}
+              {gradeLabel && ` · ${gradeLabel}`}
             </span>
           </p>
           <p className={`flex items-baseline gap-2 font-bold leading-tight text-ink dark:text-white ${compact ? 'text-lg' : 'text-2xl sm:text-[1.7rem]'}`}>
             <span className="truncate">{e.stage.name}</span>
-            <span className="shrink-0 rounded-full bg-action-soft px-2 py-0.5 text-xs font-semibold text-action-strong" title="คะแนนที่ทำได้ตอนนี้ คิดจากคาบที่ครูเปิดแล้ว">
-              ทำได้ <span className="font-display tabular-nums">{fmt(score)}</span>%
+            <span className="shrink-0 rounded-full bg-action-soft px-2 py-0.5 text-xs font-semibold text-action-strong" title="คะแนนรวมจาก 100 คะแนน (เท่ากับในสมุดคะแนน)">
+              <span className="font-display tabular-nums">{fmt(score)}</span>/100
             </span>
           </p>
           <p className="mt-0.5 truncate text-sm text-ink-2 dark:text-dq-300">{e.stage.tagline}</p>
@@ -112,7 +121,7 @@ export function ScoreEvolutionCard({
               aria-valuemax={100}
             >
               <div
-                className="h-full rounded-full bg-gradient-to-r from-action to-gold-400 shadow-[0_0_10px_rgb(241_196_67/0.55)] transition-[width] duration-700"
+                className="tq-evo-shine h-full rounded-full bg-gradient-to-r from-action to-gold-400 shadow-[0_0_10px_rgb(241_196_67/0.55)] transition-[width] duration-700"
                 style={{ width: `${Math.max(e.progress * 100, 3)}%` }}
               />
             </div>
@@ -156,13 +165,27 @@ export function ScoreEvolutionCard({
         <span className="pointer-events-none absolute inset-x-6 bottom-6 h-1 rounded-full bg-gradient-to-r from-amber-700/30 via-action/30 to-gold-400/60" aria-hidden />
         {stages.map((s, i) => {
           const reached = i <= e.index
+          if (s.minor > 0) {
+            return (
+              <li key={s.name} className="relative flex flex-col items-center gap-0.5 self-end" title={`${s.name} · ทำได้ ${s.minScore}% ขึ้นไป`}>
+                <span className={`tq-evo-token grid place-items-center ${i === e.index ? 'tq-evo-token--now' : ''} ${compact ? 'size-5' : 'size-7'}`}>
+                  <ArtC stage={s.art} className={`${compact ? 'size-4' : 'size-6'} ${reached ? '' : 'opacity-25 brightness-0 dark:opacity-30 dark:invert'}`} />
+                </span>
+                <span className={`tabular-nums ${compact ? 'invisible text-[0.65rem]' : 'text-[0.6rem]'} ${i === e.index ? 'font-semibold text-gold-600' : 'text-slate-400'}`}>{s.minScore}</span>
+                <span className="sr-only">
+                  {s.name}
+                  {i === e.index ? ' (ขั้นปัจจุบัน)' : reached ? ' (ผ่านแล้ว)' : ' (ยังไม่ถึง)'}
+                </span>
+              </li>
+            )
+          }
           const sizes = compact
             ? ['size-6', 'size-6', 'size-7', 'size-7', 'size-8', 'size-8', 'size-9', 'size-9']
             : ['size-8', 'size-9', 'size-9', 'size-10', 'size-11', 'size-12', 'size-[3.25rem]', 'size-14']
           return (
             <li key={s.name} className="relative flex flex-1 flex-col items-center gap-0.5" title={`${s.name} · ทำได้ ${s.minScore}% ขึ้นไป · เกรด ${s.grade}`}>
-              <span className={`rounded-full p-0.5 ${i === e.index ? 'bg-gold-300/50 shadow-[0_0_14px_rgb(241_196_67/0.6)] ring-2 ring-gold-400' : ''}`}>
-                <ArtC stage={i} className={`${sizes[i] ?? 'size-9'} ${reached ? '' : 'opacity-25 brightness-0'}`} />
+              <span className={`tq-evo-token p-0.5 ${i === e.index ? 'tq-evo-token--now' : ''}`}>
+                <ArtC stage={s.art} className={`${sizes[s.main] ?? 'size-9'} ${reached ? '' : 'opacity-25 brightness-0 dark:opacity-30 dark:invert'}`} />
               </span>
               <span className={`text-[0.65rem] font-semibold tabular-nums ${i === e.index ? 'text-gold-600' : reached ? 'text-ink-2 dark:text-dq-300' : 'text-slate-400'}`}>{s.minScore}</span>
               <span className="sr-only">

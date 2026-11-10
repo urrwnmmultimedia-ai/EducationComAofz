@@ -2,7 +2,7 @@ import { scoreEvolutionOf, withGradeBands, type ScoreEvo, type ScoreStage } from
 
 // วิวัฒนาการของ DB Quest (ม.5): จาก "เจ้าทุยน้อย" (ควายไทย) สู่ "มนุษย์ฐานข้อมูล" ตามคะแนนสะสม 0–100 (เกณฑ์ขั้นเดียวกับ ม.3)
 
-// 8 ขั้น = ระดับผลการเรียน 0, 1, 1.5, 2, 2.5, 3, 3.5, 4
+// 8 ขั้นหลัก = ระดับผลการเรียน 0, 1, 1.5, 2, 2.5, 3, 3.5, 4 · ช่วงเกรด 0 มีขั้นย่อยทุก 10 คะแนน
 export const EVO_STAGES: ScoreStage[] = withGradeBands([
   { name: 'เจ้าทุยน้อย', tagline: 'เพิ่งก้าวเข้าโลกข้อมูล' },
   { name: 'ทุยช่างสงสัย', tagline: 'เริ่มตั้งคำถามกับข้อมูลรอบตัว' },
@@ -12,6 +12,12 @@ export const EVO_STAGES: ScoreStage[] = withGradeBands([
   { name: 'ทุยถือกุญแจ', tagline: 'เลือกคีย์หลักและคีย์นอกได้ถูกต้อง' },
   { name: 'ครึ่งทุยครึ่งคน', tagline: 'จัดระเบียบข้อมูลและเริ่มเขียน SQL' },
   { name: 'มนุษย์ฐานข้อมูล', tagline: 'สร้างและดูแลฐานข้อมูลได้ครบวงจร' },
+], [
+  // วิวัฒนาการย่อยก่อนผ่านเกณฑ์ (10/20/30/40 คะแนน)
+  { name: 'ทุยน้อยหัดเดิน', tagline: 'เก็บคะแนนแรก ๆ ได้แล้ว' },
+  { name: 'ทุยน้อยหูผึ่ง', tagline: 'ตั้งใจฟังทุกคาบ' },
+  { name: 'ทุยน้อยคาบดินสอ', tagline: 'เริ่มจดข้อมูลเป็น' },
+  { name: 'ทุยน้อยใกล้ผ่าน', tagline: 'อีกนิดเดียวจะผ่านเกณฑ์' },
 ])
 
 export const evolutionOf = (score: number): ScoreEvo => scoreEvolutionOf(score, EVO_STAGES)

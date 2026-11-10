@@ -31,12 +31,13 @@ interface Props {
   maxXp?: number // ไม่แสดงแล้ว (เลิกใช้ XP)
   passScore?: number // เล่นในคาบ: ต่ำกว่านี้ยังไม่ผ่าน ต้องเล่นใหม่ก่อนไปขั้นต่อไป
   embedded?: boolean // ฝังในหน้าคาบ: ไม่มีลิงก์กลับ ผ่านแล้วหน้าคาบพาไปขั้นถัดไปเอง
+  autoStart?: boolean // ข้ามหน้าคำอธิบาย เริ่มนับถอยหลังทันที (มาจากขั้นบทเรียนในคาบ)
 }
 
 // โครงเกมกลาง: คำอธิบาย → นับถอยหลัง 3-2-1 → เล่น → สรุปผล (คะแนน เฉลยข้อผิด) → เล่นอีกครั้ง
-export function GameShell({ title, description, config, Game, onSubmit, backTo, backLabel = 'กลับบทเรียน', passScore, embedded = false }: Props) {
+export function GameShell({ title, description, config, Game, onSubmit, backTo, backLabel = 'กลับบทเรียน', passScore, embedded = false, autoStart = false }: Props) {
   const sfx = useSfx()
-  const [phase, setPhase] = useState<Phase>('intro')
+  const [phase, setPhase] = useState<Phase>(autoStart ? 'countdown' : 'intro')
   const [round, setRound] = useState(0)
   const [outcome, setOutcome] = useState<GameOutcome | null>(null)
   const [submit, setSubmit] = useState<{ status: 'saving' | 'saved' | 'error'; result?: SubmitResult; message?: string } | null>(null)
@@ -105,7 +106,17 @@ export function GameShell({ title, description, config, Game, onSubmit, backTo, 
         </section>
       )}
 
-      {phase === 'countdown' && <Countdown sfx={sfx} onDone={() => setPhase('playing')} />}
+      {phase === 'countdown' && (
+        <>
+          {autoStart && round === 0 && (
+            <div className="rounded-2xl bg-brand-50 px-4 py-3 text-center ring-1 ring-brand-100">
+              <p className="font-display text-brand-900">🎮 {title}</p>
+              <p className="text-sm text-slate-600">{config.instructions}</p>
+            </div>
+          )}
+          <Countdown sfx={sfx} onDone={() => setPhase('playing')} />
+        </>
+      )}
 
       {phase === 'playing' && (
         <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-brand-100 sm:p-6">

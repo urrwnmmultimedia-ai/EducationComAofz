@@ -73,3 +73,52 @@ describe('toEmbedUrl', () => {
     },
   )
 })
+
+describe('บล็อกภาพเคลื่อนไหว/กิจกรรม', () => {
+  it('flow: ไอคอน | ชื่อ | คำอธิบาย และ cycle', () => {
+    expect(parseSegments(':::flow cycle\nดูการทำงาน\n- 🗑️ | เซนเซอร์ | วัดขยะ\n- 🚛 | รถ | ไปเก็บ\n:::')).toEqual([
+      {
+        kind: 'flow',
+        prompt: 'ดูการทำงาน',
+        cycle: true,
+        nodes: [
+          { icon: '🗑️', label: 'เซนเซอร์', detail: 'วัดขยะ' },
+          { icon: '🚛', label: 'รถ', detail: 'ไปเก็บ' },
+        ],
+      },
+    ])
+  })
+  it('sort: กลุ่ม และข้อความ => กลุ่ม (ข้อที่กลุ่มไม่ตรงถูกตัดทิ้ง)', () => {
+    const [seg] = parseSegments(':::sort\nจัดกลุ่ม\nกลุ่ม: เร็ว | หน่วงต่ำ\n- ดูหนัง 4K => เร็ว\n- รถเบรก => หน่วงต่ำ\n- ผิด => ไม่มีกลุ่มนี้\n:::')
+    expect(seg).toEqual({
+      kind: 'sort',
+      prompt: 'จัดกลุ่ม',
+      groups: ['เร็ว', 'หน่วงต่ำ'],
+      items: [
+        { text: 'ดูหนัง 4K', group: 0 },
+        { text: 'รถเบรก', group: 1 },
+      ],
+    })
+  })
+  it('order / flip / timeline / bars', () => {
+    expect(parseSegments(':::order\n- ก\n- ข\n:::')).toEqual([{ kind: 'order', prompt: '', items: ['ก', 'ข'] }])
+    expect(parseSegments(':::flip\n- หน้า | หลัง\n:::')).toEqual([{ kind: 'flip', prompt: '', cards: [{ front: 'หน้า', back: 'หลัง' }] }])
+    expect(parseSegments(':::timeline\n- 📞 | 1G | 1980 | โทร\n- ✉️ | 2G | 1990 | SMS\n:::')[0]).toMatchObject({ kind: 'timeline', events: [{ label: '1G', when: '1980' }, { label: '2G' }] })
+    expect(parseSegments(':::bars Mbps log\n- 3G | 2\n- 4G | 1,000 | 1 Gbps\n:::')).toEqual([
+      { kind: 'bars', prompt: '', unit: 'Mbps', log: true, bars: [{ label: '3G', value: 2, text: '' }, { label: '4G', value: 1000, text: '1 Gbps' }] },
+    ])
+  })
+  it('widget บรรทัดเดียว', () => {
+    expect(parseSegments('ก่อน\n:::widget latency-brake\nหลัง')).toEqual([
+      { kind: 'markdown', text: 'ก่อน' },
+      { kind: 'widget', name: 'latency-brake' },
+      { kind: 'markdown', text: 'หลัง' },
+    ])
+  })
+  it('เขียนผิดรูปแบบ แสดงเป็นข้อความธรรมดา', () => {
+    expect(parseSegments(':::sort\nไม่มีกลุ่ม\n- ก => ข\n:::')).toEqual([{ kind: 'markdown', text: 'ไม่มีกลุ่ม\n- ก => ข' }])
+  })
+  it('หัวข้อ ## ในบล็อกกิจกรรมไม่ตัดการ์ด', () => {
+    expect(splitCards('## A\n:::order\n## ไม่ใช่หัวข้อ\n- ก\n- ข\n:::', 'x')).toHaveLength(1)
+  })
+})

@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 // ภาพวิวัฒนาการ 8 ขั้น (SVG ในโค้ด สไตล์เดียวกัน): เจ้าทุยน้อย → … → มนุษย์ฐานข้อมูล
 
 const C = {
@@ -260,7 +262,119 @@ function Stage5() {
   )
 }
 
-const STAGES = [Stage0, Stage1, Stage2, StageNote, Stage3, StageKey, Stage4, Stage5]
+// ---------- วิวัฒนาการย่อยช่วงเกรด 0 (10/20/30/40 คะแนน): ลูกควายค่อย ๆ โตและลุกขึ้น ----------
+// ตัวลูกควายเดินสี่ขา (ใช้ร่วม) — tilt = ยกตัวด้านหน้าขึ้น (หมุนรอบขาหลัง) · step = ก้าวขาหน้า · earsUp = หูผึ่ง
+function Calf({ tilt = 0, step = 0, earsUp = false, children }: { tilt?: number; step?: number; earsUp?: boolean; children?: ReactNode }) {
+  return (
+    <g transform={`rotate(${tilt} 88 100)`}>
+      <path d="M95 70c8 2 10 10 6 16" stroke={C.hideDark} strokeWidth="3" fill="none" strokeLinecap="round" />
+      {[78, 88].map((x) => (
+        <rect key={x} x={x - 4} y="76" width="8" height="24" rx="3" fill={C.hideDark} />
+      ))}
+      <g transform={`rotate(${step} 54 78)`}>
+        <rect x="50" y="76" width="8" height="24" rx="3" fill={C.hideDark} />
+      </g>
+      <g transform={`rotate(${-step * 0.6} 44 78)`}>
+        <rect x="40" y="76" width="8" height="24" rx="3" fill={C.hideDark} />
+      </g>
+      <ellipse cx="68" cy="70" rx="30" ry="18" fill={C.hide} />
+      <ellipse cx="62" cy="64" rx="18" ry="7" fill="#fff" opacity=".12" />
+      <ellipse cx="66" cy="78" rx="18" ry="8" fill={C.belly} opacity=".6" />
+      <path d="M30 46c-8-4-12-14-6-20 0 8 4 12 10 13" fill={C.horn} stroke={C.hornLine} strokeWidth="1.5" />
+      <path d="M44 44c6-6 16-6 14-14-2 7-8 9-14 9" fill={C.horn} stroke={C.hornLine} strokeWidth="1.5" />
+      {earsUp ? (
+        <>
+          <ellipse cx="26" cy="46" rx="4" ry="9" fill={C.hideDark} transform="rotate(-35 26 46)" />
+          <ellipse cx="26" cy="46" rx="2" ry="5.5" fill="#e8b4b0" transform="rotate(-35 26 46)" />
+          <ellipse cx="51" cy="47" rx="4" ry="9" fill={C.hideDark} transform="rotate(35 51 47)" />
+          <ellipse cx="51" cy="47" rx="2" ry="5.5" fill="#e8b4b0" transform="rotate(35 51 47)" />
+        </>
+      ) : (
+        <ellipse cx="50" cy="52" rx="7" ry="3.5" fill={C.hideDark} transform="rotate(25 50 52)" />
+      )}
+      <ellipse cx="38" cy="58" rx="16" ry="14" fill={C.hide} />
+      <ellipse cx="34" cy="53" rx="8" ry="5" fill="#fff" opacity=".14" />
+      <ellipse cx="28" cy="64" rx="9" ry="7" fill={C.nose} />
+      <circle cx="25" cy="64" r="1.5" fill={C.hideDark} />
+      <circle cx="40" cy="54" r="2.8" fill={C.eye} />
+      <circle cx="41" cy="53" r="1.1" fill="#fff" />
+      {children}
+    </g>
+  )
+}
+
+function Sparkle({ x, y, s = 1, fill = C.gold }: { x: number; y: number; s?: number; fill?: string }) {
+  return <path transform={`translate(${x} ${y}) scale(${s})`} d="M0-6C1-1 1-1 6 0 1 1 1 1 0 6-1 1-1 1-6 0-1-1-1-1 0-6z" fill={fill} />
+}
+
+function StageWalk() {
+  // ทุยน้อยหัดเดิน: ก้าวขาหน้า ฝุ่นฟุ้งด้านหลัง
+  return (
+    <>
+      <ellipse cx="62" cy="102" rx="40" ry="5" fill="#0f1f3d" opacity=".1" />
+      <g fill="#c7d0dd">
+        <circle cx="104" cy="98" r="4" />
+        <circle cx="111" cy="94" r="3" />
+        <circle cx="113" cy="100" r="2.4" />
+      </g>
+      <path d="M100 80h10M103 86h8" stroke="#a9b5c8" strokeWidth="2" strokeLinecap="round" />
+      <Calf step={-22} />
+    </>
+  )
+}
+
+function StageEars() {
+  // ทุยน้อยหูผึ่ง: หูตั้งฟัง มีโน้ตเสียงลอยมา
+  return (
+    <>
+      <ellipse cx="62" cy="102" rx="40" ry="5" fill="#0f1f3d" opacity=".1" />
+      <Calf earsUp step={-8} />
+      <g fill={C.sky}>
+        <path d="M10 26v-12l9-3v12" stroke={C.sky} strokeWidth="1.8" fill="none" />
+        <circle cx="8" cy="27" r="3" />
+        <circle cx="17" cy="24" r="3" />
+      </g>
+      <path d="M8 40q-4 6 0 12M3 37q-6 9 0 18" stroke={C.sky} strokeWidth="1.8" fill="none" strokeLinecap="round" opacity=".7" />
+    </>
+  )
+}
+
+function StagePencil() {
+  // ทุยน้อยคาบดินสอ: คาบดินสอ ข้าง ๆ มีกระดาษจดข้อมูล
+  return (
+    <>
+      <ellipse cx="62" cy="102" rx="40" ry="5" fill="#0f1f3d" opacity=".1" />
+      <g transform="rotate(-8 104 92)">
+        <rect x="94" y="80" width="20" height="22" rx="2" fill="#fff" stroke="#c3cfe1" />
+        <path d="M97 86h14M97 91h14M97 96h10" stroke={C.book} strokeWidth="1.2" opacity=".7" />
+      </g>
+      <Calf earsUp step={-6}>
+        <g transform="rotate(-12 22 68)">
+          <rect x="4" y="66" width="26" height="5" rx="1" fill={C.gold} stroke={C.goldDark} strokeWidth=".8" />
+          <path d="M4 66l-5 2.5 5 2.5z" fill="#f3e6c8" />
+          <rect x="27" y="66" width="4" height="5" rx="1" fill="#f39a8f" />
+        </g>
+      </Calf>
+    </>
+  )
+}
+
+function StageRise() {
+  // ทุยน้อยใกล้ผ่าน: ยกตัวด้านหน้าขึ้น เกือบนั่ง/ยืนได้ มีประกายรอบตัว
+  return (
+    <>
+      <ellipse cx="66" cy="102" rx="34" ry="5" fill="#0f1f3d" opacity=".1" />
+      <Calf earsUp tilt={18} step={-30} />
+      <Sparkle x={18} y={24} s={1.2} />
+      <Sparkle x={36} y={10} s={0.8} />
+      <Sparkle x={102} y={34} s={0.9} fill={C.sky} />
+      <path d="M96 18v-10M91 13l5-5 5 5" stroke={C.gold} strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  )
+}
+
+// ลำดับภาพ = ลำดับขั้นทั้งหมด (EVO_STAGES): ขั้นแรก + ขั้นย่อย 4 ภาพ + ขั้นหลัก 7 ภาพ
+const STAGES = [Stage0, StageWalk, StageEars, StagePencil, StageRise, Stage1, Stage2, StageNote, Stage3, StageKey, Stage4, Stage5]
 
 export function EvolutionArt({ stage, className = 'size-24', title }: { stage: number; className?: string; title?: string }) {
   const Art = STAGES[Math.max(0, Math.min(STAGES.length - 1, stage))] ?? Stage0

@@ -13,6 +13,7 @@ import type {
 } from '@/lib/database.types'
 import { supabase } from '@/lib/supabase'
 import { buildGradebook, fetchSettings, policyFromSettings } from '@/features/assignments/gradebookData'
+import { fetchGameScores } from '@/features/assignments/gameScores'
 import { M3, roomsOf, studentsIn } from './courseScope'
 
 // ความคืบหน้านักเรียน ม.3 (หน้าครู /admin/progress) — แบบเดียวกับหน้า "ความคืบหน้านักเรียน" ของ DB Quest
@@ -163,7 +164,7 @@ export interface SessionProgress {
 
 export async function fetchStudentProgress(id: string) {
   const student = must(await supabase.from('students').select('*').eq('id', id).single()) as StudentRow
-  const [room, sessions, unlocks, progress, xp, plays, games, myBadges, badges, attendance, assignments, subs, settings] = await Promise.all([
+  const [room, sessions, unlocks, progress, xp, plays, games, myBadges, badges, attendance, assignments, subs, settings, gameScores] = await Promise.all([
     student.classroom_id ? supabase.from('classrooms').select('*').eq('id', student.classroom_id).maybeSingle().then(must) : null,
     supabase.from('class_sessions').select('session_no, title, steps').order('session_no').then(must),
     student.classroom_id
@@ -179,12 +180,13 @@ export async function fetchStudentProgress(id: string) {
     supabase.from('assignments').select('*').then(must),
     supabase.from('submissions').select('*').eq('student_id', id).then(must),
     fetchSettings(),
+    fetchGameScores(id),
   ])
   const open = new Set((unlocks ?? []).filter((u) => u.is_unlocked).map((u) => u.session_no))
   const done = new Map((progress ?? []).map((p) => [p.session_no, p.completed_steps.length]))
   const badgeInfo = new Map((badges as BadgeRow[]).map((b) => [b.id, b]))
   const totalXp = (xp as XpEventRow[]).reduce((a, e) => a + e.xp, 0)
-  const [grade] = buildGradebook([student], assignments ?? [], subs ?? [], policyFromSettings(settings), new Map([[student.id, totalXp]]))
+  const [grade] = buildGradebook([student], assignments ?? [], subs ?? [], policyFromSettings(settings), new Map([[student.id, totalXp]]), gameScores)
   return {
     student,
     room: room as ClassroomRow | null,

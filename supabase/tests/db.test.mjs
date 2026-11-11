@@ -383,6 +383,15 @@ await db.exec(`insert into public.submissions (assignment_id, student_id, status
   select a.id, '${sidG}', 'graded', a.max_score, now() from public.assignments a where a.session_no = 2 and a.max_score > 0
   on conflict (assignment_id, student_id) do update set status = 'graded', score = excluded.score`)
 r = await as(G, `select public.my_medals() as r`)
+// 026: เหรียญ ม.3 เฉลี่ยงานกับเกมของคาบ — งานเต็มแต่ยังไม่เล่นเกม = 50%
+check('026: full work + unplayed game = 50% bronze', r[0].r.find((m) => m.session_no === 2)?.pct == 50 && r[0].r.find((m) => m.session_no === 2)?.tier === 'bronze')
+await db.exec(`insert into public.game_plays (game_id, student_id, score, duration_sec)
+  select g.id, '${sidG}', g.max_score, 60 from public.class_sessions cs join public.games g on g.slug = cs.game_slug where cs.session_no = 2`)
+r = await db.query(`select score_weights w from public.app_settings where id = 1`)
+check('026: weights include game 10 and still sum 100', r.rows[0].w.game == 10 && Object.values(r.rows[0].w).reduce((x, y) => x + Number(y), 0) == 100)
+r = await as(G, `select * from public.m3_game_best()`)
+check('026: m3_game_best returns own best only', r.length >= 1 && r.every((x) => x.student_id === sidG) && r.some((x) => x.session_no === 2))
+r = await as(G, `select public.my_medals() as r`)
 check('023: graded full marks = gold medal', r[0].r.find((m) => m.session_no === 2)?.tier === 'gold' && r[0].r.find((m) => m.session_no === 2)?.pct == 100)
 r = await as(G, `select public.m3_session_medals('${sidG}') as r`).catch(() => 'denied')
 check('023: internal medal fn not callable by client', r === 'denied')

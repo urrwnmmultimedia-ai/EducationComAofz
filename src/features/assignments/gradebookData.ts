@@ -14,6 +14,7 @@ import {
   type StudentScore,
 } from '@/lib/scoring'
 import { formatGrade } from '@/lib/grade'
+import { EMPTY_GAME_SCORES, gameItems, withGameEntries, type GameScores } from './gameScores'
 
 export function policyFromSettings(s: AppSettingsRow): ScoringPolicy {
   return {
@@ -65,11 +66,12 @@ export function buildGradebook(
   subs: SubmissionRow[],
   policy: ScoringPolicy,
   xpByStudent: Map<string, number> = new Map(),
+  games: GameScores = EMPTY_GAME_SCORES,
 ): GradebookRow[] {
-  const items = toScoredItems(assignments)
+  const items = [...toScoredItems(assignments), ...gameItems(games)]
   return students.map((student) => ({
     student,
-    score: computeStudentScore(items, entriesFor(student.id, subs), policy, xpByStudent.get(student.id) ?? 0),
+    score: computeStudentScore(items, withGameEntries(student.id, entriesFor(student.id, subs), games), policy, xpByStudent.get(student.id) ?? 0),
   }))
 }
 

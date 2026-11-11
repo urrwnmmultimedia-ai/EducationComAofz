@@ -6,6 +6,10 @@ import { GRADE_BANDS, scoreEvolutionOf, type ScoreStage } from './scoreEvolution
 
 type Art = ComponentType<{ stage: number; className?: string; title?: string }>
 
+// ขนาดสูงสุดของตัวละครขั้นหลัก 0–7 บนเส้นทาง (rem)
+const MAIN_REM_COMPACT = [1.5, 1.5, 1.75, 1.75, 2, 2, 2.25, 2.25]
+const MAIN_REM = [2, 2.25, 2.25, 2.5, 2.75, 3, 3.25, 3.5]
+
 const fmt = (n: number) => n.toLocaleString('th-TH', { maximumFractionDigits: 2 })
 
 // ข้อมูลประกอบในการ์ด: เหรียญรายคาบ งานค้าง ความคืบหน้าบทเรียน และงานที่ต้องส่งถัดไป
@@ -19,7 +23,7 @@ export interface EvoInfo {
 function Tile({ icon, label, value, tone }: { icon: string; label: string; value: string; tone: string }) {
   return (
     <div className={`flex min-w-0 flex-col items-center rounded-2xl px-1 py-1.5 text-center shadow-[inset_0_1px_0_rgb(255_255_255/0.8),0_4px_10px_-8px_rgb(20_45_100/0.5)] ring-1 ${tone} dark:bg-dq-800 dark:ring-dq-700`}>
-      <span className="whitespace-nowrap font-display text-base leading-tight tabular-nums text-ink dark:text-white">
+      <span className="whitespace-nowrap font-display text-sm leading-tight tabular-nums text-ink dark:text-white">
         <span aria-hidden>{icon}</span> {value}
       </span>
       <span className="w-full truncate text-[0.65rem] font-semibold text-ink-2 dark:text-dq-300">{label}</span>
@@ -68,17 +72,17 @@ export function ScoreEvolutionCard({
       <div className={`relative flex items-center ${compact ? 'gap-3' : 'flex-wrap gap-4 sm:gap-6'}`}>
         {/* ตัวละครลอยอยู่บนแท่นทรงกระบอก มีรัศมีทองหมุนช้า ๆ ด้านหลัง */}
         <div className={`relative shrink-0 ${compact ? 'pb-1' : 'pb-3'}`}>
-          <span aria-hidden className={`tq-evo-aura pointer-events-none absolute left-1/2 -translate-x-1/2 ${compact ? '-top-1 size-[4.5rem]' : '-top-2 size-40 sm:size-44'}`} />
-          <div className={`tq-evo-orb relative grid place-items-center rounded-full ${compact ? 'size-16' : 'size-32 sm:size-36'}`}>
+          <span aria-hidden className={`tq-evo-aura pointer-events-none absolute left-1/2 -translate-x-1/2 ${compact ? '-top-1 size-[4.5rem]' : '-top-2 size-32 sm:size-44'}`} />
+          <div className={`tq-evo-orb relative grid place-items-center rounded-full ${compact ? 'size-16' : 'size-24 sm:size-36'}`}>
             <span className="tq-evo-float grid place-items-center">
               <ArtC
                 stage={e.index}
-                className={`drop-shadow-[0_8px_6px_rgb(20_45_100/0.28)] ${compact ? 'size-14' : 'size-28 sm:size-32'}`}
+                className={`drop-shadow-[0_8px_6px_rgb(20_45_100/0.28)] ${compact ? 'size-14' : 'size-20 sm:size-32'}`}
                 title={e.stage.name}
               />
             </span>
           </div>
-          <span aria-hidden className={`tq-evo-podium absolute left-1/2 -translate-x-1/2 ${compact ? 'bottom-0 h-2.5 w-14' : 'bottom-0 h-4 w-28 sm:w-32'}`} />
+          <span aria-hidden className={`tq-evo-podium absolute left-1/2 -translate-x-1/2 ${compact ? 'bottom-0 h-2.5 w-14' : 'bottom-0 h-3 w-20 sm:h-4 sm:w-32'}`} />
           <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-b from-gold-300 to-gold-400 px-2 py-px text-[0.65rem] font-bold text-ink dark:text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.6),0_4px_10px_-4px_rgb(180_130_0/0.7)] ring-1 ring-gold-500/50">
             ขั้น {e.main + 1}/{mains}
             {e.stage.minor > 0 && ` · ย่อย ${e.stage.minor}`}
@@ -86,29 +90,31 @@ export function ScoreEvolutionCard({
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 whitespace-nowrap text-xs text-ink-2 dark:text-dq-300">
-            วิวัฒนาการของฉัน
-            <span className="truncate rounded-full bg-gold-300/50 px-2 py-px font-semibold text-ink dark:text-white">
+          <p className={`flex items-center gap-x-1.5 gap-y-0.5 text-xs text-ink-2 dark:text-dq-300 ${compact ? 'flex-wrap lg:flex-nowrap' : 'flex-wrap'}`}>
+            <span className="whitespace-nowrap">วิวัฒนาการของฉัน</span>
+            <span className="whitespace-nowrap rounded-full lg:truncate bg-gold-300/50 px-2 py-px font-semibold text-ink dark:text-white">
               เกรด {grade}
               {gradeLabel && ` · ${gradeLabel}`}
             </span>
           </p>
-          <p className={`flex items-baseline gap-2 font-bold leading-tight text-ink dark:text-white ${compact ? 'text-lg' : 'text-2xl sm:text-[1.7rem]'}`}>
-            <span className="truncate">{e.stage.name}</span>
+          <p className={`flex items-baseline gap-2 font-bold leading-tight text-ink dark:text-white ${compact ? 'flex-wrap text-lg lg:flex-nowrap' : 'flex-wrap text-xl sm:text-[1.7rem]'}`}>
+            <span className={`min-w-0 break-words ${compact ? 'lg:truncate' : ''}`}>{e.stage.name}</span>
             <span className="shrink-0 rounded-full bg-action-soft px-2 py-0.5 text-xs font-semibold text-action-strong" title="คะแนนรวมจาก 100 คะแนน (เท่ากับในสมุดคะแนน)">
               <span className="font-display tabular-nums">{fmt(score)}</span>/100
             </span>
           </p>
-          <p className="mt-0.5 truncate text-sm text-ink-2 dark:text-dq-300">{e.stage.tagline}</p>
+          <p className={`mt-0.5 text-sm text-ink-2 dark:text-dq-300 ${compact ? 'lg:truncate' : ''}`}>{e.stage.tagline}</p>
         </div>
       </div>
 
       <div className="relative">
         {e.next ? (
           <>
-            <p className="mb-1 flex items-baseline justify-between gap-2 whitespace-nowrap text-sm">
-              <span className="min-w-0 truncate font-semibold text-ink dark:text-white">
-                อีก {fmt(e.toNext)}% → {e.next.name} (เกรด {e.next.grade})
+            <p className={`mb-1 flex items-baseline justify-between gap-2 text-sm ${compact ? 'lg:whitespace-nowrap' : ''}`}>
+              <span className={`min-w-0 font-semibold text-ink dark:text-white ${compact ? 'lg:truncate' : ''}`}>
+                อีก {fmt(e.toNext)}% → {e.next.name}
+                {/* ขั้นย่อยยังเป็นเกรดเดิม ไม่ต้องบอกเกรดซ้ำ */}
+                {e.next.grade !== e.stage.grade && ` (เกรด ${e.next.grade})`}
               </span>
               <span className="shrink-0 tabular-nums text-ink-2 dark:text-dq-300">{e.next.minScore}%</span>
             </p>
@@ -159,38 +165,35 @@ export function ScoreEvolutionCard({
 
       {/* เส้นทางวิวัฒนาการ: ตัวละครสูงขึ้นทีละขั้น ขั้นที่ยังไม่ถึงเป็นเงาดำ */}
       <ol
-        className={`relative flex items-end justify-between gap-1 border-t border-line dark:border-dq-800 ${compact ? 'pt-2' : 'mt-auto pt-4'}`}
+        className={`relative flex items-end justify-between gap-0.5 border-t border-line dark:border-dq-800 ${compact ? 'pt-2' : 'mt-auto pt-4'}`}
         aria-label={`เส้นทางวิวัฒนาการ ${pathLabel}`}
       >
         <span className="pointer-events-none absolute inset-x-6 bottom-6 h-1 rounded-full bg-gradient-to-r from-amber-700/30 via-action/30 to-gold-400/60" aria-hidden />
         {stages.map((s, i) => {
           const reached = i <= e.index
-          if (s.minor > 0) {
-            return (
-              <li key={s.name} className="relative flex flex-col items-center gap-0.5 self-end" title={`${s.name} · ทำได้ ${s.minScore}% ขึ้นไป`}>
-                <span className={`tq-evo-token grid place-items-center ${i === e.index ? 'tq-evo-token--now' : ''} ${compact ? 'size-5' : 'size-7'}`}>
-                  <ArtC stage={s.art} className={`${compact ? 'size-4' : 'size-6'} ${reached ? '' : 'opacity-25 brightness-0 dark:opacity-30 dark:invert'}`} />
-                </span>
-                <span className={`tabular-nums ${compact ? 'invisible text-[0.65rem]' : 'text-[0.6rem]'} ${i === e.index ? 'font-semibold text-gold-600' : 'text-slate-400'}`}>{s.minScore}</span>
-                <span className="sr-only">
-                  {s.name}
-                  {i === e.index ? ' (ขั้นปัจจุบัน)' : reached ? ' (ผ่านแล้ว)' : ' (ยังไม่ถึง)'}
-                </span>
-              </li>
-            )
-          }
-          const sizes = compact
-            ? ['size-6', 'size-6', 'size-7', 'size-7', 'size-8', 'size-8', 'size-9', 'size-9']
-            : ['size-8', 'size-9', 'size-9', 'size-10', 'size-11', 'size-12', 'size-[3.25rem]', 'size-14']
+          const now = i === e.index
+          // ทุกขั้นหดตามความกว้างการ์ด (min-w-0 + basis 0) ไม่ล้นขอบ · ขนาดสูงสุดโตขึ้นตามขั้น
+          const max = s.minor > 0 ? (compact ? 1.25 : 1.75) : (compact ? MAIN_REM_COMPACT : MAIN_REM)[s.main] ?? 2
           return (
-            <li key={s.name} className="relative flex flex-1 flex-col items-center gap-0.5" title={`${s.name} · ทำได้ ${s.minScore}% ขึ้นไป · เกรด ${s.grade}`}>
-              <span className={`tq-evo-token p-0.5 ${i === e.index ? 'tq-evo-token--now' : ''}`}>
-                <ArtC stage={s.art} className={`${sizes[s.main] ?? 'size-9'} ${reached ? '' : 'opacity-25 brightness-0 dark:opacity-30 dark:invert'}`} />
+            <li
+              key={s.name}
+              className={`relative flex min-w-0 basis-0 flex-col items-center gap-0.5 ${s.minor > 0 ? 'grow-[0.7] self-end' : 'grow'}`}
+              title={`${s.name} · ทำได้ ${s.minScore}% ขึ้นไป · เกรด ${s.grade}`}
+            >
+              <span
+                className={`tq-evo-token aspect-square w-full ${s.minor > 0 ? '' : 'p-0.5'} ${now ? 'tq-evo-token--now' : ''}`}
+                style={{ maxWidth: `${max}rem` }}
+              >
+                <ArtC stage={s.art} className={`size-full ${reached ? '' : 'opacity-25 brightness-0 dark:opacity-30 dark:invert'}`} />
               </span>
-              <span className={`text-[0.65rem] font-semibold tabular-nums ${i === e.index ? 'text-gold-600' : reached ? 'text-ink-2 dark:text-dq-300' : 'text-slate-400'}`}>{s.minScore}</span>
+              <span
+                className={`text-[0.6rem] tabular-nums leading-none ${s.minor > 0 && compact ? 'invisible' : ''} ${s.minor > 0 ? '' : 'font-semibold'} ${now ? 'font-semibold text-gold-600' : reached ? 'text-ink-2 dark:text-dq-300' : 'text-slate-400'}`}
+              >
+                {s.minScore}
+              </span>
               <span className="sr-only">
                 {s.name}
-                {i === e.index ? ' (ขั้นปัจจุบัน)' : reached ? ' (ผ่านแล้ว)' : ' (ยังไม่ถึง)'}
+                {now ? ' (ขั้นปัจจุบัน)' : reached ? ' (ผ่านแล้ว)' : ' (ยังไม่ถึง)'}
               </span>
             </li>
           )

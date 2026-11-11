@@ -4,8 +4,13 @@ import { computeGrade, DEFAULT_GRADE_SCALE, type GradeStep } from './grade'
 export const CATEGORIES = ['work', 'project', 'unit_test', 'midterm', 'final'] as const
 export type Category = (typeof CATEGORIES)[number]
 
-export const CATEGORY_LABELS: Record<Category | 'affective', string> = {
+// หมวดที่คิดคะแนน = หมวดของงาน + เกมประจำคาบ (คะแนนเกมดีที่สุดของแต่ละคาบ คาบละส่วนเท่ากัน)
+export const SCORE_CATEGORIES = ['work', 'game', 'project', 'unit_test', 'midterm', 'final'] as const
+export type ScoreCategory = (typeof SCORE_CATEGORIES)[number]
+
+export const CATEGORY_LABELS: Record<ScoreCategory | 'affective', string> = {
   work: 'งาน/ใบกิจกรรม',
+  game: 'เกมประจำคาบ',
   project: 'โครงงาน',
   unit_test: 'ทดสอบท้ายหน่วย',
   midterm: 'สอบกลางภาค',
@@ -15,6 +20,8 @@ export const CATEGORY_LABELS: Record<Category | 'affective', string> = {
 
 export const scoreWeightsSchema = z.object({
   work: z.number().min(0).max(100),
+  // ตั้งค่าเดิมที่ยังไม่มีเกม = 0 (รัน supabase/updates/m3_game_score.sql เพื่อแบ่งน้ำหนักให้เกม)
+  game: z.number().min(0).max(100).default(0),
   project: z.number().min(0).max(100),
   unit_test: z.number().min(0).max(100),
   midterm: z.number().min(0).max(100),
@@ -23,7 +30,7 @@ export const scoreWeightsSchema = z.object({
 })
 export type ScoreWeights = z.infer<typeof scoreWeightsSchema>
 
-export const DEFAULT_WEIGHTS: ScoreWeights = { work: 30, project: 15, unit_test: 15, midterm: 20, final: 20, affective: 0 }
+export const DEFAULT_WEIGHTS: ScoreWeights = { work: 20, game: 10, project: 15, unit_test: 15, midterm: 20, final: 20, affective: 0 }
 
 export const gradeScaleSchema = z.array(z.object({ min: z.number().min(0).max(100), grade: z.number().min(0).max(4) })).min(1)
 
@@ -38,7 +45,7 @@ export function parseGradeScale(raw: unknown): GradeStep[] {
 }
 
 export function weightsTotal(w: ScoreWeights): number {
-  return CATEGORIES.reduce((s, c) => s + w[c], 0) + w.affective
+  return SCORE_CATEGORIES.reduce((s, c) => s + w[c], 0) + w.affective
 }
 
 export interface ScoringPolicy {
@@ -51,7 +58,7 @@ export interface ScoringPolicy {
 
 export interface ScoredItem {
   id: string
-  category: Category
+  category: ScoreCategory
   maxScore: number
   dueAt: string | null
   sessionNo?: number | null // คาบของงาน — งานในคาบเดียวกันรวมเป็น 1 ช่อง (ไม่มีคาบ = ช่องของตัวเอง)
@@ -78,7 +85,7 @@ export function effectiveScore(item: ScoredItem, entry: ScoreEntry | undefined, 
 }
 
 export interface CategoryResult {
-  category: Category | 'affective'
+  category: ScoreCategory | 'affective'
   weight: number
   raw: number // คะแนนดิบรวม (หลังหักส่งช้า)
   max: number // คะแนนเต็มรวมของทุกรายการ
@@ -129,7 +136,9 @@ export function computeStudentScore(
   policy: ScoringPolicy,
   totalXp = 0,
 ): StudentScore {
-  const categories: CategoryResult[] = CATEGORIES.map((category) => {
+  // เกมแสดงเมื่อครูให้น้ำหนักแล้วเท่านั้น (ตั้งค่าเก่าที่ยังไม่มีเกม = ไม่มีช่องเกม)
+  const cats = SCORE_CATEGORIES.filter((c) => c !== 'game' || policy.weights.game > 0)
+  const categories: CategoryResult[] = cats.map((category) => {
     const inCat = items.filter((i) => i.category === category)
     let raw = 0
     let max = 0
@@ -206,7 +215,7 @@ export function computeSoFarScore(
 ): number {
   let earned = 0
   let weightSeen = 0
-  for (const category of CATEGORIES) {
+  for (const category of SCORE_CATEGORIES) {
     const weight = policy.weights[category]
     if (weight <= 0) continue
     const slots = new Map<string, { raw: number; max: number }>()

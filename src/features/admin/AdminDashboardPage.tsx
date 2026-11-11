@@ -37,7 +37,7 @@ export function AdminDashboardPage() {
 
   const xp = new Map<string, number>()
   for (const e of source.xp) xp.set(e.student_id, (xp.get(e.student_id) ?? 0) + e.xp)
-  const rows = buildGradebook(source.students, source.assignments, source.submissions, policyFromSettings(settings), xp)
+  const rows = buildGradebook(source.students, source.assignments, source.submissions, policyFromSettings(settings), xp, source.games)
   const averages = averageByClassroom(rows, new Map(source.classrooms.map((c) => [c.id, c.name])))
   const pendingWork = source.submissions.filter((s) => s.status === 'submitted').length
   const pendingShort = attempts.filter((a) => a.needs_review).length

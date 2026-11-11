@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { AssignmentRow, ClassSessionRow, ClassroomRow, StudentRow, SubmissionRow } from '@/lib/database.types'
+import { fetchGameScores, type GameScores } from '@/features/assignments/gameScores'
 import { M3, roomsOf, studentsIn } from './courseScope'
 
 export async function fetchAssignmentsAdmin(): Promise<{
@@ -83,15 +84,17 @@ export interface GradebookSource {
   assignments: AssignmentRow[]
   submissions: SubmissionRow[]
   xp: { student_id: string; xp: number }[]
+  games: GameScores
 }
 
 export async function fetchGradebookSource(): Promise<GradebookSource> {
-  const [c, st, a, sub, xp] = await Promise.all([
+  const [c, st, a, sub, xp, games] = await Promise.all([
     supabase.from('classrooms').select('*').order('sort_order').order('name'),
     supabase.from('students').select('*').eq('is_active', true).order('number'),
     supabase.from('assignments').select('*'),
     supabase.from('submissions').select('*'),
     supabase.from('xp_events').select('student_id, xp'),
+    fetchGameScores(),
   ])
   for (const r of [c, st, a, sub, xp]) if (r.error) throw r.error
   const rooms = roomsOf(c.data ?? [], M3)
@@ -101,5 +104,6 @@ export async function fetchGradebookSource(): Promise<GradebookSource> {
     assignments: a.data ?? [],
     submissions: sub.data ?? [],
     xp: xp.data ?? [],
+    games,
   }
 }

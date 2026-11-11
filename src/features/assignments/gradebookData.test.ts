@@ -49,7 +49,7 @@ const sub = (student_id: string, assignment_id: string, score: number | null, st
   updated_at: '',
 })
 
-const policy = { weights: DEFAULT_WEIGHTS, gradeScale: [...DEFAULT_GRADE_SCALE], latePenaltyEnabled: false, latePenaltyPct: 0, affectiveFullXp: 1000 }
+const policy = { weights: { ...DEFAULT_WEIGHTS, work: 30, game: 0 }, gradeScale: [...DEFAULT_GRADE_SCALE], latePenaltyEnabled: false, latePenaltyPct: 0, affectiveFullXp: 1000 }
 
 describe('gradebook', () => {
   const assignments = sortAssignments([assignment('final', 'final', 20, 20), assignment('w', 'work', 10, 2), assignment('mid', 'midterm', 20, 10)])
@@ -72,5 +72,13 @@ describe('gradebook', () => {
     expect(pp5[2]).toEqual([1, '10001', 'เด็กชายชื่อ1 สกุล', 50, 10, 60, '2'])
     expect(detail[1]?.slice(3, 6)).toEqual(['คาบ 2 w (10)', 'คาบ 10 mid (20)', 'คาบ 20 final (20)'])
     expect(detail[2]?.slice(3, 6)).toEqual([10, 20, 10])
+  })
+
+  it('รวมเกมประจำคาบในคะแนนรวม (งาน 20 + เกม 10)', () => {
+    const p2 = { ...policy, weights: { ...DEFAULT_WEIGHTS } }
+    const games = { sessions: [{ sessionNo: 2, maxScore: 100 }], best: [{ studentId: 's1', sessionNo: 2, best: 50 }, { studentId: 's2', sessionNo: 2, best: 100 }] }
+    const rows = buildGradebook([student('s1', 1)], assignments, [sub('s1', 'w', 10, 'graded')], p2, new Map(), games)
+    // งานเต็ม = 20 · เกมได้ครึ่ง = 5 (คะแนนของ s2 ไม่ปนมา)
+    expect(rows[0]?.score.total).toBe(25)
   })
 })

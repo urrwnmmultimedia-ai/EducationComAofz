@@ -129,7 +129,7 @@ function GeneralForm({ initial, onSave }: { initial: AppSettingsRow; onSave: (v:
   )
 }
 
-const WEIGHT_KEYS: (keyof ScoreWeights)[] = ['work', 'project', 'unit_test', 'midterm', 'final', 'affective']
+const WEIGHT_KEYS: (keyof ScoreWeights)[] = ['work', 'game', 'project', 'unit_test', 'midterm', 'final', 'affective']
 
 function ScoringForm({ initial, onSave }: { initial: AppSettingsRow; onSave: (v: ScoringSettings) => Promise<void> }) {
   const [weights, setWeights] = useState<ScoreWeights>(parseWeights(initial.score_weights))

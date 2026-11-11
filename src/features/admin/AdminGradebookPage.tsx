@@ -42,7 +42,7 @@ function Gradebook({ source, settings }: { source: GradebookSource; settings: Ap
     for (const e of source.xp) m.set(e.student_id, (m.get(e.student_id) ?? 0) + e.xp)
     return m
   }, [source.xp])
-  const rows = buildGradebook(students, assignments, subs, policy, xpByStudent)
+  const rows = buildGradebook(students, assignments, subs, policy, xpByStudent, source.games)
   const subMap = new Map(subs.map((s) => [`${s.student_id}:${s.assignment_id}`, s]))
   const room = source.classrooms.find((c) => c.id === roomId)
 

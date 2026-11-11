@@ -14,8 +14,11 @@ import {
 } from './scoring'
 import { DEFAULT_GRADE_SCALE } from './grade'
 
+// ตั้งค่าแบบเดิม (ยังไม่มีเกม) — งาน 30
+const NO_GAME = { ...DEFAULT_WEIGHTS, work: 30, game: 0 }
+
 const policy: ScoringPolicy = {
-  weights: DEFAULT_WEIGHTS,
+  weights: NO_GAME,
   gradeScale: [...DEFAULT_GRADE_SCALE],
   latePenaltyEnabled: true,
   latePenaltyPct: 20,
@@ -113,7 +116,7 @@ describe('computeStudentScore', () => {
   })
 
   it('จิตพิสัยจาก XP', () => {
-    const p = { ...policy, weights: { ...DEFAULT_WEIGHTS, work: 25, affective: 5 } }
+    const p = { ...policy, weights: { ...NO_GAME, work: 25, affective: 5 } }
     const s = computeStudentScore(items, new Map(), p, 500)
     expect(s.categories.find((c) => c.category === 'affective')?.scaled).toBe(2.5)
     expect(s.total).toBe(2.5)
@@ -161,5 +164,33 @@ describe('weights', () => {
   })
   it('affective ไม่ระบุ = 0', () => {
     expect(parseWeights({ work: 30, project: 15, unit_test: 15, midterm: 20, final: 20 }).affective).toBe(0)
+  })
+})
+
+describe('หมวดเกมประจำคาบ (ม.3)', () => {
+  const withGame: ScoringPolicy = { ...policy, latePenaltyEnabled: false, weights: { ...DEFAULT_WEIGHTS } }
+  const game = (n: number, max = 100): ScoredItem => ({ id: `game:s${n}`, category: 'game', maxScore: max, dueAt: null, sessionNo: n })
+
+  it('ค่าเริ่มต้น: งาน 20 + เกม 10 รวม 100', () => {
+    expect(DEFAULT_WEIGHTS.game).toBe(10)
+    expect(weightsTotal(DEFAULT_WEIGHTS)).toBe(100)
+  })
+
+  it('เกมแต่ละคาบได้ส่วนเท่ากัน ยังไม่เล่น = 0', () => {
+    // 2 คาบมีเกม: คาบ 1 ได้ 80/100 · คาบ 2 ยังไม่เล่น → (0.8 + 0) / 2 × 10 = 4
+    const r = computeStudentScore([game(1), game(2)], new Map([['game:s1', { score: 80, submittedAt: null }]]), withGame)
+    expect(r.categories.find((c) => c.category === 'game')?.scaled).toBe(4)
+    expect(r.total).toBe(4)
+  })
+
+  it('คะแนนเกมเกินเต็มถูกตัดที่เต็ม', () => {
+    const r = computeStudentScore([game(1, 50)], new Map([['game:s1', { score: 70, submittedAt: null }]]), withGame)
+    expect(r.categories.find((c) => c.category === 'game')?.scaled).toBe(10)
+  })
+
+  it('ตั้งค่าเก่าที่ไม่มีเกม: ไม่มีช่องเกมและไม่ดึงคะแนน', () => {
+    expect(parseWeights({ work: 30, project: 15, unit_test: 15, midterm: 20, final: 20 }).game).toBe(0)
+    const r = computeStudentScore([game(1)], new Map(), { ...withGame, weights: NO_GAME })
+    expect(r.categories.some((c) => c.category === 'game')).toBe(false)
   })
 })

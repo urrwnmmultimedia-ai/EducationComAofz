@@ -331,6 +331,7 @@ export type Database = {
       my_games: { Args: Record<string, never>; Returns: MyGameItem[] }
       leaderboard: { Args: { p_scope?: string; p_classroom_id?: string | null }; Returns: LeaderboardRow[] }
       my_medals: { Args: Record<string, never>; Returns: Json }
+      m3_game_best: { Args: Record<string, never>; Returns: { student_id: string; session_no: number; best: number }[] }
       register_login: { Args: Record<string, never>; Returns: number }
       set_my_avatar: { Args: { p_avatar: string }; Returns: undefined }
       my_session_list: { Args: Record<string, never>; Returns: SessionListItem[] }
